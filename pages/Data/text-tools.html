@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Text Tools</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Uncial+Antiqua&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/shared/base.css">
+  <link rel="stylesheet" href="/shared/tools.css">
+</head>
+<body>
+  <aside id="site-nav" aria-label="Main navigation"></aside>
+
+  <main class="page wide">
+    <h1 class="tool-title">Text Tools</h1>
+    <p class="tool-intro">Bulk edit, clean up and compare text. Everything runs in your browser; nothing is uploaded.</p>
+
+    <div class="tabs" role="tablist" aria-label="Text tools">
+      <button class="tab" role="tab" data-tab="replace" aria-selected="true">Find &amp; Replace</button>
+      <button class="tab" role="tab" data-tab="delete" aria-selected="false">Delete</button>
+      <button class="tab" role="tab" data-tab="case" aria-selected="false">Case</button>
+      <button class="tab" role="tab" data-tab="lines" aria-selected="false">Lines</button>
+      <button class="tab" role="tab" data-tab="cleanup" aria-selected="false">Clean up</button>
+      <button class="tab" role="tab" data-tab="extract" aria-selected="false">Extract</button>
+      <button class="tab" role="tab" data-tab="encode" aria-selected="false">Encode</button>
+      <button class="tab" role="tab" data-tab="compare" aria-selected="false">Compare</button>
+    </div>
+
+    <!-- Find & Replace -->
+    <section class="panel" data-panel="replace" role="tabpanel">
+      <div class="fields">
+        <label class="field">Find <input type="text" id="find" autocomplete="off" spellcheck="false"></label>
+        <label class="field">Replace with <input type="text" id="replace" autocomplete="off" spellcheck="false"></label>
+      </div>
+      <div class="options">
+        <label class="check"><input type="checkbox" id="rp-case"> Match case</label>
+        <label class="check"><input type="checkbox" id="rp-word"> Whole word</label>
+        <label class="check"><input type="checkbox" id="rp-regex"> Regular expression ($1 groups, \n and \t in replacement)</label>
+      </div>
+      <div class="actions">
+        <button class="btn primary" data-action="replaceAll">Replace all</button>
+        <button class="btn" data-action="deleteMatches">Delete all matches</button>
+      </div>
+      <p class="hint" id="match-count"></p>
+    </section>
+
+    <!-- Delete -->
+    <section class="panel" data-panel="delete" role="tabpanel" hidden>
+      <div class="fields">
+        <label class="field">Text to find <input type="text" id="del-find" autocomplete="off" spellcheck="false"></label>
+        <label class="field">Delete
+          <select id="del-mode">
+            <option value="text">All occurrences of the text</option>
+            <option value="contain">Lines containing the text</option>
+            <option value="without">Lines not containing the text</option>
+          </select>
+        </label>
+      </div>
+      <div class="options">
+        <label class="check"><input type="checkbox" id="del-case"> Match case</label>
+        <label class="check"><input type="checkbox" id="del-word"> Whole word</label>
+        <label class="check"><input type="checkbox" id="del-regex"> Regular expression</label>
+      </div>
+      <div class="actions"><button class="btn primary" data-action="deleteSomething">Delete</button></div>
+    </section>
+
+    <!-- Case -->
+    <section class="panel" data-panel="case" role="tabpanel" hidden>
+      <div class="actions">
+        <button class="btn" data-action="case" data-arg="upper">UPPERCASE</button>
+        <button class="btn" data-action="case" data-arg="lower">lowercase</button>
+        <button class="btn" data-action="case" data-arg="title">Title Case</button>
+        <button class="btn" data-action="case" data-arg="sentence">Sentence case</button>
+        <button class="btn" data-action="case" data-arg="swap">sWAP cASE</button>
+        <button class="btn" data-action="case" data-arg="camel">camelCase</button>
+        <button class="btn" data-action="case" data-arg="pascal">PascalCase</button>
+        <button class="btn" data-action="case" data-arg="snake">snake_case</button>
+        <button class="btn" data-action="case" data-arg="kebab">kebab-case</button>
+        <button class="btn" data-action="case" data-arg="constant">CONSTANT_CASE</button>
+      </div>
+      <p class="hint">camel, Pascal, snake, kebab and constant case convert each line separately.</p>
+    </section>
+
+    <!-- Lines -->
+    <section class="panel" data-panel="lines" role="tabpanel" hidden>
+      <div class="options">
+        <label class="check"><input type="checkbox" id="ln-natural"> Sort numbers by value (2 before 10)</label>
+        <label class="check"><input type="checkbox" id="ln-ignorecase" checked> Ignore case when removing duplicates</label>
+      </div>
+      <div class="actions">
+        <button class="btn" data-action="sort" data-arg="asc">Sort A→Z</button>
+        <button class="btn" data-action="sort" data-arg="desc">Sort Z→A</button>
+        <button class="btn" data-action="reverseLines">Reverse order</button>
+        <button class="btn" data-action="shuffle">Shuffle</button>
+        <button class="btn" data-action="dedupe">Remove duplicates</button>
+        <button class="btn" data-action="removeEmpty">Remove empty lines</button>
+        <button class="btn" data-action="number">Number lines</button>
+      </div>
+      <div class="fields spaced">
+        <label class="field">Prefix <input type="text" id="ln-prefix" autocomplete="off" spellcheck="false"></label>
+        <label class="field">Suffix <input type="text" id="ln-suffix" autocomplete="off" spellcheck="false"></label>
+        <label class="field">Separator <input type="text" id="ln-sep" value=", " autocomplete="off" spellcheck="false"></label>
+      </div>
+      <div class="actions">
+        <button class="btn" data-action="affix">Add prefix / suffix to each line</button>
+        <button class="btn" data-action="join">Join lines with separator</button>
+        <button class="btn" data-action="split">Split on separator into lines</button>
+      </div>
+    </section>
+
+    <!-- Clean up -->
+    <section class="panel" data-panel="cleanup" role="tabpanel" hidden>
+      <div class="actions">
+        <button class="btn" data-action="trimLines">Trim each line</button>
+        <button class="btn" data-action="collapseSpaces">Collapse repeated spaces</button>
+        <button class="btn" data-action="collapseBlank">Collapse repeated blank lines</button>
+        <button class="btn" data-action="removeBreaks">Remove line breaks</button>
+        <button class="btn" data-action="stripTags">Strip HTML tags</button>
+        <button class="btn" data-action="stripAccents">Remove accents</button>
+        <button class="btn" data-action="straightenQuotes">Straighten smart quotes</button>
+      </div>
+    </section>
+
+    <!-- Extract -->
+    <section class="panel" data-panel="extract" role="tabpanel" hidden>
+      <div class="options">
+        <label class="check"><input type="checkbox" id="ex-unique" checked> Unique results only</label>
+      </div>
+      <div class="actions">
+        <button class="btn" data-action="extract" data-arg="emails">Email addresses</button>
+        <button class="btn" data-action="extract" data-arg="urls">URLs</button>
+        <button class="btn" data-action="extract" data-arg="numbers">Numbers</button>
+        <button class="btn" data-action="wordFreq">Word frequency</button>
+      </div>
+    </section>
+
+    <!-- Encode -->
+    <section class="panel" data-panel="encode" role="tabpanel" hidden>
+      <div class="actions">
+        <button class="btn" data-action="encode" data-arg="b64enc">Base64 encode</button>
+        <button class="btn" data-action="encode" data-arg="b64dec">Base64 decode</button>
+        <button class="btn" data-action="encode" data-arg="urlenc">URL encode</button>
+        <button class="btn" data-action="encode" data-arg="urldec">URL decode</button>
+        <button class="btn" data-action="encode" data-arg="htmlesc">HTML escape</button>
+        <button class="btn" data-action="encode" data-arg="htmlunesc">HTML unescape</button>
+        <button class="btn" data-action="encode" data-arg="reverse">Reverse text</button>
+      </div>
+    </section>
+
+    <!-- Compare options -->
+    <section class="panel" data-panel="compare" role="tabpanel" hidden>
+      <div class="fields">
+        <label class="field">Compare by
+          <select id="cmp-mode">
+            <option value="lines">Lines</option>
+            <option value="words">Words</option>
+          </select>
+        </label>
+      </div>
+      <div class="options">
+        <label class="check"><input type="checkbox" id="cmp-case"> Ignore case</label>
+        <label class="check"><input type="checkbox" id="cmp-ws"> Ignore whitespace differences</label>
+        <label class="check"><input type="checkbox" id="cmp-hide"> Hide unchanged lines</label>
+      </div>
+      <div class="actions"><button class="btn" data-action="swapSides">Swap sides</button></div>
+    </section>
+
+    <p class="status" id="status" role="status" aria-live="polite"></p>
+
+    <!-- Input / output -->
+    <div class="workspace" id="workspace">
+      <div class="pane">
+        <header>
+          <h2><label for="input">Input</label></h2>
+          <div class="actions">
+            <button class="btn small" data-action="paste">Paste</button>
+            <button class="btn small" data-action="clearInput">Clear</button>
+          </div>
+        </header>
+        <textarea id="input" spellcheck="false" placeholder="Paste or type text here"></textarea>
+        <p class="pane-stats" id="input-stats"></p>
+      </div>
+      <div class="pane">
+        <header>
+          <h2><label for="output">Output</label></h2>
+          <div class="actions">
+            <button class="btn small" data-action="copy">Copy</button>
+            <button class="btn small" data-action="useOutput">Use as input</button>
+          </div>
+        </header>
+        <textarea id="output" spellcheck="false" readonly placeholder="Results appear here"></textarea>
+        <p class="pane-stats" id="output-stats"></p>
+      </div>
+    </div>
+
+    <!-- Compare workspace -->
+    <div id="compare" hidden>
+      <div class="workspace">
+        <div class="pane">
+          <header><h2><label for="cmp-a">Original</label></h2></header>
+          <textarea id="cmp-a" spellcheck="false" placeholder="Original text"></textarea>
+        </div>
+        <div class="pane">
+          <header><h2><label for="cmp-b">Modified</label></h2></header>
+          <textarea id="cmp-b" spellcheck="false" placeholder="Modified text"></textarea>
+        </div>
+      </div>
+      <p class="status" id="cmp-summary"></p>
+      <div class="diff" id="cmp-result" aria-label="Differences"></div>
+    </div>
+  </main>
+
+  <script src="/shared/navigation.js"></script>
+</body>
+</html>

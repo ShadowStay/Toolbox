@@ -1,0 +1,62 @@
+/* Home page: hero, portrait and spellbook list. */
+.hero {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 2.5rem;
+  margin-bottom: 3.5rem;
+}
+
+h1 .name { display: block; color: var(--orchid); }
+
+.lede { max-width: 30rem; margin: 0; font-size: 1.1rem; color: #d9cbf2; }
+
+/* Portrait with layered border */
+.portrait {
+  flex: 0 0 auto;
+  margin: 0;
+  padding: .5rem;
+  background: var(--dusk);
+  border: 2px solid var(--amethyst);
+  border-radius: 1rem;
+  box-shadow:
+    0 0 0 5px var(--night),
+    0 0 0 6px var(--candle),
+    0 0 36px #8a5bd888,
+    0 14px 30px #0008;
+}
+.portrait img {
+  display: block;
+  width: clamp(10rem, 24vw, 15rem);
+  aspect-ratio: 1;
+  object-fit: cover;
+  border-radius: .6rem;
+}
+
+/* ---------- Spellbook (tool list) ---------- */
+.spellbook h2 { margin: 0 0 1rem; font-size: 1.15rem; font-weight: 600; color: var(--moon); }
+#tool-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: .6rem;
+}
+#tool-list li {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  padding: .75rem 1rem;
+  background: #22123bcc;
+  border: 1px solid #8a5bd855;
+  border-radius: .5rem;
+}
+#tool-list a { font-weight: 500; text-decoration: none; }
+#tool-list a:hover { text-decoration: underline; }
+#tool-list code, .empty code { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-size: .85rem; color: #c9a2ffcc; }
+#tool-list .empty { justify-content: flex-start; color: #d9cbf2; border-style: dashed; }
+
+@media (max-width: 760px) {
+  .hero { flex-direction: column-reverse; align-items: flex-start; }
+}
