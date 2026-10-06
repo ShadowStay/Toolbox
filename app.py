@@ -3,7 +3,10 @@ from pathlib import Path
 
 from flask import Flask, Response, abort, jsonify, redirect, send_from_directory
 
+<<<<<<< HEAD
 from auth import init_auth
+=======
+>>>>>>> ea9fdacdd4a9457d7ca1392005deb1242c5c6ef3
 from chat import bp as chat_bp
 
 BASE = Path(__file__).parent.resolve()
@@ -12,7 +15,10 @@ SHARED_DIR = BASE / "shared"    # base.css, tools.css, navigation.js
 IMAGE_DIR = BASE / "images"
 
 app = Flask(__name__, static_folder=None)
+<<<<<<< HEAD
 init_auth(app)
+=======
+>>>>>>> ea9fdacdd4a9457d7ca1392005deb1242c5c6ef3
 app.register_blueprint(chat_bp)
 SAFE = re.compile(r"^[A-Za-z0-9_-]+$")
 ASSET = re.compile(r"^[A-Za-z0-9_-]+\.(?:js|css)$")

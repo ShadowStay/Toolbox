@@ -22,10 +22,14 @@
       <span class="sigil" aria-hidden="true">☾</span>
       <span class="brand-text">Iprix's Spells</span>
     </a>
+<<<<<<< HEAD
     <ul>${items}</ul>
     <button class="leave" type="button">Seal the tower</button>`;
   nav.querySelector(".leave").addEventListener("click", async () => {
     await fetch("/logout", { method: "POST" });
     location.href = "/";
   });
+=======
+    <ul>${items}</ul>`;
+>>>>>>> ea9fdacdd4a9457d7ca1392005deb1242c5c6ef3
 })();

@@ -90,6 +90,7 @@ a { color: var(--orchid); }
   box-shadow: inset 3px 0 0 var(--candle);
 }
 
+<<<<<<< HEAD
 .leave {
   margin-top: auto;
   padding: .5rem .75rem;
@@ -104,6 +105,8 @@ a { color: var(--orchid); }
 }
 .leave:hover { background: #8a5bd833; color: #fff; }
 
+=======
+>>>>>>> ea9fdacdd4a9457d7ca1392005deb1242c5c6ef3
 [hidden] { display: none !important; }
 
 /* ---------- Page ---------- */
@@ -140,7 +143,10 @@ h1 {
     border-bottom: 1px solid #8a5bd855;
   }
   .brand { margin: 0; }
+<<<<<<< HEAD
   .leave { margin: 0 0 0 auto; }
+=======
+>>>>>>> ea9fdacdd4a9457d7ca1392005deb1242c5c6ef3
   #site-nav ul { grid-auto-flow: column; }
 }
 
