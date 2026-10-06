@@ -1,11 +1,12 @@
 // Home page script: floating motes, rotating whispers, and the spellbook built from /api/pages.
 (function () {
   const $ = (s) => document.querySelector(s);
-  const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const root = document.documentElement;
+  const motionOn = () => root.dataset.motion !== "off" && root.dataset.theme !== "book";
 
   // ---------- drifting motes and the odd shooting star ----------
   const cv = $("#motes"), ctx = cv.getContext("2d");
-  let W = 0, H = 0, motes = [], star = null;
+  let W = 0, H = 0, motes = [], star = null, raf = 0;
   const rand = (a, b) => a + Math.random() * (b - a);
   function resize() {
     const dpr = Math.min(devicePixelRatio || 1, 2);
@@ -18,7 +19,10 @@
     }));
   }
   function frame(t) {
+    raf = 0;
     ctx.clearRect(0, 0, W, H);
+    if (!motionOn()) return;
+    ctx.globalAlpha = 1;
     for (const m of motes) {
       m.y -= m.vy; m.x += m.vx + Math.sin(t / 2000 + m.p) * .1;
       if (m.y < -5) { m.y = H + 5; m.x = rand(0, W); }
@@ -38,11 +42,13 @@
       ctx.beginPath(); ctx.moveTo(star.x, star.y); ctx.lineTo(star.x + 90, star.y - 40); ctx.stroke();
       if (star.l > 50) star = null;
     }
-    requestAnimationFrame(frame);
+    raf = requestAnimationFrame(frame);
   }
+  const start = () => { if (!raf && motionOn()) raf = requestAnimationFrame(frame); };
   resize();
   addEventListener("resize", resize);
-  if (!reduce) requestAnimationFrame(frame);
+  document.addEventListener("optionschange", start);
+  start();
 
   // ---------- rotating whispers ----------
   const whispers = [
@@ -52,9 +58,10 @@
     "Conjured by hand, one tool at a time.",
   ];
   const el = $("#whisper");
-  if (!reduce) {
+  {
     let i = 0;
     setInterval(() => {
+      if (root.dataset.motion === "off") return;
       el.classList.add("out");
       setTimeout(() => { el.textContent = whispers[++i % whispers.length]; el.classList.remove("out"); }, 500);
     }, 4500);

@@ -1,0 +1,193 @@
+/* Book theme: the site becomes an open book. The sidebar is the left-hand page (a table of contents with page
+   numbers) and the current page is the right-hand page. Everything is scoped to html[data-theme="book"]. */
+html[data-theme="book"] {
+  --night: #2a1a10;
+  --dusk: #f0e3c4;
+  --violet: #8a3b34;
+  --amethyst: #8a3b34;
+  --orchid: #7d2f2a;      /* oxblood: links and accents */
+  --moon: #2b1d12;        /* ink */
+  --candle: #a9742a;      /* gilt */
+  --paper: #f5ead0;
+  --paper-2: #ecdcb8;
+  --field: #fbf4e1;
+  --ink-soft: #5b4631;
+  --line: #a8895a77;
+  --track: #b59a6a88;
+  --nav-w: 19rem;
+  --serif: "EB Garamond", Georgia, "Times New Roman", serif;
+  --display: "IM Fell English", "EB Garamond", Georgia, serif;
+  --caps: "IM Fell English SC", "IM Fell English", Georgia, serif;
+  --texture: repeating-linear-gradient(0deg, #0000 0 2px, #7a56210a 2px 3px), radial-gradient(ellipse at 50% 45%, #0000 58%, #7a562130);
+  color-scheme: light;
+
+  /* the desk */
+  background:
+    repeating-linear-gradient(90deg, #0000 0 46px, #00000014 46px 48px),
+    radial-gradient(ellipse at 50% 0%, #53341f, #2a1a10 65%, #180d07);
+  background-attachment: fixed;
+
+  & ::selection { background: #a9742a55; }
+
+  /* ---------- the book ---------- */
+  & body {
+    position: relative;
+    width: calc(100% - 3rem);
+    max-width: 100rem;
+    min-height: calc(100vh - 3rem);
+    margin: 1.5rem auto;
+    font-family: var(--serif);
+    font-size: 1.14rem;
+    line-height: 1.65;
+    color: var(--moon);
+    background-color: var(--paper);
+    background-image:
+      linear-gradient(90deg, #0000 calc(var(--nav-w) - 2.4rem), #5b3d1a30 var(--nav-w)),   /* shading toward the spine */
+      var(--texture);
+    background-attachment: scroll;
+    border: 14px solid #4a2517;
+    border-color: #52291a #3d1d12 #33180f #3d1d12;
+    border-radius: .6rem 1.1rem 1.1rem .6rem;
+    box-shadow:
+      inset 0 0 0 1px #c89b4a99,
+      0 0 0 2px #1d0e07,
+      0 6px 0 -2px #e8d8b0,
+      0 10px 0 -4px #d6c394,
+      0 2.2rem 3.5rem #000a;
+  }
+  /* a ribbon bookmark */
+  & body::after {
+    content: "";
+    position: absolute; top: 0; right: 2.2rem; z-index: 5;
+    width: 1.5rem; height: 3.8rem; pointer-events: none;
+    background: linear-gradient(90deg, #7d2f2a, #a13d36 50%, #7d2f2a);
+    clip-path: polygon(0 0, 100% 0, 100% 100%, 50% 80%, 0 100%);
+  }
+
+  /* ---------- left page: table of contents ---------- */
+  & #site-nav {
+    position: sticky; top: 1.5rem; align-self: start;
+    height: auto; max-height: calc(100vh - 3rem); overflow: auto;
+    padding: 2.4rem 2rem 2rem 2.6rem;
+    background: none; border: 0; box-shadow: none;
+  }
+  & .brand { flex-direction: column; gap: .35rem; margin-bottom: 1.6rem; text-align: center; }
+  & .sigil { width: 2.2rem; height: 2.2rem; color: var(--orchid); border-color: var(--orchid); box-shadow: none; }
+  & .brand-text { font: 400 1.2rem/1.2 var(--caps); letter-spacing: .04em; }
+  & #site-nav ul { display: block; }
+  & #site-nav ul::before {
+    content: "Table of Contents";
+    display: block; margin-bottom: .8rem; padding-bottom: .5rem; text-align: center;
+    font: italic 1.1rem var(--display); color: var(--ink-soft); border-bottom: 1px solid var(--line);
+  }
+  & #site-nav li.group { margin: 1.1rem 0 .15rem; font: .8rem var(--caps); letter-spacing: .18em; text-transform: uppercase; color: var(--ink-soft); }
+  & #site-nav li a { gap: .4rem; align-items: baseline; padding: .22rem 0; border-radius: 0; font-size: 1.12rem; color: var(--moon); transition: color .2s; }
+  & #site-nav li a:hover { background: none; color: var(--orchid); }
+  & #site-nav li a[aria-current="page"] { background: none; box-shadow: none; color: var(--orchid); font-style: italic; }
+  & #site-nav li a[aria-current="page"]::before { content: "❧"; flex: none; width: 1rem; margin-left: -1.3rem; font-style: normal; }
+  & #site-nav .dots { display: block; flex: 1; min-width: .8rem; border-bottom: 1px dotted var(--ink-soft); transform: translateY(-.28rem); opacity: .7; }
+  & #site-nav .pg { display: block; font-variant-numeric: oldstyle-nums; }
+  & .leave { font-family: var(--caps); font-size: .9rem; letter-spacing: .06em; color: var(--moon); border-color: var(--line); border-radius: .2rem; }
+  & .leave:hover { background: #7a562122; color: var(--orchid); }
+
+  /* ---------- right page ---------- */
+  & main.page {
+    position: relative;
+    max-width: none;
+    padding: 2.2rem clamp(1.5rem, 4vw, 4rem) 2.6rem;
+    background-color: var(--paper);
+    background-image: var(--texture);
+    border-left: 1px solid #5b3d1a55;
+    border-radius: 0 .5rem .5rem 0;
+    box-shadow: inset 2.4rem 0 2rem -1.6rem #4a2f1260;
+  }
+  & main.page::before {                      /* running head */
+    content: attr(data-title);
+    display: block; margin-bottom: 2rem; padding: 0 3rem .4rem 0; text-align: right;
+    font: italic .95rem var(--display); letter-spacing: .04em; color: var(--ink-soft); border-bottom: 1px solid var(--line);
+  }
+  & main.page[data-pg]::after {              /* folio */
+    content: "— " attr(data-pg) " —";
+    display: block; margin-top: 3rem; text-align: center; font: 1rem var(--display); color: var(--ink-soft);
+  }
+
+  /* ---------- headings and text ---------- */
+  & h1 { font-family: var(--display); font-weight: 400; color: var(--moon); text-shadow: none; animation: none; }
+  & h1.tool-title { margin-bottom: .6rem; text-align: center; font-size: clamp(2rem, 4vw, 3rem); }
+  & h1.tool-title::after { content: "❦"; display: block; margin-top: .3rem; font-size: 1.2rem; color: var(--candle); }
+  & .tool-intro { max-width: 42rem; margin: 0 auto; text-align: center; font-style: italic; color: var(--ink-soft); }
+  & .hint, & .field, & .pane-stats, & .empty-note, & .tray .name, & .me-info span { color: var(--ink-soft); }
+  & .status { color: var(--orchid); }
+  & .status.error { color: #a3212b; }
+
+  /* ---------- tool pages: tabs, panels, forms ---------- */
+  & .tabs { border-bottom-color: var(--line); }
+  & .tab { font-family: var(--caps); letter-spacing: .03em; }
+  & .tab:hover { background: #7a562118; }
+  & .tab[aria-selected="true"] { background: var(--dusk); border-bottom-color: var(--orchid); }
+  & .panel, & .card, & .side, & .chat, & .stage-box { background: var(--dusk); border-color: var(--line); }
+  & input[type="text"], & input[type="number"], & input[type="color"], & select, & textarea { color: var(--moon); background: var(--field); border-color: var(--line); }
+  & .btn, & .icon { color: var(--moon); background: #e4d2a8; border-color: #8a6a3a99; }
+  & .btn:hover, & .icon:hover { background: #dcc794; }
+  & .btn.primary, & .btn[aria-pressed="true"] { color: #fbf0d6; background: var(--orchid); border-color: #4a1b17; }
+  & .btn.primary:hover { background: #923630; }
+  & .btn.danger, & .icon.off { color: #fff; background: #a3212b; border-color: #5e1018; }
+  & .btn.danger:hover { background: #b82a35; }
+  & .drop { border-color: #8a6a3a99; }
+  & .drop:hover, & .drop:focus-within { background: #7a562118; }
+  & .tray li { background: var(--field); border-color: var(--line); }
+  & .tray img { background: var(--paper-2); }
+  & .tray li.on { border-color: var(--candle); box-shadow: 0 0 0 1px var(--candle); }
+  & .slider output { color: var(--orchid); }
+  & .stage-box .stage { background-color: #d8c79c; background-image: conic-gradient(#c7b383 25%, transparent 0 50%, #c7b383 0 75%, transparent 0); background-size: 16px 16px; }
+  & .diff { background: var(--field); border-color: var(--line); }
+  & .dl.add { background: #5c9a5a33; } & .dl.add .g { color: #2f6b2c; }
+  & .dl.del { background: #b0383d2b; } & .dl.del .g { color: #9a2530; }
+  & .words .add { background: #5c9a5a44; }
+  & .words .del { background: #b0383d3a; }
+
+  /* ---------- chat ---------- */
+  & .side section + section { border-top-color: var(--line); }
+  & .side-head, & .members:empty::before { color: var(--ink-soft); }
+  & .chat .side-head, & .chat-form { border-color: var(--line); }
+  & .avatar { color: #fbf0d6; }
+  & .member.speaking .avatar { box-shadow: 0 0 0 2px var(--paper), 0 0 0 4px #3f8a56; }
+  & .badge.live { color: #fff; }
+  & .userbar { background: var(--paper-2); border-top-color: var(--line); }
+  & #log b { color: var(--orchid); }
+  & #log time, & #log li.sys { color: var(--ink-soft); }
+  & #log li.mine b { color: var(--candle); }
+  & dialog { color: var(--moon); background: var(--paper); border-color: var(--orchid); }
+  & dialog::backdrop { background: #1b0f08cc; }
+
+  /* ---------- home page: the title page ---------- */
+  & #motes, & .portrait .runes { display: none; }
+  & .eyebrow { font-family: var(--caps); }
+  & h1 .name { background: none; -webkit-text-fill-color: currentColor; color: var(--orchid); animation: none; }
+  & .lede { color: var(--ink-soft); }
+  & .lede::first-letter { float: left; margin: .15rem .5rem 0 0; font: 3.6rem/.8 var(--display); color: var(--orchid); }
+  & .whisper { color: var(--ink-soft); }
+  & .portrait { padding: 0; }
+  & .portrait .frame { background: var(--paper-2); border: 1px solid #4a2517; border-radius: .15rem; box-shadow: 0 0 0 4px var(--paper), 0 0 0 5px var(--candle), 3px 6px 14px #4a2f1266; animation: none; }
+  & .portrait img { filter: sepia(.4) contrast(1.05); border-radius: 0; }
+  & .spellbook h2 { color: var(--moon); font-family: var(--display); }
+  & .shelf h3 { font-family: var(--caps); color: var(--ink-soft); }
+  & .spell { background: #fbf4e1aa; border: 1px solid var(--line); border-radius: .2rem; box-shadow: 2px 3px 0 #b59a6a44; }
+  & .spell::before { background: radial-gradient(14rem circle at var(--mx) var(--my), #a9742a2a, transparent 70%); }
+  & .spell:hover, & .spell:focus-visible { border-color: var(--orchid); box-shadow: 3px 7px 0 #b59a6a55; }
+  & .glyph { color: var(--orchid); filter: none; }
+  & .s-name { font-family: var(--display); font-weight: 400; font-size: 1.25rem; }
+  & .s-desc { color: var(--ink-soft); }
+  & .s-path { color: var(--ink-soft); }
+  & .empty { color: var(--ink-soft); }
+
+  @media (max-width: 760px) {
+    & body { width: calc(100% - 1rem); margin: .5rem auto; border-width: 8px; background-image: var(--texture); }
+    & body::after { right: 1rem; }
+    & #site-nav { position: static; max-height: none; padding: 1rem 1.2rem; border-bottom: 1px solid var(--line); }
+    & #site-nav ul { display: flex; flex-wrap: wrap; gap: .2rem 1.2rem; }
+    & #site-nav ul::before, & #site-nav .dots, & #site-nav .pg { display: none; }
+    & #site-nav li.group { margin: 0; }
+    & main.page { border-left: 0; box-shadow: none; }
+  }
+}

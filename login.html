@@ -8,6 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Uncial+Antiqua&display=swap" rel="stylesheet">
+  <script>try { if (JSON.parse(localStorage.getItem("spells-options")).motion === "off") document.documentElement.dataset.motion = "off"; } catch {}</script>
   <style>
     :root { --night:#140b22; --dusk:#22123b; --violet:#4b2a85; --amethyst:#8a5bd8; --orchid:#c9a2ff; --moon:#f1e9ff; --candle:#e9c776; }
     * { box-sizing: border-box; }
@@ -44,6 +45,7 @@
     .go:hover { filter: brightness(1.12); box-shadow: 0 0 22px #8a5bd8aa; }
     .go:disabled { opacity: .55; cursor: wait; }
     .msg { min-height: 1.4rem; margin: .8rem 0 0; font-size: .9rem; color: #ff9fb3; }
+    html[data-motion="off"] *, html[data-motion="off"] *::before { animation: none !important; transition: none !important; }
     @media (prefers-reduced-motion: reduce) { .ring, .ring2, .moon, form.shake { animation: none; } }
   </style>
 </head>

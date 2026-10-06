@@ -10,7 +10,7 @@ from auth import DATA, HASH_FILE
 
 DATA.mkdir(exist_ok=True)
 pw = getpass.getpass("New password: ")
-if len(pw) < 4:
+if len(pw) < 8:
     sys.exit("Use at least 8 characters.")
 if pw != getpass.getpass("Repeat it: "):
     sys.exit("Those did not match.")

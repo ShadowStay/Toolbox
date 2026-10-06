@@ -3,10 +3,7 @@ from pathlib import Path
 
 from flask import Flask, Response, abort, jsonify, redirect, send_from_directory
 
-<<<<<<< HEAD
 from auth import init_auth
-=======
->>>>>>> ea9fdacdd4a9457d7ca1392005deb1242c5c6ef3
 from chat import bp as chat_bp
 
 BASE = Path(__file__).parent.resolve()
@@ -15,13 +12,17 @@ SHARED_DIR = BASE / "shared"    # base.css, tools.css, navigation.js
 IMAGE_DIR = BASE / "images"
 
 app = Flask(__name__, static_folder=None)
-<<<<<<< HEAD
 init_auth(app)
-=======
->>>>>>> ea9fdacdd4a9457d7ca1392005deb1242c5c6ef3
 app.register_blueprint(chat_bp)
 SAFE = re.compile(r"^[A-Za-z0-9_-]+$")
 ASSET = re.compile(r"^[A-Za-z0-9_-]+\.(?:js|css)$")
+# Added to the <head> of every page: saved options (theme, animations), the book theme and the page-turn styles.
+OPTION_TAGS = (
+    '  <link rel="stylesheet" href="/shared/options.css">\n'
+    '  <link rel="stylesheet" href="/shared/book.css">\n'
+    '  <link rel="stylesheet" href="/shared/turn.css" id="turn-css">\n'
+    '  <script src="/shared/options.js"></script>\n'
+)
 
 
 def label_for(name: str) -> str:
@@ -49,6 +50,8 @@ def serve_page(category, name):
     prefix = f"/{category}/" if category else "/"
     if (folder / f"{name}.css").is_file() and f"{name}.css" not in html:
         html = inject(html, "</head>", f'  <link rel="stylesheet" href="{prefix}{name}.css">\n')
+    if "/shared/options.js" not in html:
+        html = inject(html, "</head>", OPTION_TAGS)
     if (folder / f"{name}.js").is_file() and f"{name}.js" not in html:
         html = inject(html, "</body>", f'  <script src="{prefix}{name}.js"></script>\n')
     return Response(html, mimetype="text/html")
