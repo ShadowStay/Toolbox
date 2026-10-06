@@ -4,11 +4,7 @@ __pycache__/
 *.pyo
 
 # Secrets / local data
-data/secret.key
-data/*.db
-data/*.sqlite
-data/*.sqlite3
-
+data/*
 # Environment / credentials
 .env
 .env.*
