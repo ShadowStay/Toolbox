@@ -1,0 +1,75 @@
+/* Home page: hero, rune-ringed portrait, motes and spellbook cards. */
+#motes { position: fixed; inset: 0; z-index: -1; width: 100%; height: 100%; pointer-events: none; }
+
+.hero { display: flex; align-items: center; justify-content: space-between; gap: 2.5rem; margin-bottom: 4rem; }
+
+.eyebrow { margin: 0 0 .8rem; font-size: .8rem; font-weight: 600; letter-spacing: .28em; text-transform: uppercase; color: var(--candle); }
+h1 .name {
+  display: block;
+  background: linear-gradient(100deg, var(--orchid), #fff 45%, var(--candle) 70%, var(--orchid));
+  background-size: 250% 100%;
+  -webkit-background-clip: text; background-clip: text;
+  -webkit-text-fill-color: transparent; color: transparent;
+  animation: shimmer 8s linear infinite;
+}
+@keyframes shimmer { to { background-position: -250% 0; } }
+
+.lede { max-width: 30rem; margin: 0; font-size: 1.1rem; color: #d9cbf2; }
+.whisper { height: 1.6rem; margin: 1rem 0 0; font-size: .95rem; font-style: italic; color: #c9a2ffcc; }
+.whisper::before { content: "✧ "; color: var(--candle); }
+#whisper { transition: opacity .5s; }
+#whisper.out { opacity: 0; }
+
+/* Portrait with rotating rune ring */
+.portrait { position: relative; flex: 0 0 auto; margin: 0; padding: 1.6rem; }
+.portrait .runes { position: absolute; inset: 0; width: 100%; height: 100%; animation: spin 60s linear infinite; }
+.portrait .runes text { font-size: 12px; fill: var(--orchid); opacity: .75; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.portrait .frame {
+  padding: .5rem;
+  background: var(--dusk);
+  border: 2px solid var(--amethyst);
+  border-radius: 1rem;
+  box-shadow: 0 0 0 5px var(--night), 0 0 0 6px var(--candle), 0 0 36px #8a5bd888, 0 14px 30px #0008;
+  animation: float 7s ease-in-out infinite;
+}
+@keyframes float { 50% { transform: translateY(-8px); } }
+.portrait img { display: block; width: clamp(9rem, 20vw, 13rem); aspect-ratio: 1; object-fit: cover; border-radius: .6rem; }
+
+/* ---------- Spellbook ---------- */
+.spellbook h2 { display: flex; align-items: center; gap: 1rem; margin: 0 0 1.5rem; font-family: "Uncial Antiqua", serif; font-size: 1.5rem; font-weight: 400; color: var(--moon); }
+.spellbook h2::after { content: ""; flex: 1; height: 1px; background: linear-gradient(90deg, var(--amethyst), transparent); }
+.shelf + .shelf { margin-top: 2rem; }
+.shelf h3 { margin: 0 0 .8rem; font-size: .75rem; font-weight: 600; letter-spacing: .2em; text-transform: uppercase; color: #c9a2ffcc; }
+.shelf ul { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr)); gap: 1rem; }
+
+.spell {
+  --mx: 50%; --my: 50%;
+  position: relative; display: grid; gap: .35rem; height: 100%; padding: 1.2rem 1.2rem 1rem; overflow: hidden;
+  color: var(--moon); text-decoration: none;
+  background: #22123bcc; border: 1px solid #8a5bd855; border-radius: .8rem;
+  opacity: 0; animation: rise .6s ease forwards; animation-delay: calc(var(--i) * 80ms + 150ms);
+  transition: transform .2s, border-color .2s, box-shadow .2s;
+}
+.spell::before {
+  content: ""; position: absolute; inset: 0; pointer-events: none; opacity: 0; transition: opacity .25s;
+  background: radial-gradient(14rem circle at var(--mx) var(--my), #8a5bd844, transparent 70%);
+}
+.spell:hover, .spell:focus-visible { transform: translateY(-4px); border-color: var(--candle); box-shadow: 0 12px 30px #0007, 0 0 24px #8a5bd855; }
+.spell:hover::before { opacity: 1; }
+@keyframes rise { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
+.glyph { font-size: 1.8rem; line-height: 1; filter: drop-shadow(0 0 10px #8a5bd8); }
+.s-name { margin-top: .3rem; font-size: 1.1rem; font-weight: 600; }
+.s-desc { font-size: .9rem; color: #d9cbf2; }
+.s-path { margin-top: .4rem; font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-size: .8rem; color: #c9a2ffaa; }
+.s-path::after { content: " →"; opacity: 0; transition: opacity .2s, margin .2s; }
+.spell:hover .s-path::after { opacity: 1; margin-left: .3rem; }
+.empty { color: #d9cbf2; }
+
+@media (max-width: 760px) {
+  .hero { flex-direction: column-reverse; align-items: flex-start; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .portrait .runes, .portrait .frame, h1 .name { animation: none; }
+  .spell { opacity: 1; animation: none; }
+}

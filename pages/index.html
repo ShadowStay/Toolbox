@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Iprix's Spells</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Uncial+Antiqua&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/shared/base.css">
+</head>
+<body>
+  <canvas id="motes" aria-hidden="true"></canvas>
+  <aside id="site-nav" aria-label="Main navigation"></aside>
+
+  <main class="page">
+    <section class="hero">
+      <div class="hero-text">
+        <p class="eyebrow">✦ The tower is open ✦</p>
+        <h1>Welcome to <span class="name">Iprix's Spells</span></h1>
+        <p class="lede">An online toolbox. Open a tool from the sidebar or from the spellbook below.</p>
+        <p class="whisper" aria-live="off"><span id="whisper">Everything runs in your browser.</span></p>
+      </div>
+      <figure class="portrait">
+        <svg class="runes" viewBox="0 0 200 200" aria-hidden="true">
+          <defs><path id="rune-path" d="M100,100 m-90,0 a90,90 0 1,1 180,0 a90,90 0 1,1 -180,0"/></defs>
+          <text><textPath href="#rune-path" textLength="563" lengthAdjust="spacing">ᚠ ᚢ ᚦ ᚨ ᚱ ᚲ ᚷ ᚹ ᚺ ᚾ ᛁ ᛃ ᛇ ᛈ ᛉ ᛊ ᛏ ᛒ ᛖ ᛗ ᛚ ᛜ ᛞ ᛟ</textPath></text>
+        </svg>
+        <div class="frame"><img src="/images/Iprix.png" alt="Iprix"></div>
+      </figure>
+    </section>
+
+    <section class="spellbook" aria-labelledby="spellbook-title">
+      <h2 id="spellbook-title"><span>Spellbook</span></h2>
+      <div id="shelves"><p class="empty">Consulting the tomes…</p></div>
+    </section>
+  </main>
+
+  <script src="/shared/navigation.js"></script>
+</body>
+</html>

@@ -1,0 +1,58 @@
+/* Chat: one shared room with a voice channel, members list, screen-share stage and settings dialog. */
+.card { max-width: 26rem; margin-top: 1.5rem; padding: 1.25rem; background: #22123bcc; border: 1px solid #8a5bd855; border-radius: .6rem; }
+.spaced-top { margin-top: 1rem; }
+input[type="range"] { width: 100%; accent-color: var(--amethyst); }
+
+.app { display: grid; grid-template-columns: 17rem 1fr; gap: 1rem; height: min(44rem, 78vh); margin-top: 1rem; }
+.side, .chat { display: flex; flex-direction: column; min-height: 0; background: #22123bcc; border: 1px solid #8a5bd855; border-radius: .6rem; }
+.side { overflow: hidden; }
+.side section { padding: .5rem .6rem; overflow: auto; }
+.side section + section { flex: 1; min-height: 0; border-top: 1px solid #8a5bd833; }
+.side-head { margin: 0; padding: .3rem .4rem; font-size: .75rem; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: #c9a2ffcc; }
+.chat .side-head { padding: .7rem 1rem; font-size: .9rem; border-bottom: 1px solid #8a5bd833; }
+.voice-actions { padding: .4rem; }
+
+.members { list-style: none; margin: 0; padding: 0; }
+.members:empty::before { content: "Nobody here yet"; display: block; padding: .3rem .5rem; font-size: .85rem; color: #c9a2ff99; }
+.member { display: flex; align-items: center; gap: .55rem; padding: .3rem .4rem; font-size: .92rem; border-radius: .4rem; }
+.mname { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.avatar { flex: none; display: grid; place-items: center; width: 2rem; height: 2rem; font-size: .75rem; font-weight: 600; background: var(--violet); border-radius: 50%; transition: box-shadow .12s; }
+.member.speaking .avatar { box-shadow: 0 0 0 2px var(--night), 0 0 0 4px #7be3a6; }
+.badge { font-size: .7rem; }
+.badge.live { padding: .05rem .35rem; font-weight: 600; background: #c2395a; border-radius: .25rem; }
+
+.userbar { display: flex; align-items: center; gap: .35rem; padding: .55rem .6rem; background: #140b22; border-top: 1px solid #8a5bd855; }
+.me-info { flex: 1; min-width: 0; display: grid; line-height: 1.25; }
+.me-info strong, .me-info span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.me-info span { font-size: .75rem; color: #c9a2ffcc; }
+.icon { width: 2.1rem; height: 2.1rem; font-size: 1rem; color: var(--moon); cursor: pointer; background: #3a1f6b; border: 1px solid #8a5bd8aa; border-radius: .4rem; }
+.icon:hover { background: #4b2a85; }
+.icon.off { background: #8f2a45; border-color: #ff9fb3; }
+.btn.danger { background: #8f2a45; border-color: #ff9fb3; }
+.btn.danger:hover { background: #a93556; }
+
+.main { display: flex; flex-direction: column; gap: .75rem; min-width: 0; min-height: 0; }
+.stage { display: grid; grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr)); gap: .5rem; max-height: 45%; overflow: auto; }
+.shot { position: relative; background: #000; border-radius: .5rem; overflow: hidden; cursor: zoom-in; }
+.shot video { display: block; width: 100%; max-height: 32vh; object-fit: contain; }
+.shot .label { position: absolute; left: .5rem; bottom: .4rem; padding: .1rem .45rem; font-size: .8rem; background: #000a; border-radius: .3rem; }
+
+.chat { flex: 1; }
+#log { flex: 1; display: grid; align-content: start; gap: .5rem; margin: 0; padding: .75rem 1rem; overflow: auto; list-style: none; }
+#log li { overflow-wrap: anywhere; font-size: .94rem; }
+#log b { margin-right: .5rem; font-size: .85rem; color: var(--orchid); }
+#log time { font-size: .72rem; color: #c9a2ff99; }
+#log li.mine b { color: var(--candle); }
+#log li.sys { font-size: .82rem; color: #c9a2ffcc; }
+.chat-form { display: flex; gap: .5rem; padding: .6rem; border-top: 1px solid #8a5bd855; }
+.chat-form input { flex: 1; min-width: 0; }
+
+dialog { width: min(26rem, 92vw); padding: 1.25rem; color: var(--moon); background: var(--dusk); border: 1px solid var(--amethyst); border-radius: .7rem; }
+dialog::backdrop { background: #000a; }
+dialog h2 { margin: 0 0 1rem; font-size: 1.1rem; }
+dialog .field { margin-bottom: .9rem; }
+
+@media (max-width: 900px) {
+  .app { grid-template-columns: 1fr; height: auto; }
+  .chat { height: 26rem; }
+}

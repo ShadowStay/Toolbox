@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Chat</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Uncial+Antiqua&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/shared/base.css">
+  <link rel="stylesheet" href="/shared/tools.css">
+</head>
+<body>
+  <aside id="site-nav" aria-label="Main navigation"></aside>
+
+  <main class="page wide">
+    <h1 class="tool-title">Chat</h1>
+    <p class="tool-intro">One room for everyone. Type in the chat, or join the voice channel to talk and share your screen.</p>
+    <p class="status error" id="secure-warn" hidden>Microphone and screen sharing only work on https:// or localhost. The chat still works on this address.</p>
+
+    <form class="card" id="login">
+      <label class="field">Pick a display name <input type="text" id="name" maxlength="24" autocomplete="off" spellcheck="false"></label>
+      <div class="actions spaced-top"><button class="btn primary" type="submit">Enter</button></div>
+    </form>
+
+    <p class="status" id="status" role="status" aria-live="polite"></p>
+
+    <div class="app" id="app" hidden>
+      <aside class="side">
+        <section>
+          <h2 class="side-head">Voice channel</h2>
+          <ul class="members" id="voice-list"></ul>
+          <div class="actions voice-actions">
+            <button class="btn primary" id="voice-btn">Join voice</button>
+            <button class="btn" id="share" hidden>Share screen</button>
+          </div>
+        </section>
+        <section>
+          <h2 class="side-head" id="online-title">Online</h2>
+          <ul class="members" id="online-list"></ul>
+        </section>
+        <div class="userbar">
+          <span class="avatar" id="me-avatar"></span>
+          <div class="me-info"><strong id="me-name"></strong><span id="me-state">Not in voice</span></div>
+          <button class="icon" id="mic" title="Mute microphone" aria-label="Mute microphone">🎤</button>
+          <button class="icon" id="deaf" title="Deafen" aria-label="Deafen">🎧</button>
+          <button class="icon" id="gear" title="Audio settings" aria-label="Audio settings">⚙️</button>
+        </div>
+      </aside>
+
+      <section class="main">
+        <div class="stage" id="stage" hidden></div>
+        <div class="chat">
+          <h2 class="side-head"># general</h2>
+          <ol id="log"></ol>
+          <form class="chat-form" id="chat-form">
+            <input type="text" id="msg" maxlength="1000" placeholder="Message #general" autocomplete="off" aria-label="Message">
+            <button class="btn primary" type="submit">Send</button>
+          </form>
+        </div>
+      </section>
+    </div>
+
+    <dialog id="settings">
+      <form method="dialog">
+        <h2>Audio settings</h2>
+        <label class="field">Input device (microphone) <select id="in-dev"></select></label>
+        <label class="field" id="out-wrap">Output device (speakers) <select id="out-dev"></select></label>
+        <p class="hint" id="out-note" hidden>This browser can't pick an output device; it uses the system default.</p>
+        <label class="field">Output volume <input type="range" id="vol" min="0" max="100" value="100"></label>
+        <div class="actions spaced-top">
+          <button class="btn" type="button" id="rename">Change name</button>
+          <button class="btn primary">Done</button>
+        </div>
+      </form>
+    </dialog>
+  </main>
+
+  <script src="/shared/navigation.js"></script>
+</body>
+</html>

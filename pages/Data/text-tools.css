@@ -1,0 +1,37 @@
+/* Text Tools: input/output panes and the compare view. */
+.workspace { display: grid; grid-template-columns: 1fr 1fr; gap: 1.25rem; margin-top: .5rem; }
+.pane header { display: flex; justify-content: space-between; align-items: center; margin-bottom: .4rem; }
+.pane h2 { margin: 0; font-size: 1rem; font-weight: 600; }
+textarea {
+  width: 100%;
+  min-height: 20rem;
+  resize: vertical;
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  font-size: .9rem;
+  line-height: 1.5;
+}
+.pane-stats { min-height: 1.4rem; margin: .35rem 0 0; font-size: .85rem; color: #c9a2ffcc; }
+
+.diff {
+  max-height: 32rem;
+  overflow: auto;
+  margin-top: .5rem;
+  background: #140b22;
+  border: 1px solid #8a5bd855;
+  border-radius: .5rem;
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  font-size: .9rem;
+}
+.dl { display: grid; grid-template-columns: 2rem 1fr; white-space: pre-wrap; overflow-wrap: anywhere; }
+.dl .g { text-align: center; user-select: none; }
+.dl.add { background: #2a8f5a33; }
+.dl.add .g { color: #7be3a6; }
+.dl.del { background: #c2395a33; }
+.dl.del .g { color: #ff9fb3; }
+.words { padding: 1rem; white-space: pre-wrap; line-height: 1.8; }
+.words .add { background: #2a8f5a55; border-radius: .2rem; }
+.words .del { background: #c2395a55; text-decoration: line-through; border-radius: .2rem; }
+
+@media (max-width: 760px) {
+  .workspace { grid-template-columns: 1fr; }
+}
