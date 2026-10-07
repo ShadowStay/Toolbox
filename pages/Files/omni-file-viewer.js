@@ -53,6 +53,7 @@
     xlsx: { label: "spreadsheet", global: "XLSX", src: CDN + "xlsx/0.18.5/xlsx.full.min.js" },
     jspdf: { label: "PDF export", global: "jspdf", src: CDN + "jspdf/2.5.1/jspdf.umd.min.js" },
     jszip: { label: "ZIP", global: "JSZip", src: CDN + "jszip/3.10.1/jszip.min.js" },
+    pdflib: { label: "PDF merge", global: "PDFLib", src: CDN + "pdf-lib/1.17.1/pdf-lib.min.js" },
   };
   const pending = {};
   function lib(name) {
@@ -560,6 +561,7 @@
       li.append(pick, x);
       return li;
     }));
+    renderCombine();
   }
 
   async function show(entry) {
@@ -598,7 +600,7 @@
       if (files.length + added.length >= MAX_FILES) { skipped.push(`${file.name} (limit of ${MAX_FILES} files)`); continue; }
       if (file.size > MAX_BYTES) { skipped.push(`${file.name} (over ${fmtSize(MAX_BYTES)})`); continue; }
       const ext = extOf(file.name);
-      added.push({ id: ++seq, file, name: file.name || "pasted-file", ext, kind: kindOf(file, ext), size: file.size, url: null });
+      added.push({ id: ++seq, file, name: file.name || "pasted-file", ext, kind: kindOf(file, ext), size: file.size, url: null, inc: true });
     }
     files.push(...added);
     if (added.length) await show(added[0]);
@@ -658,6 +660,186 @@
     e.target.value = "";
     run(() => addFiles(list));
   });
+
+  // ---------- combine several files into one ----------
+  // The order of `files` (the tray) is the order of the output; entry.inc says whether a file takes part.
+  const cfmt = $("#cfmt"), cgo = $("#cgo"), cnote = $("#cnote");
+  const included = () => files.filter((f) => f.inc);
+
+  const latin1 = (s) => s.replace(/\r/g, "").replace(/\t/g, "    ").replace(/[^\x20-\x7E\xA0-\xFF\n]/g, "?");
+
+  async function imageForPdf(f) {
+    const url = (f.url ||= URL.createObjectURL(f.file));
+    const img = new Image();
+    await new Promise((res, rej) => {
+      img.onload = res;
+      img.onerror = () => rej(new Error(`Could not decode ${f.name}.`));
+      img.src = url;
+    });
+    const w = img.naturalWidth || 1024, h = img.naturalHeight || 1024;
+    if (w * h > 1e8 || Math.max(w, h) > 16384) throw new Error(`${f.name} is too large for the browser to convert.`);
+    const jpeg = ["jpg", "jpeg", "jpe", "jfif"].includes(f.ext);
+    const c = document.createElement("canvas");
+    c.width = w; c.height = h;
+    const x = c.getContext("2d");
+    if (jpeg) { x.fillStyle = "#ffffff"; x.fillRect(0, 0, w, h); }
+    x.drawImage(img, 0, 0, w, h);
+    const blob = await toBlob(c, jpeg ? "image/jpeg" : "image/png", 0.92);
+    return { bytes: new Uint8Array(await blob.arrayBuffer()), jpeg, w, h };
+  }
+
+  async function pdfText(f) {
+    const pdfjs = await lib("pdfjs");
+    pdfjs.GlobalWorkerOptions.workerSrc = LIBS.pdfjs.worker;
+    let doc;
+    try { doc = await pdfjs.getDocument({ data: new Uint8Array(await f.file.arrayBuffer()) }).promise; }
+    catch { throw new Error(`Could not read ${f.name}. It may be password protected or damaged.`); }
+    const parts = [];
+    for (let k = 1; k <= doc.numPages; k++) {
+      const content = await (await doc.getPage(k)).getTextContent();
+      parts.push(content.items.map((i) => i.str + (i.hasEOL ? "\n" : " ")).join("").replace(/[ \t]+\n/g, "\n").trim());
+    }
+    doc.destroy();
+    return parts.join("\n\n");
+  }
+
+  async function combinePdf(list, progress) {
+    const { PDFDocument, StandardFonts } = await lib("pdflib");
+    const out = await PDFDocument.create();
+    let font = null;
+    for (const [i, f] of list.entries()) {
+      progress(`Adding ${f.name} (${i + 1} of ${list.length})…`);
+      if (f.kind === "pdf") {
+        let src;
+        try { src = await PDFDocument.load(await f.file.arrayBuffer()); }
+        catch { throw new Error(`Could not merge ${f.name}. It may be password protected or damaged.`); }
+        (await out.copyPages(src, src.getPageIndices())).forEach((p) => out.addPage(p));
+      } else if (f.kind === "image") {
+        const { bytes, jpeg, w, h } = await imageForPdf(f);
+        const pic = jpeg ? await out.embedJpg(bytes) : await out.embedPng(bytes);
+        const k = Math.min(0.75, 14000 / Math.max(w, h));   // one page per image, sized to the image
+        out.addPage([w * k, h * k]).drawImage(pic, { x: 0, y: 0, width: w * k, height: h * k });
+      } else {                                              // text: monospace pages, Latin characters only
+        font ||= await out.embedFont(StandardFonts.Courier);
+        const W = 595, H = 842, cols = 95, lh = 12, perPage = Math.floor((H - 80) / lh);
+        const lines = [];
+        for (const raw of latin1(await f.file.text()).split("\n")) {
+          if (!raw) { lines.push(""); continue; }
+          for (let c = 0; c < raw.length; c += cols) lines.push(raw.slice(c, c + cols));
+        }
+        for (let s = 0; s < Math.max(lines.length, 1); s += perPage) {
+          const page = out.addPage([W, H]);
+          lines.slice(s, s + perPage).forEach((l, j) => { if (l) page.drawText(l, { x: 40, y: H - 50 - j * lh, size: 9, font }); });
+        }
+      }
+    }
+    return { blob: new Blob([await out.save()], { type: "application/pdf" }), ext: "pdf" };
+  }
+
+  async function combineTxt(list, progress) {
+    const label = $("#clabel").checked, parts = [];
+    for (const [i, f] of list.entries()) {
+      progress(`Reading ${f.name} (${i + 1} of ${list.length})…`);
+      let t;
+      if (f.kind === "docx") t = (await (await lib("mammoth")).extractRawText({ arrayBuffer: await f.file.arrayBuffer() })).value;
+      else if (f.kind === "pdf") t = await pdfText(f);
+      else t = (await f.file.text()).replace(/^\uFEFF/, "");
+      parts.push((label ? `=== ${f.name} ===\n\n` : "") + t.trim());
+    }
+    return { blob: textBlob(parts.join("\n\n"), "text/plain"), ext: "txt" };
+  }
+
+  async function combineXlsx(list, progress) {
+    const XLSX = await lib("xlsx"), out = XLSX.utils.book_new(), used = new Set();
+    for (const [i, f] of list.entries()) {
+      progress(`Adding ${f.name} (${i + 1} of ${list.length})…`);
+      let wb;
+      try {
+        wb = f.ext === "csv" || f.ext === "tsv"
+          ? XLSX.read((await f.file.text()).replace(/^\uFEFF/, ""), { type: "string", cellDates: true })
+          : XLSX.read(await f.file.arrayBuffer(), { type: "array", cellDates: true });
+      } catch { throw new Error(`Could not read ${f.name}.`); }
+      for (const s of wb.SheetNames) {
+        const stem = (wb.SheetNames.length > 1 ? `${baseOf(f.name)}-${s}` : baseOf(f.name)).replace(/[\[\]:*?\/\\]/g, "_");
+        let name = stem.slice(0, 31), n = 2;                // Excel sheet names: 31 characters, unique
+        while (used.has(name.toLowerCase())) name = stem.slice(0, 28) + "-" + n++;
+        used.add(name.toLowerCase());
+        XLSX.utils.book_append_sheet(out, wb.Sheets[s], name);
+      }
+    }
+    return { blob: new Blob([XLSX.write(out, { bookType: "xlsx", type: "array" })], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }), ext: "xlsx" };
+  }
+
+  const COMBINE = [
+    { id: "pdf", label: "PDF (images, PDFs and text)", kinds: ["image", "pdf", "text"], run: combinePdf },
+    { id: "txt", label: "Plain text (text, Word and PDF)", kinds: ["text", "docx", "pdf"], run: combineTxt },
+    { id: "xlsx", label: "Excel workbook (one sheet per sheet)", kinds: ["sheet"], run: combineXlsx },
+  ];
+
+  function refreshCombine() {
+    const inc = included(), keep = cfmt.value;
+    const ok = inc.length < 2 ? [] : COMBINE.filter((c) => inc.every((f) => c.kinds.includes(f.kind)));
+    cfmt.replaceChildren(...(ok.length ? ok : [{ id: "", label: "No common format" }]).map((c) => new Option(c.label, c.id)));
+    if (ok.some((c) => c.id === keep)) cfmt.value = keep;
+    cfmt.disabled = cgo.disabled = !ok.length;
+    $("#clabel-wrap").hidden = cfmt.value !== "txt";
+    cnote.textContent = inc.length < 2 ? "Tick at least two files."
+      : ok.length ? ""
+      : "These files can't be joined into one format. Images, PDFs and text files can become a PDF; text, Word and PDF files can become plain text; spreadsheets can become one workbook.";
+  }
+
+  function renderCombine() {
+    $("#combine").hidden = files.length < 2;
+    if (files.length < 2) return;
+    let pos = 0;
+    $("#corder").replaceChildren(...files.map((f, i) => {
+      const li = el("li", f.inc ? "" : "off");
+      li.dataset.id = f.id;
+      const box = el("input"), name = el("span", "cname", f.name);
+      box.type = "checkbox"; box.checked = f.inc; box.dataset.act = "inc";
+      box.setAttribute("aria-label", "Include " + f.name);
+      const up = el("button", "btn small", "▲"), down = el("button", "btn small", "▼");
+      up.type = down.type = "button";
+      up.dataset.act = "up"; down.dataset.act = "down";
+      up.title = up.ariaLabel = "Move " + f.name + " up";
+      down.title = down.ariaLabel = "Move " + f.name + " down";
+      up.disabled = i === 0; down.disabled = i === files.length - 1;
+      li.append(el("span", "cpos", f.inc ? ++pos + "." : "–"), box, name, el("span", "ckind", kinds[f.kind].label), up, down);
+      return li;
+    }));
+    refreshCombine();
+  }
+
+  $("#corder").addEventListener("click", (ev) => {
+    const b = ev.target.closest("button[data-act]");
+    if (!b) return;
+    const id = +b.closest("li").dataset.id, i = files.findIndex((f) => f.id === id), j = b.dataset.act === "up" ? i - 1 : i + 1;
+    if (!files[j]) return;
+    [files[i], files[j]] = [files[j], files[i]];
+    renderTray();
+    $("#corder").querySelector(`li[data-id="${id}"] [data-act="${b.dataset.act}"]:not(:disabled)`)?.focus();
+  });
+  $("#corder").addEventListener("change", (ev) => {
+    if (ev.target.dataset.act !== "inc") return;
+    const f = files.find((x) => x.id === +ev.target.closest("li").dataset.id);
+    if (f) { f.inc = ev.target.checked; renderCombine(); }
+  });
+  cfmt.addEventListener("change", refreshCombine);
+
+  cgo.addEventListener("click", () => run(async () => {
+    const choice = COMBINE.find((c) => c.id === cfmt.value), list = included();
+    if (!choice || list.length < 2) return;
+    cgo.disabled = true;
+    say("Combining…");
+    try {
+      const { blob, ext } = await choice.run(list, say);
+      const name = `${baseOf(list[0].name)}-combined.${ext}`;
+      save(blob, name);
+      say(`Saved ${name} (${fmtSize(blob.size)}) with ${list.length} files in the order shown.`);
+    } finally {
+      refreshCombine();
+    }
+  }));
 
   setExports([]);
 })();

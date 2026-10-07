@@ -27,6 +27,19 @@
     <p class="status" id="status" role="status" aria-live="polite"></p>
     <p class="empty-note" id="empty">No file yet. Add one above.</p>
 
+    <section class="stage-box" id="combine" hidden aria-labelledby="combine-title">
+      <h2 class="ctitle" id="combine-title">Combine files into one</h2>
+      <p class="hint">Tick the files to include and put them in order with the arrows. They are joined one after another in that order.</p>
+      <ol class="corder" id="corder"></ol>
+      <div class="vexport">
+        <label class="vlabel" for="cfmt">Combine as</label>
+        <select id="cfmt"></select>
+        <label class="check" id="clabel-wrap" hidden><input type="checkbox" id="clabel"> Label each part with its file name</label>
+        <button class="btn primary small" type="button" id="cgo">Combine and export</button>
+      </div>
+      <p class="hint" id="cnote"></p>
+    </section>
+
     <div class="stage-box" id="viewer" hidden>
       <div class="vbar">
         <div class="vtitle">

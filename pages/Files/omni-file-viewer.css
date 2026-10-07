@@ -122,3 +122,18 @@ html[data-theme="book"] .imgview {
 @media (max-width: 760px) {
   .vexport { width: 100%; }
 }
+
+/* ---------- combine panel ---------- */
+#combine { margin-bottom: .25rem; }
+.ctitle { margin: 0 0 .2rem; font-size: 1.05rem; font-weight: 600; }
+#combine > .hint { margin: 0 0 .8rem; }
+.corder { list-style: none; margin: 0 0 .9rem; padding: 0; display: grid; gap: .35rem; }
+.corder li { display: flex; align-items: center; gap: .6rem; padding: .35rem .6rem; background: var(--field, #140b22); border: 1px solid var(--line, #8a5bd855); border-radius: .45rem; }
+.corder li.off { opacity: .55; }
+.corder .cpos { min-width: 1.8rem; font-variant-numeric: tabular-nums; color: var(--orchid); text-align: right; }
+.corder .cname { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.corder .ckind { font-size: .78rem; color: var(--orchid); }
+.corder input[type="checkbox"] { accent-color: var(--amethyst); }
+#combine .vexport { gap: .6rem; }
+#combine #cnote { margin: .6rem 0 0; font-size: .88rem; }
+#cfmt { font: inherit; font-size: .85rem; padding: .3rem .5rem; color: var(--moon); background: var(--field, #140b22); border: 1px solid var(--line, #8a5bd877); border-radius: .4rem; }
