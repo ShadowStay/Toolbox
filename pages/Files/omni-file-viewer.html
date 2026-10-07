@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Omni File Viewer</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Uncial+Antiqua&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/shared/base.css">
+  <link rel="stylesheet" href="/shared/tools.css">
+</head>
+<body>
+  <aside id="site-nav" aria-label="Main navigation"></aside>
+
+  <main class="page wide">
+    <h1 class="tool-title">Omni File Viewer</h1>
+    <p class="tool-intro">Drop in images, PDFs, Word documents, spreadsheets, text, audio or video, look through them, and export to another format. Files are opened in your browser; nothing is uploaded.</p>
+
+    <label class="drop" id="drop">
+      <strong class="big">Add files: choose, drop anywhere, or paste</strong>
+      <span class="hint">Images (PNG, JPEG, WebP, GIF, SVG, AVIF, BMP, ICO), PDF, DOCX, XLSX / XLS / ODS / CSV, text and code, MP3 / WAV, MP4 / WebM.</span>
+      <input type="file" id="picker" multiple>
+    </label>
+    <ul class="tray" id="tray" aria-label="Opened files"></ul>
+
+    <p class="status" id="status" role="status" aria-live="polite"></p>
+    <p class="empty-note" id="empty">No file yet. Add one above.</p>
+
+    <div class="stage-box" id="viewer" hidden>
+      <div class="vbar">
+        <div class="vtitle">
+          <strong id="vname"></strong>
+          <p class="hint" id="vmeta"></p>
+        </div>
+        <div class="vexport">
+          <label class="vlabel" for="fmt">Export as</label>
+          <select id="fmt"></select>
+          <button class="btn primary small" type="button" id="export">Export</button>
+          <button class="btn small" type="button" id="original">Download original</button>
+        </div>
+      </div>
+      <div class="vtools" id="tools" role="toolbar" aria-label="Viewer controls"></div>
+      <div class="vhost" id="host"></div>
+    </div>
+  </main>
+
+  <script src="/shared/navigation.js"></script>
+</body>
+</html>

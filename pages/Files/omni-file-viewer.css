@@ -1,0 +1,124 @@
+/* Omni File Viewer: drop zone, file tray, viewer shell and one viewer style per file kind.
+   Colours use the theme variables (with fallbacks) so the spell and book themes both work. */
+
+.drop {
+  position: relative;
+  display: grid;
+  gap: .3rem;
+  place-items: center;
+  margin: 1.5rem 0 1rem;
+  padding: 2rem 1.5rem;
+  text-align: center;
+  border: 2px dashed #8a5bd8aa;
+  border-radius: .6rem;
+  cursor: pointer;
+  transition: background .15s, border-color .15s;
+}
+.drop:hover, .drop:focus-within, .drop.over { background: #8a5bd822; border-color: var(--candle); }
+.drop input { position: absolute; width: 1px; height: 1px; opacity: 0; }
+.drop .hint { margin: 0; max-width: 46rem; }
+.drop .big { font-size: 1.1rem; }
+
+/* ---------- opened files ---------- */
+.tray { list-style: none; margin: 0 0 .5rem; padding: 0; display: flex; flex-wrap: wrap; gap: .5rem; }
+.tray:empty { display: none; }
+.tray li { display: flex; max-width: 17rem; background: #140b22; border: 1px solid #8a5bd855; border-radius: .5rem; overflow: hidden; }
+.tray li.on { border-color: var(--candle); box-shadow: 0 0 0 1px var(--candle); }
+.tray button { font: inherit; color: inherit; background: none; border: 0; cursor: pointer; }
+.tray .pick { display: grid; min-width: 0; padding: .4rem .7rem; text-align: left; }
+.tray .name { overflow: hidden; font-size: .85rem; text-overflow: ellipsis; white-space: nowrap; color: #d9cbf2; }
+.tray .kind { font-size: .72rem; color: var(--orchid); }
+.tray .x { padding: 0 .6rem; color: var(--orchid); }
+.tray .x:hover, .tray .pick:hover { background: #8a5bd833; }
+
+.empty-note { margin-top: 1.5rem; color: #d9cbf2; }
+
+/* ---------- viewer shell ---------- */
+.stage-box { margin-top: .75rem; padding: 1rem; background: #22123bcc; border: 1px solid #8a5bd855; border-radius: .6rem; }
+.vbar { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: .6rem 1.5rem; margin-bottom: .75rem; }
+.vtitle { min-width: 0; }
+.vtitle strong { display: block; overflow-wrap: anywhere; }
+.vtitle .hint { margin: 0; font-size: .85rem; }
+.vexport { display: flex; flex-wrap: wrap; align-items: center; gap: .4rem; }
+.vlabel { font-size: .85rem; color: #d9cbf2; }
+
+.vtools { display: flex; flex-wrap: wrap; align-items: center; gap: .35rem; margin-bottom: .75rem; }
+.vtools:empty { display: none; }
+.vtools .lbl { min-width: 3.4rem; text-align: center; font-size: .85rem; font-variant-numeric: tabular-nums; }
+.vtools .sep { width: 1px; height: 1.4rem; margin: 0 .3rem; background: var(--line, #8a5bd855); }
+
+.vtools input[type="number"], .vtools select, .vexport select {
+  font: inherit;
+  font-size: .85rem;
+  padding: .3rem .5rem;
+  color: var(--moon);
+  background: var(--field, #140b22);
+  border: 1px solid var(--line, #8a5bd877);
+  border-radius: .4rem;
+}
+.vtools input[type="number"] { width: 4.4rem; }
+.vtools input:focus-visible, .vtools select:focus-visible, .vexport select:focus-visible { outline: 2px solid var(--candle); outline-offset: 1px; }
+.btn:disabled, .vexport select:disabled { opacity: .45; cursor: default; }
+.btn[aria-pressed="true"] { background: var(--amethyst); border-color: var(--candle); }
+
+.vhost { min-height: 10rem; }
+.vhost .note { margin: 0; padding: 2.5rem 1rem; text-align: center; }
+
+/* ---------- image ---------- */
+.imgview {
+  display: flex;
+  max-height: 72vh;
+  padding: 12px;
+  overflow: auto;
+  border-radius: .3rem;
+  background-color: #2b1a47;
+  background-image: conic-gradient(#3a2560 25%, transparent 0 50%, #3a2560 0 75%, transparent 0);
+  background-size: 16px 16px;
+}
+html[data-theme="book"] .imgview {
+  background-color: #d8c79c;
+  background-image: conic-gradient(#c7b383 25%, transparent 0 50%, #c7b383 0 75%, transparent 0);
+}
+.imgwrap { position: relative; flex: none; margin: auto; }
+.imgwrap img { position: absolute; left: 50%; top: 50%; max-width: none; user-select: none; }
+
+/* ---------- PDF ---------- */
+.pdfview { max-height: 75vh; padding: 16px; overflow: auto; border-radius: .3rem; background: var(--paper-2, #2b1a47); }
+.pdfpage { display: block; margin: 0 auto; background: #fff; box-shadow: 0 4px 18px #0008; }
+
+/* ---------- Word ---------- */
+.docframe { display: block; width: 100%; height: 72vh; background: #fff; border: 1px solid var(--line, #8a5bd855); border-radius: .4rem; }
+
+/* ---------- spreadsheet ---------- */
+.sheetview { max-height: 72vh; overflow: auto; background: var(--field, #140b22); border: 1px solid var(--line, #8a5bd855); border-radius: .4rem; }
+.sheetview table { border-collapse: collapse; font-size: .85rem; font-variant-numeric: tabular-nums; }
+.sheetview th, .sheetview td { max-width: 24rem; padding: .2rem .6rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; border: 1px solid var(--line, #8a5bd833); }
+.sheetview thead th { position: sticky; top: 0; z-index: 1; background: var(--dusk); }
+.sheetview tbody th { position: sticky; left: 0; background: var(--dusk); font-weight: 400; color: var(--orchid); text-align: right; }
+.sheetview thead th:first-child { left: 0; z-index: 2; }
+.sheetnote { margin: .6rem 0 0; font-size: .85rem; }
+
+/* ---------- text and code ---------- */
+.textview {
+  margin: 0;
+  max-height: 72vh;
+  padding: 1rem;
+  overflow: auto;
+  font: .9rem/1.5 ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  tab-size: 4;
+  white-space: pre;
+  color: var(--moon);
+  background: var(--field, #140b22);
+  border: 1px solid var(--line, #8a5bd855);
+  border-radius: .4rem;
+}
+.textview.wrap { white-space: pre-wrap; overflow-wrap: anywhere; }
+
+/* ---------- audio and video ---------- */
+.mediaview { display: grid; place-items: center; }
+.mediaview video { max-width: 100%; max-height: 70vh; border-radius: .4rem; background: #000; }
+.mediaview audio { width: min(34rem, 100%); }
+
+@media (max-width: 760px) {
+  .vexport { width: 100%; }
+}
