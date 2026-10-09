@@ -1,5 +1,7 @@
-// Page script for html/image-tools.html. A small layer editor: every image is a layer you can
-// drag, resize, rotate and crop directly on the artboard. All processing happens in the browser.
+// Page script for pages/image-tools.html. A small layer editor: every image is a layer you can
+// drag, resize, rotate and crop directly on the artboard. Editing on the artboard is always live in the browser.
+// Saving (Download, Cut into pieces) and reading unusual formats happen in the browser, or on the server
+// (processing/image.py) when "On the server" is chosen in Options.
 (function () {
   const $ = (s) => document.querySelector(s);
   const $$ = (s) => [...document.querySelectorAll(s)];
@@ -203,6 +205,31 @@
   stage.addEventListener("pointerup", endDrag);
   stage.addEventListener("pointercancel", endDrag);
 
+  // ---------- server mode ----------
+  const useServer = () => window.Options.server();
+  // Send the original files plus the layer layout; the server draws the artboard and encodes it.
+  async function serverRender(split) {
+    const fd = new FormData(), index = new Map();
+    const list = layers.map((l) => {
+      if (!index.has(l.file)) { fd.append("file" + index.size, l.file, l.name); index.set(l.file, index.size); }
+      const { cx, cy, w, h, rot, fx, fy, sx, sy, sw, sh, f } = l;
+      return { file: index.get(l.file), cx, cy, w, h, rot, fx, fy, sx, sy, sw, sh, f };
+    });
+    fd.append("state", JSON.stringify({
+      art, layers: list, format: val("ex-format"), quality: num("ex-quality"), bg: val("ex-bg"),
+      name: val("ex-name").trim() || "image", split,
+    }));
+    status.textContent = "Rendering on the server…";
+    return window.Options.blob("/api/image/render", fd);
+  }
+  // Formats the browser cannot decode (TIFF, HEIC...) are converted to PNG by the server.
+  async function serverDecode(file) {
+    const fd = new FormData();
+    fd.append("file", file, file.name);
+    const blob = await window.Options.blob("/api/image/decode", fd);
+    return new File([blob], file.name.replace(/\.[^.]+$/, "") + ".png", { type: "image/png" });
+  }
+
   // ---------- export helpers ----------
   async function encode(src) {
     const fmt = val("ex-format");
@@ -236,9 +263,13 @@
     if (!imgs.length) throw new Error("No image files found.");
     snapshot();
     let ok = 0;
-    for (const f of imgs) {
+    for (let f of imgs) {
       let bmp;
-      try { bmp = await createImageBitmap(f); } catch { continue; }
+      try { bmp = await createImageBitmap(f); }
+      catch {
+        if (!useServer()) continue;
+        try { f = await serverDecode(f); bmp = await createImageBitmap(f); } catch { continue; }
+      }
       if (!layers.length) {
         setArt(bmp.width, bmp.height);
         $("#ex-name").value = (f.name || "image").replace(/\.[^.]+$/, "");
@@ -246,7 +277,7 @@
       const k = layers.length ? Math.min(1, (art.w * 0.9) / bmp.width, (art.h * 0.9) / bmp.height) : 1;
       const off = (layers.length % 5) * 24;
       sel = {
-        id: ++seq, name: f.name || "pasted-image.png", url: URL.createObjectURL(f), bmp,
+        id: ++seq, name: f.name || "pasted-image.png", file: f, url: URL.createObjectURL(f), bmp,
         cx: art.w / 2 + off, cy: art.h / 2 + off, w: bmp.width * k, h: bmp.height * k, rot: 0, fx: false, fy: false,
         sx: 0, sy: 0, sw: bmp.width, sh: bmp.height, f: newF(),
       };
@@ -344,7 +375,7 @@
 
     async download() {
       if (!layers.length) throw new Error("Add an image first.");
-      const blob = await encode(cv);
+      const blob = useServer() ? await serverRender(null) : await encode(cv);
       save(blob, fileName());
       status.textContent = `Saved ${fileName()} (${(blob.size / 1024).toFixed(blob.size < 1e5 ? 1 : 0)} KB).`;
     },
@@ -353,6 +384,11 @@
       const rows = Math.max(1, Math.floor(num("sp-rows")) || 1), cols = Math.max(1, Math.floor(num("sp-cols")) || 1);
       if (rows * cols < 2) throw new Error("Choose at least 2 pieces.");
       if (rows * cols > 100) throw new Error("That would make more than 100 pieces.");
+      if (useServer()) {
+        save(await serverRender({ rows, cols }), (val("ex-name").trim() || "image") + "-pieces.zip");
+        status.textContent = `Downloaded ${plural(rows * cols, "piece")} as a zip.`;
+        return;
+      }
       let n = 0;
       for (let r = 0; r < rows; r++) {
         for (let c = 0; c < cols; c++) {

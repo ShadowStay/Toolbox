@@ -1,8 +1,8 @@
-// Home page script: floating motes, rotating whispers, and the spellbook built from /api/pages.
+// Home page script: floating motes, rotating whispers and the spellbook hover glow.
 (function () {
   const $ = (s) => document.querySelector(s);
   const root = document.documentElement;
-  const motionOn = () => root.dataset.motion !== "off" && root.dataset.theme !== "book";
+  const motionOn = () => root.dataset.motion === "on";
 
   // ---------- drifting motes and the odd shooting star ----------
   const cv = $("#motes"), ctx = cv.getContext("2d");
@@ -52,62 +52,27 @@
 
   // ---------- rotating whispers ----------
   const whispers = [
-    "Everything runs in your browser.",
-    "No scrolls leave this tower.",
     "Small spells, sharp edges.",
     "Conjured by hand, one tool at a time.",
+    "Text, images and files, all in one tower.",
   ];
   const el = $("#whisper");
   {
     let i = 0;
     setInterval(() => {
-      if (root.dataset.motion === "off") return;
+      if (!motionOn()) return;
       el.classList.add("out");
       setTimeout(() => { el.textContent = whispers[++i % whispers.length]; el.classList.remove("out"); }, 500);
     }, 4500);
   }
 
   // ---------- spellbook ----------
-  const info = {
-    "text-tools": ["✎", "Find, replace, clean, convert and compare text."],
-    "image-tools": ["❖", "Layer, crop, filter and convert images."],
-    chat: ["☄", "A shared room with voice and screen sharing."],
-  };
-  const fallback = ["✦", "A spell worth casting."];
-
-  function card(p, i) {
-    const [glyph, desc] = info[p.name] || fallback;
-    const a = document.createElement("a");
-    a.className = "spell"; a.href = p.path; a.style.setProperty("--i", i);
-    for (const [cls, text] of [["glyph", glyph], ["s-name", p.label], ["s-desc", desc], ["s-path", p.path]]) {
-      const s = document.createElement("span");
-      s.className = cls; s.textContent = text;
-      a.append(s);
-    }
+  // The cards are written into the page by the server (so search engines see them). This only adds the hover glow.
+  document.querySelectorAll(".spell").forEach((a) => {
     a.addEventListener("pointermove", (e) => {
       const r = a.getBoundingClientRect();
       a.style.setProperty("--mx", e.clientX - r.left + "px");
       a.style.setProperty("--my", e.clientY - r.top + "px");
     });
-    const li = document.createElement("li");
-    li.append(a);
-    return li;
-  }
-
-  (async function () {
-    const shelves = $("#shelves");
-    let groups = [];
-    try { groups = await (await fetch("/api/pages")).json(); } catch { /* handled below */ }
-    if (!groups.length) { shelves.innerHTML = '<p class="empty">The shelves are empty.</p>'; return; }
-    let n = 0;
-    shelves.replaceChildren(...groups.map((g) => {
-      const shelf = document.createElement("div");
-      shelf.className = "shelf";
-      if (g.label) { const h = document.createElement("h3"); h.textContent = g.label; shelf.append(h); }
-      const ul = document.createElement("ul");
-      ul.append(...g.pages.map((p) => card(p, n++)));
-      shelf.append(ul);
-      return shelf;
-    }));
-  })();
+  });
 })();

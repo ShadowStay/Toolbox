@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Uncial+Antiqua&display=swap" rel="stylesheet">
-  <script>try { if (JSON.parse(localStorage.getItem("spells-options")).motion === "off") document.documentElement.dataset.motion = "off"; } catch {}</script>
+  <script>document.documentElement.dataset.motion = /(?:^|; )spells_motion=on/.test(document.cookie) ? "on" : "off";</script>
   <style>
     :root { --night:#140b22; --dusk:#22123b; --violet:#4b2a85; --amethyst:#8a5bd8; --orchid:#c9a2ff; --moon:#f1e9ff; --candle:#e9c776; }
     * { box-sizing: border-box; }
@@ -46,7 +46,7 @@
     .go:disabled { opacity: .55; cursor: wait; }
     .msg { min-height: 1.4rem; margin: .8rem 0 0; font-size: .9rem; color: #ff9fb3; }
     html[data-motion="off"] *, html[data-motion="off"] *::before { animation: none !important; transition: none !important; }
-    @media (prefers-reduced-motion: reduce) { .ring, .ring2, .moon, form.shake { animation: none; } }
+    .home { display: inline-block; margin-top: 1rem; font-size: .9rem; color: var(--orchid); }
   </style>
 </head>
 <body>
@@ -69,6 +69,7 @@
       <button class="go" id="go" type="submit">Unseal</button>
       <p class="msg" id="msg" role="alert"></p>
     </form>
+    <a class="home" href="/">About Iprix's Spells</a>
   </main>
   <script>
     const f = document.getElementById("f"), pw = document.getElementById("pw"), msg = document.getElementById("msg"), go = document.getElementById("go");

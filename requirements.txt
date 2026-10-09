@@ -1,0 +1,11 @@
+flask>=3
+# server-side processing ("On the server" option)
+pillow>=10
+numpy
+pymupdf
+mammoth
+pandas
+openpyxl
+odfpy
+xlrd            # only for old .xls spreadsheets
+# optional: pillow-heif (HEIC photos), LibreOffice on the PATH (Word -> PDF)

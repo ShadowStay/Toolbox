@@ -1,5 +1,5 @@
-"""Password gate. Without a valid session cookie every request is answered with the login page, except
-POST /login. Only a scrypt hash of the password is stored (data/password.hash); set it with set_password.py."""
+"""Password gate. Without a valid session cookie every request is answered with the login page (or a 401 for
+/api/), except POST /login and the public home page with its assets (PUBLIC_PATHS). Only a scrypt hash of the password is stored (data/password.hash); set it with set_password.py."""
 import hashlib
 import hmac
 import os
@@ -81,13 +81,23 @@ def _register_failure(ip: str) -> None:
         _fails[ip] = [count, time.time() + lock]
 
 
+# Reachable without signing in, so search engines can read the home page. Everything else needs the password.
+PUBLIC_PATHS = {"/", "/index.css", "/index.js", "/robots.txt", "/sitemap.xml"}
+PUBLIC_PREFIXES = ("/shared/", "/images/")
+
+
 def init_auth(app):
     @app.before_request
     def gate():
-        if request.method == "POST" and request.path == "/login":
+        path = request.path
+        if request.method == "POST" and path == "/login":
             return None
         if is_authed():
-            return redirect("/") if request.path == "/login" else None
+            return redirect("/") if path == "/login" else None
+        if request.method in ("GET", "HEAD") and (path in PUBLIC_PATHS or path.startswith(PUBLIC_PREFIXES)):
+            return None
+        if path.startswith("/api/"):
+            return jsonify(error="Sign in required."), 401
         return login_page()
 
     @app.post("/login")

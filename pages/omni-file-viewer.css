@@ -1,5 +1,5 @@
 /* Omni File Viewer: drop zone, file tray, viewer shell and one viewer style per file kind.
-   Colours use the theme variables (with fallbacks) so the spell and book themes both work. */
+   Colours use the theme variables, with fallbacks. */
 
 .drop {
   position: relative;
@@ -74,10 +74,6 @@
   background-color: #2b1a47;
   background-image: conic-gradient(#3a2560 25%, transparent 0 50%, #3a2560 0 75%, transparent 0);
   background-size: 16px 16px;
-}
-html[data-theme="book"] .imgview {
-  background-color: #d8c79c;
-  background-image: conic-gradient(#c7b383 25%, transparent 0 50%, #c7b383 0 75%, transparent 0);
 }
 .imgwrap { position: relative; flex: none; margin: auto; }
 .imgwrap img { position: absolute; left: 50%; top: 50%; max-width: none; user-select: none; }

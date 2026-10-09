@@ -1,6 +1,7 @@
 // Page script for pages/omni-file-viewer.html. Drop a file, look at it, export it as something else.
-// Everything runs in the browser. Heavier libraries (pdf.js, mammoth, SheetJS, jsPDF, JSZip) are loaded from
-// cdnjs the first time a file needs them.
+// By default everything runs in the browser; heavier libraries (pdf.js, mammoth, SheetJS, jsPDF, JSZip) are loaded
+// from cdnjs the first time a file needs them. With "On the server" chosen in Options, the same views, exports and
+// combinations are made by the server instead (see "server mode" below and processing/files.py).
 (function () {
   const $ = (s) => document.querySelector(s);
   const status = $("#status"), host = $("#host"), tools = $("#tools"), fmtSel = $("#fmt"), exportBtn = $("#export");
@@ -71,7 +72,7 @@
 
   // ---------- file kinds ----------
   const EXT = {
-    image: "png jpg jpeg jpe jfif gif webp bmp svg avif ico apng",
+    image: "png jpg jpeg jpe jfif gif webp bmp svg avif ico apng tif tiff heic heif",
     pdf: "pdf",
     docx: "docx",
     sheet: "xlsx xlsm xls ods csv tsv",
@@ -92,12 +93,17 @@
   kinds.image = {
     label: "Image",
     async open(e) {
-      const url = (e.url ||= URL.createObjectURL(e.file));
+      const srv = useServer() && e.ext !== "svg";        // the server's image library cannot read SVG; the browser can
+      let url;
+      if (srv) {                                         // the server decodes it, so TIFF and HEIC work too
+        await upload(e);
+        url = (e.purl ||= URL.createObjectURL(await api.blob(`/api/files/${e.sid}/preview`)));
+      } else url = (e.url ||= URL.createObjectURL(e.file));
       const img = new Image();
       img.alt = e.name;
       await new Promise((res, rej) => {
         img.onload = res;
-        img.onerror = () => rej(new Error("This browser can't decode that image."));
+        img.onerror = () => rej(new Error("This browser can't decode that image. Try “On the server” in Options."));
         img.src = url;
       });
       const nw = img.naturalWidth || 1024, nh = img.naturalHeight || 1024;
@@ -149,7 +155,7 @@
         },
       });
 
-      return {
+      const view = {
         root,
         meta: `${nw} × ${nh} px`,
         ready: layout,
@@ -182,6 +188,17 @@
           },
         ],
       };
+      if (srv) {
+        const inView = () => ({ rot, flip });
+        view.exports = [
+          srvExport(e, "png", "PNG (lossless)", baseOf(e.name) + ".png", inView),
+          srvExport(e, "jpeg", "JPEG", baseOf(e.name) + ".jpg", inView),
+          srvExport(e, "webp", "WebP", baseOf(e.name) + ".webp", inView),
+          srvExport(e, "avif", "AVIF (if the server supports it)", baseOf(e.name) + ".avif", inView),
+          srvExport(e, "pdf", "PDF", baseOf(e.name) + ".pdf", inView),
+        ];
+      }
+      return view;
     },
   };
 
@@ -437,7 +454,9 @@
   kinds.text = {
     label: "Text",
     async open(e) {
-      let text = (await e.file.text()).replace(/^\uFEFF/, "");
+      const srv = useServer();
+      let text = srv ? (await upload(e)).text : (await e.file.text()).replace(/^\uFEFF/, "");
+      let edited = false;                                // true once "Format JSON" / "Minify JSON" changed the text
       const LIMIT = 2e6;
       const pre = el("pre", "textview");
       let wrap = false, size = 0.9;
@@ -453,6 +472,7 @@
       const reformat = (indent) => () => {
         try { text = JSON.stringify(JSON.parse(text), null, indent); }
         catch (err) { throw new Error("This is not valid JSON: " + err.message); }
+        edited = true;
         show();
       };
       show();
@@ -461,7 +481,7 @@
       const base = baseOf(e.name);
       const listing = () => `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${esc(e.name)}</title></head><body><pre style="font:14px/1.5 monospace;white-space:pre-wrap">${esc(text)}</pre></body></html>`;
 
-      return {
+      const view = {
         root: pre,
         meta: `${lines.toLocaleString()} line${lines === 1 ? "" : "s"}${text.length > LIMIT ? ", preview cut at 2 MB" : ""}`,
         tools: [
@@ -492,6 +512,16 @@
           },
         ],
       };
+      if (srv) {
+        const body = () => (edited ? { text } : {});    // unchanged files are exported straight from the server's copy
+        view.exports = [
+          srvExport(e, "txt", "Plain text (.txt)", base + ".txt", body),
+          srvExport(e, "html", "Web page (.html)", base + ".html", body),
+          ...(isJson ? [srvExport(e, "json", "JSON (.json), as shown", base + ".json", body)] : []),
+          srvExport(e, "pdf", "PDF (Latin characters only)", base + ".pdf", body),
+        ];
+      }
+      return view;
     },
   };
 
@@ -529,6 +559,201 @@
       return { root, meta: "", tools: [], exports: [] };
     },
   };
+
+  // ---------- server mode ----------
+  // With "On the server" chosen in Options, a file is uploaded once (/api/files/open) and the server renders pages,
+  // reads documents and spreadsheets, and makes every export and combination (processing/files.py).
+  // Audio and video are always played by the browser.
+  const useServer = () => window.Options.server();
+  const api = window.Options;
+  const KEEP_MS = 20 * 60 * 1000;                       // the server keeps files for 30 minutes after last use
+
+  async function upload(e) {
+    if (e.info && Date.now() - e.at < KEEP_MS) { e.at = Date.now(); return e.info; }
+    const fd = new FormData();
+    fd.append("file", e.file, e.name);
+    e.info = await api.json("/api/files/open", fd);
+    e.sid = e.info.id;
+    e.at = Date.now();
+    return e.info;
+  }
+  function forget(e) {
+    if (e.sid) fetch("/api/files/" + e.sid, { method: "DELETE", credentials: "same-origin" }).catch(() => {});
+    e.sid = e.info = null;
+  }
+  // One export entry: the server makes the file, the page names it.
+  const srvExport = (e, id, label, name, extra) => ({
+    id, label,
+    async run(progress) {
+      progress("Working on the server…");
+      await upload(e);
+      const blob = await api.blob(`/api/files/${e.sid}/export`, { format: id, ...(extra ? extra() : {}) });
+      return { blob, name: typeof name === "function" ? name() : name };
+    },
+  });
+
+  const serverKinds = {};
+
+  serverKinds.pdf = {
+    async open(e) {
+      const { pages: total, sizes } = await upload(e);
+      const root = el("div", "pdfview"), img = el("img", "pdfpage");
+      img.alt = "PDF page";
+      root.append(img);
+      let n = 1, zoom = 0, cur = 1, serial = 0, shown = null;
+      const out = lbl("");
+      const num = el("input");
+      num.type = "number"; num.min = 1; num.max = total; num.value = 1;
+      num.setAttribute("aria-label", "Page number");
+
+      async function render() {
+        const my = ++serial, [pw, ph] = sizes[n - 1];
+        cur = zoom || clamp(((root.clientWidth || 800) - 32) / pw, 0.2, 2.5);
+        const dpr = Math.min(devicePixelRatio || 1, 2);
+        await upload(e);
+        const blob = await api.blob(`/api/files/${e.sid}/page/${n}?scale=${(cur * dpr).toFixed(3)}`);
+        if (my !== serial) return;
+        const url = URL.createObjectURL(blob);
+        img.style.width = pw * cur + "px";
+        img.style.height = ph * cur + "px";
+        img.src = url;
+        if (shown) URL.revokeObjectURL(shown);
+        shown = url;
+        num.value = n;
+        out.textContent = Math.round(cur * 100) + "%";
+      }
+      const go = (k) => { n = clamp(Math.round(k) || 1, 1, total); root.scrollTop = 0; return render(); };
+      const setZoom = (z) => { zoom = clamp(z, 0.2, 5); return render(); };
+      num.addEventListener("change", () => run(() => go(+num.value)));
+      const onKey = (ev) => {
+        if (ev.target.closest?.("input, select, textarea") || ev.ctrlKey || ev.metaKey || ev.altKey) return;
+        if (ev.key === "ArrowLeft") run(() => go(n - 1));
+        else if (ev.key === "ArrowRight") run(() => go(n + 1));
+      };
+      document.addEventListener("keydown", onKey);
+      const onResize = () => { if (!zoom) run(render); };
+      addEventListener("resize", onResize);
+      const base = () => baseOf(e.name);
+
+      return {
+        root,
+        meta: `${total} page${total === 1 ? "" : "s"}`,
+        ready: render,
+        destroy() {
+          document.removeEventListener("keydown", onKey);
+          removeEventListener("resize", onResize);
+          serial++;
+          if (shown) URL.revokeObjectURL(shown);
+        },
+        tools: [
+          tbtn("◀", () => go(n - 1), "Previous page"), num, lbl(`/ ${total}`), tbtn("▶", () => go(n + 1), "Next page"),
+          sep(),
+          tbtn("−", () => setZoom(cur / 1.25), "Zoom out"), out, tbtn("+", () => setZoom(cur * 1.25), "Zoom in"),
+          tbtn("Fit", () => { zoom = 0; return render(); }, "Fit to width"),
+        ],
+        exports: [
+          srvExport(e, "png-page", "Current page as PNG", () => `${base()}-page-${pad(n, total)}.png`, () => ({ page: n })),
+          srvExport(e, "jpg-page", "Current page as JPEG", () => `${base()}-page-${pad(n, total)}.jpg`, () => ({ page: n })),
+          srvExport(e, "png-all", "All pages as PNG (.zip)", () => `${base()}-png.zip`),
+          srvExport(e, "jpg-all", "All pages as JPEG (.zip)", () => `${base()}-jpg.zip`),
+          srvExport(e, "txt", "Text (.txt)", () => base() + ".txt"),
+        ],
+      };
+    },
+  };
+
+  serverKinds.docx = {
+    async open(e) {
+      const { page } = await upload(e);
+      const frame = el("iframe", "docframe");
+      frame.setAttribute("sandbox", "allow-same-origin allow-modals");   // no scripts run in this frame
+      frame.title = e.name;
+      let z = 1;
+      const apply = () => { const b = frame.contentDocument?.body; if (b) b.style.zoom = z; };
+      frame.addEventListener("load", apply);
+      frame.srcdoc = page;
+      const out = lbl("100%");
+      const setZoom = (v) => { z = clamp(v, 0.5, 2.5); out.textContent = Math.round(z * 100) + "%"; apply(); };
+      return {
+        root: frame,
+        meta: "Word document",
+        tools: [tbtn("−", () => setZoom(z / 1.15), "Zoom out"), out, tbtn("+", () => setZoom(z * 1.15), "Zoom in"), tbtn("100%", () => setZoom(1), "Actual size")],
+        exports: [
+          srvExport(e, "html", "Web page (.html)", () => baseOf(e.name) + ".html"),
+          srvExport(e, "txt", "Plain text (.txt)", () => baseOf(e.name) + ".txt"),
+          srvExport(e, "pdf", "PDF (made on the server)", () => baseOf(e.name) + ".pdf"),
+        ],
+      };
+    },
+  };
+
+  serverKinds.sheet = {
+    async open(e) {
+      const { sheets } = await upload(e);
+      const root = el("div"), box = el("div", "sheetview"), note = el("p", "hint sheetnote");
+      root.append(box, note);
+      let name = sheets[0], serial = 0;
+      const colName = (i) => { let s = ""; for (i++; i > 0; i = Math.floor((i - 1) / 26)) s = String.fromCharCode(65 + ((i - 1) % 26)) + s; return s; };
+
+      async function draw() {
+        const my = ++serial;
+        await upload(e);
+        const d = await api.json(`/api/files/${e.sid}/sheet?name=${encodeURIComponent(name)}`);
+        if (my !== serial) return;
+        const cols = d.rows.reduce((m, r) => Math.max(m, r.length), 0);
+        const table = el("table"), head = table.createTHead().insertRow();
+        head.append(el("th"));
+        for (let c = 0; c < cols; c++) head.append(el("th", "", colName(c)));
+        const body = table.createTBody();
+        d.rows.forEach((r, i) => {
+          const tr = body.insertRow();
+          tr.append(el("th", "", i + 1));
+          for (let c = 0; c < cols; c++) tr.insertCell().textContent = r[c] ?? "";
+        });
+        box.replaceChildren(d.rows.length ? table : el("p", "hint note", "This sheet is empty."));
+        const cut = [];
+        if (d.total_rows > d.rows.length) cut.push(`first ${d.rows.length.toLocaleString()} of ${d.total_rows.toLocaleString()} rows`);
+        if (d.total_cols > cols) cut.push(`first ${cols} columns`);
+        note.textContent = cut.length ? `Showing the ${cut.join(" and ")}. Exports contain everything.` : "";
+      }
+
+      const picker = el("select");
+      picker.setAttribute("aria-label", "Sheet");
+      sheets.forEach((s) => picker.append(new Option(s, s)));
+      picker.addEventListener("change", () => { name = picker.value; run(draw); });
+      const stem = () => baseOf(e.name) + (sheets.length > 1 ? "-" + safeName(name) : "");
+      const cur = () => ({ sheet: name });
+
+      return {
+        root,
+        meta: `${sheets.length} sheet${sheets.length === 1 ? "" : "s"}`,
+        ready: draw,
+        destroy: () => { serial++; },
+        tools: sheets.length > 1 ? [picker] : [],
+        exports: [
+          srvExport(e, "xlsx", "Excel (.xlsx), all sheets", () => baseOf(e.name) + ".xlsx"),
+          srvExport(e, "ods", "OpenDocument (.ods), all sheets", () => baseOf(e.name) + ".ods"),
+          srvExport(e, "csv", "CSV, current sheet", () => stem() + ".csv", cur),
+          srvExport(e, "tsv", "TSV, current sheet", () => stem() + ".tsv", cur),
+          srvExport(e, "json", "JSON, current sheet", () => stem() + ".json", cur),
+          srvExport(e, "html", "HTML table, current sheet", () => stem() + ".html", cur),
+        ],
+      };
+    },
+  };
+
+  // Combine through the server: every ticked file is uploaded (if it is not already there) and joined there.
+  async function combineServer(choice, list, progress) {
+    const ids = [];
+    for (const [i, f] of list.entries()) {
+      progress(`Uploading ${f.name} (${i + 1} of ${list.length})…`);
+      await upload(f);
+      ids.push(f.sid);
+    }
+    progress("Combining on the server…");
+    const blob = await api.blob("/api/files/combine", { ids, format: choice.id, label: $("#clabel").checked });
+    return { blob, ext: choice.id };
+  }
 
   // ---------- files and the viewer ----------
   const MAX_FILES = 30, MAX_BYTES = 300 * 1024 * 1024;
@@ -579,7 +804,8 @@
     host.replaceChildren(el("p", "hint note", "Opening…"));
     say("");
     try {
-      const v = await kinds[entry.kind].open(entry);
+      const impl = useServer() && serverKinds[entry.kind] ? serverKinds[entry.kind] : kinds[entry.kind];
+      const v = await impl.open(entry);
       if (mine !== token) return v.destroy?.();       // another file was picked while this one was loading
       view = v;
       host.replaceChildren(v.root);
@@ -609,6 +835,8 @@
 
   function remove(entry) {
     if (entry.url) URL.revokeObjectURL(entry.url);
+    if (entry.purl) URL.revokeObjectURL(entry.purl);
+    forget(entry);
     const i = files.indexOf(entry);
     files.splice(i, 1);
     if (entry === current) show(files[Math.min(i, files.length - 1)] || null);
@@ -832,7 +1060,7 @@
     cgo.disabled = true;
     say("Combining…");
     try {
-      const { blob, ext } = await choice.run(list, say);
+      const { blob, ext } = useServer() ? await combineServer(choice, list, say) : await choice.run(list, say);
       const name = `${baseOf(list[0].name)}-combined.${ext}`;
       save(blob, name);
       say(`Saved ${name} (${fmtSize(blob.size)}) with ${list.length} files in the order shown.`);
@@ -842,4 +1070,10 @@
   }));
 
   setExports([]);
+  let lastMode = window.Options.get().process;
+  document.addEventListener("optionschange", (ev) => {   // switching where files are processed re-opens the current one
+    if (ev.detail.process === lastMode) return;
+    lastMode = ev.detail.process;
+    if (current) run(() => show(current));
+  });
 })();

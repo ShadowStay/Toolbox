@@ -3,39 +3,138 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Iprix's Spells</title>
+  <title>Iprix's Spells – Online Text, Image and File Tools</title>
+  <meta name="description" content="An online toolbox to edit and compare text, edit and convert images, and view, convert and combine PDF, Word and spreadsheet files. Runs in your browser or on the server.">
+  <meta name="robots" content="index, follow, max-image-preview:large">
+  <meta name="theme-color" content="#140b22">
+  <link rel="canonical" href="{{ORIGIN}}/">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%23140b22'/%3E%3Ctext x='32' y='46' font-size='40' text-anchor='middle' fill='%23e9c776'%3E%E2%98%BE%3C/text%3E%3C/svg%3E">
+
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Iprix's Spells">
+  <meta property="og:title" content="Iprix's Spells – Online Text, Image and File Tools">
+  <meta property="og:description" content="Edit and compare text, edit and convert images, view and convert PDF, Word and spreadsheet files. In your browser or on the server.">
+  <meta property="og:url" content="{{ORIGIN}}/">
+  <meta property="og:image" content="{{ORIGIN}}/images/Iprix.png">
+  <meta name="twitter:card" content="summary">
+  <meta name="twitter:title" content="Iprix's Spells – Online Text, Image and File Tools">
+  <meta name="twitter:description" content="Edit and compare text, edit and convert images, view and convert PDF, Word and spreadsheet files.">
+  <meta name="twitter:image" content="{{ORIGIN}}/images/Iprix.png">
+
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "WebSite",
+        "@id": "{{ORIGIN}}/#website",
+        "url": "{{ORIGIN}}/",
+        "name": "Iprix's Spells",
+        "description": "An online toolbox for text, images and files.",
+        "inLanguage": "en"
+      },
+      {
+        "@type": "WebApplication",
+        "@id": "{{ORIGIN}}/#app",
+        "url": "{{ORIGIN}}/",
+        "name": "Iprix's Spells",
+        "applicationCategory": "UtilitiesApplication",
+        "operatingSystem": "Any (web browser)",
+        "isPartOf": { "@id": "{{ORIGIN}}/#website" },
+        "featureList": [
+          "Find and replace with regular expressions, change case, sort and deduplicate lines, extract emails and URLs",
+          "Compare two texts line by line or word by word",
+          "Layer, crop, rotate, filter, arrange and convert images between PNG, JPEG, WebP and AVIF",
+          "View PDF, Word, spreadsheet, text, image, audio and video files",
+          "Convert files to other formats and combine several files into one",
+          "Shared chat room with voice and screen sharing",
+          "Process in the browser or on the server"
+        ]
+      }
+    ]
+  }
+  </script>
+
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Uncial+Antiqua&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/shared/base.css">
+  <link rel="stylesheet" href="/shared/site.css">
 </head>
 <body>
   <canvas id="motes" aria-hidden="true"></canvas>
   <aside id="site-nav" aria-label="Main navigation"></aside>
 
   <main class="page">
-    <section class="hero">
+    <header class="hero">
       <div class="hero-text">
         <p class="eyebrow">✦ The tower is open ✦</p>
-        <h1>Welcome to <span class="name">Iprix's Spells</span></h1>
-        <p class="lede">An online toolbox. Open a tool from the sidebar or from the spellbook below.</p>
-        <p class="whisper" aria-live="off"><span id="whisper">Everything runs in your browser.</span></p>
+        <h1>Iprix's Spells <span class="name">an online toolbox for text, images and files</span></h1>
+        <p class="lede">Edit and compare text, edit and convert images, and view, convert and combine PDF, Word and spreadsheet files. No installs: open a tool and start.</p>
+        <p class="whisper" aria-live="off"><span id="whisper">Small spells, sharp edges.</span></p>
+        <p class="signin-only"><a class="btn primary cta" href="/login">Sign in to open the tools</a></p>
       </div>
       <figure class="portrait">
         <svg class="runes" viewBox="0 0 200 200" aria-hidden="true">
           <defs><path id="rune-path" d="M100,100 m-90,0 a90,90 0 1,1 180,0 a90,90 0 1,1 -180,0"/></defs>
           <text><textPath href="#rune-path" textLength="563" lengthAdjust="spacing">ᚠ ᚢ ᚦ ᚨ ᚱ ᚲ ᚷ ᚹ ᚺ ᚾ ᛁ ᛃ ᛇ ᛈ ᛉ ᛊ ᛏ ᛒ ᛖ ᛗ ᛚ ᛜ ᛞ ᛟ</textPath></text>
         </svg>
-        <div class="frame"><img src="/images/Iprix.png" alt="Iprix"></div>
+        <div class="frame"><img src="/images/Iprix.png" alt="Portrait of Iprix, who makes these tools" width="208" height="208" fetchpriority="high"></div>
       </figure>
-    </section>
+    </header>
 
     <section class="spellbook" aria-labelledby="spellbook-title">
-      <h2 id="spellbook-title"><span>Spellbook</span></h2>
-      <div id="shelves"><p class="empty">Consulting the tomes…</p></div>
+      <h2 id="spellbook-title"><span>Spellbook: the tools</span></h2>
+      <div id="shelves"><!--SPELLBOOK--></div>
+    </section>
+
+    <section class="about" aria-labelledby="what-title">
+      <h2 id="what-title"><span>What you can do here</span></h2>
+      <div class="about-grid">
+        <article>
+          <h3>Work with text</h3>
+          <p>Find and replace across a whole document, with optional regular expressions. Change case (UPPER, Title, camelCase, snake_case and more), sort and deduplicate lines, strip HTML, pull out email addresses and URLs, encode Base64 and URLs, and see exactly what changed between two versions of a text.</p>
+        </article>
+        <article>
+          <h3>Edit and convert images</h3>
+          <p>Every image is a layer you can drag, resize, rotate and crop. Apply filters, line several images up into a collage, cut one into tiles, and save as PNG, JPEG, WebP or AVIF.</p>
+        </article>
+        <article>
+          <h3>View and convert files</h3>
+          <p>Open PDFs, Word documents, spreadsheets, images, text, audio and video in one viewer. Export a PDF page as an image, a document as plain text or HTML, a spreadsheet as CSV or Excel, and combine several files into one PDF, text file or workbook.</p>
+        </article>
+        <article>
+          <h3>Talk in the shared room</h3>
+          <p>One chat room for everyone who is signed in, with a voice channel and screen sharing between browsers.</p>
+        </article>
+      </div>
+    </section>
+
+    <section class="about" aria-labelledby="how-title">
+      <h2 id="how-title"><span>Your choice: browser or server</span></h2>
+      <p>By default the tools run in your own browser, so your text and files stay on your device. If you prefer, switch to server processing in the Options dialog: the same tools then run on the site's server, which handles more formats (such as TIFF and HEIC photos) and large files, and keeps nothing once you are done. Animations are off by default and can be turned on in the same dialog. Both choices are remembered in a small cookie on your device.</p>
+    </section>
+
+    <section class="about faq" aria-labelledby="faq-title">
+      <h2 id="faq-title"><span>Questions</span></h2>
+      <details>
+        <summary>Are my files uploaded?</summary>
+        <p>Not in browser mode: files are opened and converted on your device. In server mode they are sent to the site's server for the task and deleted when you close the file or after 30 minutes.</p>
+      </details>
+      <details>
+        <summary>Which file types can I open?</summary>
+        <p>Images (PNG, JPEG, WebP, GIF, SVG, AVIF, BMP, ICO, plus TIFF and HEIC in server mode), PDF, Word (.docx), spreadsheets (XLSX, XLS, ODS, CSV), text and code files, MP3 and WAV audio, and MP4 and WebM video.</p>
+      </details>
+      <details>
+        <summary>Do I need to install anything?</summary>
+        <p>No. Everything works in a modern web browser. Microphone and screen sharing in the chat need a secure (https) connection.</p>
+      </details>
+      <details>
+        <summary>How do I get in?</summary>
+        <p>The tools are protected by a password. Use the sign-in link, enter the password, and the tools appear in the sidebar.</p>
+      </details>
     </section>
   </main>
 
-  <script src="/shared/navigation.js"></script>
+  <script src="/shared/site.js"></script>
 </body>
 </html>

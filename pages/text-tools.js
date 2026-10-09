@@ -1,4 +1,5 @@
-// Page script for html/text-tools.html. All processing happens in the browser.
+// Page script for pages/text-tools.html. Processing happens in the browser, or on the server (processing/text.py)
+// when "On the server" is chosen in Options. Both paths use the same panels and give the same results.
 (function () {
   const $ = (s) => document.querySelector(s);
   const $$ = (s) => [...document.querySelectorAll(s)];
@@ -253,6 +254,24 @@
     },
   };
 
+  // ---------- server mode ----------
+  const useServer = () => window.Options.server();
+  // Actions that transform the input. The rest (paste, copy, clear...) only move text around and stay local.
+  const SERVER_ACTIONS = new Set(["replaceAll", "deleteMatches", "deleteSomething", "case", "sort", "reverseLines", "shuffle",
+    "dedupe", "removeEmpty", "number", "affix", "join", "split", "trimLines", "collapseSpaces", "collapseBlank", "removeBreaks",
+    "stripTags", "stripAccents", "straightenQuotes", "extract", "wordFreq", "encode"]);
+  const params = () => ({
+    find: val("find"), replace: val("replace"), rp_case: checked("rp-case"), rp_word: checked("rp-word"), rp_regex: checked("rp-regex"),
+    del_find: val("del-find"), del_mode: val("del-mode"), del_case: checked("del-case"), del_word: checked("del-word"), del_regex: checked("del-regex"),
+    ln_natural: checked("ln-natural"), ln_ignorecase: checked("ln-ignorecase"), ln_prefix: val("ln-prefix"), ln_suffix: val("ln-suffix"), ln_sep: val("ln-sep"),
+    ex_unique: checked("ex-unique"),
+  });
+  async function viaServer(name, arg) {
+    status.textContent = "Working on the server…";
+    const d = await window.Options.json("/api/text/" + name, { text: input.value, arg, params: params() });
+    done(d.text, d.message);
+  }
+
   async function run(fn) {
     status.classList.remove("error");
     try {
@@ -265,7 +284,9 @@
 
   document.addEventListener("click", (e) => {
     const btn = e.target.closest("[data-action]");
-    if (btn) run(() => actions[btn.dataset.action](btn.dataset.arg));
+    if (!btn) return;
+    const name = btn.dataset.action, arg = btn.dataset.arg;
+    run(() => (useServer() && SERVER_ACTIONS.has(name) ? viaServer(name, arg) : actions[name](arg)));
   });
 
   // Enter in a text field triggers the panel's primary button.
@@ -322,7 +343,9 @@
     return ops;
   }
 
-  function runCompare() {
+  let compareSerial = 0;
+  async function runCompare() {
+    const mine = ++compareSerial;
     const result = $("#cmp-result"), summary = $("#cmp-summary");
     summary.classList.remove("error");
     result.textContent = "";
@@ -343,8 +366,12 @@
     const A = tokenize(a), B = tokenize(b);
     let ops;
     try {
-      ops = diff(A, B, A.map(key), B.map(key));
+      ops = useServer()
+        ? (await window.Options.json("/api/text/compare", { a, b, mode: val("cmp-mode"), ignore_case: checked("cmp-case"), ignore_ws: checked("cmp-ws") })).ops
+        : diff(A, B, A.map(key), B.map(key));
+      if (mine !== compareSerial) return;                // a newer comparison has started
     } catch (err) {
+      if (mine !== compareSerial) return;
       summary.textContent = err.message;
       summary.classList.add("error");
       return;
@@ -393,4 +420,5 @@
   ["cmp-mode", "cmp-case", "cmp-ws", "cmp-hide"].forEach((id) => $("#" + id).addEventListener("input", runCompare));
 
   updateStats();
+  document.addEventListener("optionschange", () => { if (!$("#compare").hidden) runCompare(); });
 })();
