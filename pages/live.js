@@ -1,6 +1,8 @@
-// Page script for pages/live/chat.html: one shared room. Text chat is always on; people can also join the
+// Page script for pages/live.html: one shared room. Text chat is always on; people can also join the
 // voice channel. Chat, presence and connection setup go through the server (chat.py); voice and screen
 // shares flow directly between browsers (WebRTC, one connection per pair of people in voice).
+// The drawing board (live-board.js, board.py) uses the same connection: this script hands it the events it needs
+// (live:welcome, live:leave, live:disconnect, live:chat, live:bop, live:blive) and window.Live.
 (function () {
   const $ = (s) => document.querySelector(s);
   const ICE = [{ urls: "stun:stun.l.google.com:19302" }];
@@ -15,6 +17,10 @@
   let es = null, me = "", myName = store.get("chat-name"), retry = null, ac = null, outbox = Promise.resolve();
   let inVoice = false, mic = null, micTrack = null, screen = null, muted = false, deafened = false;
   let inputId = store.get("chat-input"), outputId = store.get("chat-output"), volume = 1;
+
+  // What the board needs to know about the room.
+  window.Live = { me: () => me, name: () => myName, user: (id) => users.get(id) };
+  const fire = (name, detail) => document.dispatchEvent(new CustomEvent("live:" + name, { detail }));
 
   if (!window.isSecureContext) $("#secure-warn").hidden = false;
   const say = (text, error) => { status.textContent = text; status.classList.toggle("error", !!error); };
@@ -327,6 +333,7 @@
     disconnect();
     clearTimeout(retry);
     resetLocal();
+    fire("disconnect");
     $("#app").hidden = true;
     $("#login").hidden = false;
     $("#name").value = myName;
@@ -363,9 +370,10 @@
       $("#app").hidden = false;
       say("");
       render();
+      fire("welcome", { id: me });
     });
     on("join", (u) => { users.set(u.id, u); render(); });
-    on("leave", ({ id }) => { users.delete(id); removePeer(id); render(); });
+    on("leave", ({ id }) => { users.delete(id); removePeer(id); render(); fire("leave", { id }); });
     on("state", ({ id, ...s }) => {
       const u = users.get(id);
       if (!u) return;
@@ -374,15 +382,18 @@
       syncPeers();
       render();
     });
-    on("chat", chatLine);
+    on("chat", (m) => { chatLine(m); if (m.from !== me) fire("chat", m); });
     on("signal", ({ from, data }) => {
       const p = peers.get(from);
       if (p) p.queue = p.queue.then(() => handleSignal(p, data));        // one message at a time per person
     });
+    on("bop", (d) => fire("bop", d));                                    // board: a change to the drawing
+    on("blive", (d) => fire("blive", d));                                // board: cursors and drawing in progress
     es.onerror = () => {
       if (es) { es.close(); es = null; }
       resetLocal();
       render();
+      fire("disconnect");
       say("Disconnected. Reconnecting…", true);
       retry = setTimeout(connect, 3000);
     };

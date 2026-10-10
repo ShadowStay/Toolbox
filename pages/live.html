@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Chat</title>
+  <title>Live</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Uncial+Antiqua&display=swap" rel="stylesheet">
@@ -13,9 +13,9 @@
   <aside id="site-nav" aria-label="Main navigation"></aside>
 
   <main class="page wide">
-    <h1 class="tool-title">Chat</h1>
-    <p class="tool-intro">One room for everyone. Type in the chat, or join the voice channel to talk and share your screen.</p>
-    <p class="status error" id="secure-warn" hidden>Microphone and screen sharing only work on https:// or localhost. The chat still works on this address.</p>
+    <h1 class="tool-title">Live</h1>
+    <p class="tool-intro">One room for everyone. Chat, join the voice channel and share your screen, or draw together on the board.</p>
+    <p class="status error" id="secure-warn" hidden>Microphone and screen sharing only work on https:// or localhost. The chat and the board still work on this address.</p>
 
     <form class="card" id="login">
       <label class="field">Pick a display name <input type="text" id="name" maxlength="24" autocomplete="off" spellcheck="false"></label>
@@ -49,13 +49,49 @@
 
       <section class="main">
         <div class="stage" id="stage" hidden></div>
-        <div class="chat">
+
+        <div class="tabs live-tabs" role="tablist" aria-label="Live views">
+          <button class="tab" role="tab" data-view="chat" aria-selected="true">Chat <span class="unread" id="unread" hidden></span></button>
+          <button class="tab" role="tab" data-view="board" aria-selected="false">Board</button>
+        </div>
+
+        <div class="chat" id="view-chat">
           <h2 class="side-head"># general</h2>
           <ol id="log"></ol>
           <form class="chat-form" id="chat-form">
             <input type="text" id="msg" maxlength="1000" placeholder="Message #general" autocomplete="off" aria-label="Message">
             <button class="btn primary" type="submit">Send</button>
           </form>
+        </div>
+
+        <div class="board" id="view-board" hidden>
+          <div class="board-bar" role="toolbar" aria-label="Drawing tools">
+            <div class="group">
+              <button class="btn small" type="button" data-tool="pen" aria-pressed="true" title="Draw">✎ Pen</button>
+              <button class="btn small" type="button" data-tool="eraser" aria-pressed="false" title="Removes every stroke you touch">⌫ Eraser</button>
+              <button class="btn small" type="button" data-tool="select" aria-pressed="false" title="Click or drag a box to select, then move. Images can be resized and rotated.">⬚ Select</button>
+            </div>
+            <span class="sep"></span>
+            <div class="group">
+              <input type="color" id="b-color" value="#1d1a24" aria-label="Pen colour">
+              <input type="range" id="b-size" min="1" max="40" value="4" aria-label="Pen size">
+            </div>
+            <span class="sep"></span>
+            <div class="group">
+              <button class="btn small" type="button" id="b-undo" title="Undo your last action (Ctrl+Z)">◀ Undo</button>
+              <button class="btn small" type="button" id="b-redo" title="Redo (Ctrl+Shift+Z)">Redo ▶</button>
+            </div>
+            <span class="sep"></span>
+            <div class="group">
+              <button class="btn small" type="button" id="b-image">Make image</button>
+              <button class="btn small" type="button" id="b-delete" title="Delete the selection (Delete key)">Delete</button>
+              <button class="btn small" type="button" id="b-clear">Clear board</button>
+            </div>
+          </div>
+          <p class="board-note" id="board-note" role="status" aria-live="polite"></p>
+          <div class="board-stage">
+            <canvas id="board" aria-label="Shared drawing board"></canvas>
+          </div>
         </div>
       </section>
     </div>
@@ -76,5 +112,6 @@
   </main>
 
   <script src="/shared/site.js"></script>
+  <script src="/live-board.js"></script>
 </body>
 </html>

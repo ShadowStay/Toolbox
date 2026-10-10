@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Cloud Storage</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Uncial+Antiqua&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/shared/site.css">
+</head>
+<body>
+  <aside id="site-nav" aria-label="Main navigation"></aside>
+
+  <main class="page wide">
+    <h1 class="tool-title">Cloud Storage</h1>
+    <p class="tool-intro">Keep files of any type and any size, and download them from anywhere you are signed in. One shared drive of 500 GB.</p>
+
+    <div class="meter" aria-live="polite">
+      <div class="bar" role="img" aria-label="Space used"><span id="bar"></span></div>
+      <p class="hint" id="usage"></p>
+    </div>
+
+    <label class="drop" id="drop">
+      <strong class="big">Drop files or folders anywhere on this page</strong>
+      <span class="hint">Or use the buttons below. Large files are sent in pieces and pick up where they left off if the connection drops.</span>
+    </label>
+
+    <div class="actions toolbar">
+      <button class="btn primary" type="button" id="upload-files">Upload files</button>
+      <button class="btn" type="button" id="upload-dir">Upload folder</button>
+      <button class="btn" type="button" id="new-folder">New folder</button>
+    </div>
+    <input type="file" id="picker" multiple hidden>
+    <input type="file" id="dirpicker" webkitdirectory multiple hidden>
+
+    <p class="status" id="status" role="status" aria-live="polite"></p>
+
+    <section class="stage-box" id="uploads-box" hidden aria-labelledby="uploads-title">
+      <div class="vbar">
+        <h2 class="ctitle" id="uploads-title">Uploads</h2>
+        <button class="btn small" type="button" id="clear-done">Clear finished</button>
+      </div>
+      <ul class="uploads" id="uploads"></ul>
+    </section>
+
+    <nav class="crumbs" id="crumbs" aria-label="Folder path"></nav>
+
+    <div class="selbar" id="selbar" hidden>
+      <strong id="selcount"></strong>
+      <button class="btn small" type="button" id="sel-move">Move to…</button>
+      <button class="btn small" type="button" id="sel-delete">Delete</button>
+      <button class="btn small" type="button" id="sel-clear">Clear selection</button>
+    </div>
+
+    <div class="listing" id="listing" hidden>
+      <table>
+        <thead>
+          <tr>
+            <th class="chk"><input type="checkbox" id="all" aria-label="Select all"></th>
+            <th>Name</th>
+            <th class="sz">Size</th>
+            <th class="dt">Added</th>
+            <th class="ac"><span class="sr">Actions</span></th>
+          </tr>
+        </thead>
+        <tbody id="rows"></tbody>
+      </table>
+    </div>
+    <p class="empty-note" id="empty" hidden>This folder is empty. Drop something in.</p>
+
+    <dialog id="mover">
+      <h2>Move to</h2>
+      <label class="field">Destination folder <select id="move-to"></select></label>
+      <div class="actions spaced-top">
+        <button class="btn primary" type="button" id="move-go">Move</button>
+        <button class="btn" type="button" id="move-cancel">Cancel</button>
+      </div>
+    </dialog>
+  </main>
+
+  <script src="/shared/site.js"></script>
+</body>
+</html>

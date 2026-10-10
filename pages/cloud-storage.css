@@ -1,0 +1,68 @@
+/* Cloud Storage: space meter, drop zone, upload queue, breadcrumbs and the file list. */
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+.spaced-top { margin-top: 1rem; }
+.empty-note { margin-top: 1.5rem; color: #d9cbf2; }
+.ctitle { margin: 0; font-size: 1.05rem; font-weight: 600; }
+.btn:disabled { opacity: .45; cursor: default; }
+a.btn { text-decoration: none; display: inline-block; }
+
+/* ---------- space meter ---------- */
+.meter { margin-top: 1.5rem; }
+.bar { height: .7rem; overflow: hidden; background: #140b22; border: 1px solid #8a5bd855; border-radius: 1rem; }
+.bar span { display: block; width: 0; height: 100%; background: linear-gradient(90deg, var(--amethyst), var(--orchid)); transition: width .3s; }
+.bar.full span { background: linear-gradient(90deg, #c2395a, #ff9fb3); }
+.meter .hint { margin: .45rem 0 0; }
+
+/* ---------- drop zone ---------- */
+.drop {
+  display: grid; gap: .3rem; place-items: center; margin: 1.25rem 0 1rem; padding: 1.6rem 1.5rem; text-align: center;
+  border: 2px dashed #8a5bd8aa; border-radius: .6rem; transition: background .15s, border-color .15s;
+}
+.drop.over { background: #8a5bd822; border-color: var(--candle); }
+.drop .hint { margin: 0; max-width: 46rem; }
+.drop .big { font-size: 1.1rem; }
+.toolbar { margin-bottom: .25rem; }
+
+/* ---------- uploads ---------- */
+.stage-box { margin-top: .75rem; padding: 1rem; background: #22123bcc; border: 1px solid #8a5bd855; border-radius: .6rem; }
+.vbar { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: .6rem; margin-bottom: .75rem; }
+.uploads { list-style: none; margin: 0; padding: 0; display: grid; gap: .5rem; max-height: 18rem; overflow: auto; }
+.uploads li { display: grid; grid-template-columns: 1fr auto; gap: .2rem .8rem; align-items: center; padding: .45rem .7rem; background: #140b22; border: 1px solid #8a5bd855; border-radius: .45rem; }
+.uploads .uname { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: .9rem; }
+.uploads progress { grid-column: 1 / -1; width: 100%; height: .5rem; accent-color: var(--amethyst); }
+.uploads .ustate { grid-column: 1; font-size: .8rem; color: var(--orchid); }
+.uploads li.failed .ustate { color: #ff9fb3; }
+.uploads li.done progress, .uploads li.failed progress, .uploads li.cancelled progress { display: none; }
+.uploads .btn { grid-column: 2; grid-row: 1; }
+
+/* ---------- path and selection ---------- */
+.crumbs { display: flex; flex-wrap: wrap; align-items: center; gap: .35rem; margin: 1.25rem 0 .6rem; font-size: .95rem; }
+.crumbs .sep { color: #c9a2ff99; }
+.selbar { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; margin-bottom: .6rem; padding: .5rem .75rem; background: #8a5bd822; border: 1px solid var(--candle); border-radius: .5rem; }
+.selbar strong { margin-right: .5rem; font-size: .9rem; }
+
+/* ---------- file list ---------- */
+.listing { overflow-x: auto; background: #22123bcc; border: 1px solid #8a5bd855; border-radius: .6rem; }
+.listing table { width: 100%; border-collapse: collapse; font-size: .92rem; }
+.listing th { padding: .55rem .75rem; text-align: left; font-weight: 600; color: var(--orchid); border-bottom: 1px solid #8a5bd855; }
+.listing td { padding: .45rem .75rem; border-bottom: 1px solid #8a5bd822; vertical-align: middle; }
+.listing tbody tr:hover { background: #8a5bd815; }
+.listing tbody tr:last-child td { border-bottom: 0; }
+.listing .chk { width: 2.2rem; }
+.listing .chk input { accent-color: var(--amethyst); }
+.listing .nm { max-width: 0; width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.listing .nm a { text-decoration: none; color: var(--moon); }
+.listing .nm a:hover { text-decoration: underline; color: #fff; }
+.listing .sz, .listing .dt { white-space: nowrap; font-variant-numeric: tabular-nums; color: #d9cbf2; }
+.listing .ac { white-space: nowrap; text-align: right; }
+.listing .ac .btn { margin-left: .25rem; }
+
+/* ---------- move dialog ---------- */
+#mover { width: min(26rem, 92vw); padding: 1.25rem; color: var(--moon); background: var(--dusk); border: 1px solid var(--amethyst); border-radius: .7rem; }
+#mover::backdrop { background: #000a; }
+#mover h2 { margin: 0 0 1rem; font-size: 1.1rem; }
+
+@media (max-width: 760px) {
+  .listing .dt { display: none; }
+  .listing .ac .btn { margin: .15rem 0 .15rem .25rem; }
+}

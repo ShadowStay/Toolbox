@@ -6,8 +6,10 @@ from pathlib import Path
 from flask import Flask, Response, abort, jsonify, redirect, request, send_from_directory
 
 from auth import init_auth
+from board import bp as board_bp
 from chat import bp as chat_bp
 from processing import bp as processing_bp
+from storage import bp as storage_bp
 
 BASE = Path(__file__).parent.resolve()
 PAGES_DIR = BASE / "pages"      # pages/index.*  = home page, pages/<category>/<page>.{html,js,css}
@@ -18,7 +20,9 @@ app = Flask(__name__, static_folder=None)
 app.config["MAX_CONTENT_LENGTH"] = 300 * 1024 * 1024      # biggest upload accepted by the processing API
 init_auth(app)
 app.register_blueprint(chat_bp)
+app.register_blueprint(board_bp)                           # the drawing board on the Live page
 app.register_blueprint(processing_bp)
+app.register_blueprint(storage_bp)                         # cloud storage: uploads come in pieces, see storage.py
 SAFE = re.compile(r"^[A-Za-z0-9_-]+$")
 ASSET = re.compile(r"^[A-Za-z0-9_-]+\.(?:js|css)$")
 
@@ -27,7 +31,8 @@ TOOLS = {
     "text-tools": ("✎", "Find, replace, clean, convert and compare text."),
     "image-tools": ("❖", "Layer, crop, filter and convert images."),
     "omni-file-viewer": ("❂", "View, convert and combine images, PDFs, Word files and spreadsheets."),
-    "chat": ("☄", "A shared room with voice and screen sharing."),
+    "cloud-storage": ("☁", "Keep files of any size and download them from anywhere. Up to 500 GB."),
+    "live": ("☄", "A shared room: chat, voice, screen sharing and a drawing board."),
 }
 FALLBACK = ("✦", "A spell worth casting.")
 
