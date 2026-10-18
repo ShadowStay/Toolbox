@@ -1,0 +1,345 @@
+{
+  "classes": [
+    {
+      "classname": "Harcos",
+      "ke_alap": 9,
+      "te_alap": 20,
+      "ve_alap": 75,
+      "ce_alap": 0,
+      "hm": 11,
+      "hm_limitation": [
+        {
+          "stat": null,
+          "amount": 3
+        }
+      ],
+      "kp_alap": 10,
+      "kp_szint": 14,
+      "ep_alap": 7,
+      "fp_alap": 6,
+      "fp_szint": "k6+4"
+    },
+    {
+      "classname": "Gladiátor",
+      "ke_alap": 9,
+      "te_alap": 20,
+      "ve_alap": 75,
+      "ce_alap": 0,
+      "hm": 12,
+      "hm_limitation": [
+        {
+          "stat": null,
+          "amount": 4
+        }
+      ],
+      "kp_alap": 3,
+      "kp_szint": 6,
+      "ep_alap": 8,
+      "fp_alap": 7,
+      "fp_szint": "k6+5"
+    },
+    {
+      "classname": "Fejvadász",
+      "ke_alap": 10,
+      "te_alap": 20,
+      "ve_alap": 75,
+      "ce_alap": 0,
+      "hm": 11,
+      "hm_limitation": [
+        {
+          "stat": null,
+          "amount": 4
+        }
+      ],
+      "kp_alap": 3,
+      "kp_szint": 5,
+      "ep_alap": 6,
+      "fp_alap": 7,
+      "fp_szint": "k6+5"
+    },
+    {
+      "classname": "Lovag",
+      "ke_alap": 5,
+      "te_alap": 20,
+      "ve_alap": 75,
+      "ce_alap": null,
+      "hm": 12,
+      "hm_limitation": [
+        {
+          "stat": null,
+          "amount": 5
+        }
+      ],
+      "kp_alap": 4,
+      "kp_szint": 7,
+      "ep_alap": 7,
+      "fp_alap": 6,
+      "fp_szint": "k6+5"
+    },
+    {
+      "classname": "Amazon",
+      "ke_alap": 8,
+      "te_alap": 22,
+      "ve_alap": 73,
+      "ce_alap": 10,
+      "hm": 10,
+      "hm_limitation": [],
+      "kp_alap": 8,
+      "kp_szint": 8,
+      "ep_alap": 7,
+      "fp_alap": 7,
+      "fp_szint": "k6+4"
+    },
+    {
+      "classname": "Barbár",
+      "ke_alap": 10,
+      "te_alap": 26,
+      "ve_alap": 70,
+      "ce_alap": 0,
+      "hm": 12,
+      "hm_limitation": [
+        {
+          "stat": null,
+          "amount": 5
+        },
+        {
+          "stat": null,
+          "amount": 3
+        }
+      ],
+      "kp_alap": 7,
+      "kp_szint": 10,
+      "ep_alap": 8,
+      "fp_alap": 7,
+      "fp_szint": "k6+5"
+    },
+    {
+      "classname": "Bajvívó",
+      "ke_alap": 9,
+      "te_alap": 20,
+      "ve_alap": 75,
+      "ce_alap": null,
+      "hm": 12,
+      "hm_limitation": [
+        {
+          "stat": null,
+          "amount": 3
+        }
+      ],
+      "kp_alap": 4,
+      "kp_szint": 6,
+      "ep_alap": 5,
+      "fp_alap": 5,
+      "fp_szint": "k6+3"
+    },
+    {
+      "classname": "Tolvaj",
+      "ke_alap": 8,
+      "te_alap": 17,
+      "ve_alap": 72,
+      "ce_alap": 10,
+      "hm": 6,
+      "hm_limitation": [
+        {
+          "stat": null,
+          "amount": 1
+        }
+      ],
+      "kp_alap": 8,
+      "kp_szint": 10,
+      "ep_alap": 4,
+      "fp_alap": 5,
+      "fp_szint": "k6+3"
+    },
+    {
+      "classname": "Bárd",
+      "ke_alap": 10,
+      "te_alap": 20,
+      "ve_alap": 75,
+      "ce_alap": 15,
+      "hm": 9,
+      "hm_limitation": [
+        {
+          "stat": null,
+          "amount": 2
+        }
+      ],
+      "kp_alap": 5,
+      "kp_szint": 8,
+      "ep_alap": 5,
+      "fp_alap": 6,
+      "fp_szint": "k6+3"
+    },
+    {
+      "classname": "Pap",
+      "ke_alap": 5,
+      "te_alap": 17,
+      "ve_alap": 72,
+      "ce_alap": 0,
+      "hm": 8,
+      "hm_limitation": [
+        {
+          "stat": null,
+          "amount": 3
+        }
+      ],
+      "kp_alap": 6,
+      "kp_szint": 10,
+      "ep_alap": 6,
+      "fp_alap": 6,
+      "fp_szint": "k6+2"
+    },
+    {
+      "classname": "Paplovag",
+      "ke_alap": 5,
+      "te_alap": 20,
+      "ve_alap": 75,
+      "ce_alap": null,
+      "hm": 9,
+      "hm_limitation": [
+        {
+          "stat": null,
+          "amount": 3
+        }
+      ],
+      "kp_alap": 5,
+      "kp_szint": 5,
+      "ep_alap": 7,
+      "fp_alap": 8,
+      "fp_szint": "k6+5"
+    },
+    {
+      "classname": "Harművész",
+      "ke_alap": 10,
+      "te_alap": 20,
+      "ve_alap": 75,
+      "ce_alap": 0,
+      "hm": 8,
+      "hm_limitation": [
+        {
+          "stat": null,
+          "amount": 3
+        }
+      ],
+      "kp_alap": 4,
+      "kp_szint": 5,
+      "ep_alap": 4,
+      "fp_alap": 8,
+      "fp_szint": "k6+5"
+    },
+    {
+      "classname": "Kardművész",
+      "ke_alap": 10,
+      "te_alap": 20,
+      "ve_alap": 75,
+      "ce_alap": 0,
+      "hm": 8,
+      "hm_limitation": [
+        {
+          "stat": null,
+          "amount": 3
+        }
+      ],
+      "kp_alap": 4,
+      "kp_szint": 5,
+      "ep_alap": 4,
+      "fp_alap": 8,
+      "fp_szint": "k6+5"
+    },
+    {
+      "classname": "Boszorkány",
+      "ke_alap": 6,
+      "te_alap": 14,
+      "ve_alap": 69,
+      "ce_alap": 0,
+      "hm": 4,
+      "hm_limitation": [
+        {
+          "stat": null,
+          "amount": 1
+        }
+      ],
+      "kp_alap": 8,
+      "kp_szint": 12,
+      "ep_alap": 3,
+      "fp_alap": 1,
+      "fp_szint": "k6"
+    },
+    {
+      "classname": "Boszorkánymester",
+      "ke_alap": 7,
+      "te_alap": 17,
+      "ve_alap": 72,
+      "ce_alap": 5,
+      "hm": 7,
+      "hm_limitation": [
+        {
+          "stat": null,
+          "amount": 1
+        }
+      ],
+      "kp_alap": 7,
+      "kp_szint": 8,
+      "ep_alap": 3,
+      "fp_alap": 4,
+      "fp_szint": "k6+1"
+    },
+    {
+      "classname": "Tűzvarázsló",
+      "ke_alap": 6,
+      "te_alap": 17,
+      "ve_alap": 72,
+      "ce_alap": 0,
+      "hm": 8,
+      "hm_limitation": [
+        {
+          "stat": null,
+          "amount": 3
+        }
+      ],
+      "kp_alap": 3,
+      "kp_szint": 5,
+      "ep_alap": 5,
+      "fp_alap": 4,
+      "fp_szint": "k6+1"
+    },
+    {
+      "classname": "Varázsló",
+      "ke_alap": 2,
+      "te_alap": 15,
+      "ve_alap": 70,
+      "ce_alap": 0,
+      "hm": 4,
+      "hm_limitation": [
+        {
+          "stat": null,
+          "amount": 1
+        }
+      ],
+      "kp_alap": 7,
+      "kp_szint": 10,
+      "ep_alap": 3,
+      "fp_alap": 2,
+      "fp_szint": "k6"
+    },
+    {
+      "classname": "Nomád Sámán",
+      "ke_alap": 4,
+      "te_alap": 15,
+      "ve_alap": 70,
+      "ce_alap": 0,
+      "hm": 5,
+      "hm_limitation": [
+        {
+          "stat": null,
+          "amount": 1
+        }
+      ],
+      "kp_alap": 3,
+      "kp_szint": 4,
+      "ep_alap": 4,
+      "fp_alap": 6,
+      "fp_szint": "k6+2"
+    }
+  ]
+}

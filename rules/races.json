@@ -1,0 +1,32 @@
+{
+  "races": [
+    {
+      "racename": "Ember",
+      "modifiers": {
+        "ero": 0,
+        "gyorsasag": 0,
+        "ugyesseg": 0,
+        "allokepesseg": 0,
+        "egeszseg": 0,
+        "szepseg": 0,
+        "intelligencia": 0,
+        "akaratero": 0,
+        "asztral": 0
+      }
+    },
+    {
+      "racename": "Elf",
+      "modifiers": {
+        "ero": 100,
+        "gyorsasag": 0,
+        "ugyesseg": 0,
+        "allokepesseg": 0,
+        "egeszseg": 0,
+        "szepseg": 0,
+        "intelligencia": 0,
+        "akaratero": 0,
+        "asztral": 0
+      }
+    }
+  ]
+}

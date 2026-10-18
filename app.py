@@ -33,6 +33,7 @@ TOOLS = {
     "omni-file-viewer": ("❂", "View, convert and combine images, PDFs, Word files and spreadsheets."),
     "cloud-storage": ("☁", "Keep files of any size and download them from anywhere. Up to 500 GB."),
     "live": ("☄", "A shared room: chat, voice, screen sharing and a drawing board."),
+    "tabletop": ("✠", "Keep character sheets and roll dice at the table."),
 }
 FALLBACK = ("✦", "A spell worth casting.")
 

@@ -1,0 +1,139 @@
+/* Tabletop: character bar, the two-page sheet (laid out like the printed one) and the dice panel.
+   Type scale: titles 1rem, everything small (labels, table heads, hints) .85rem, input text .92rem. Boxes are 2.1rem high. */
+.page.wide { max-width: 112rem; }
+.charbar { display: flex; flex-wrap: wrap; align-items: end; gap: 1rem 1.5rem; margin-top: 1.5rem; }
+.charbar .field { min-width: 15rem; }
+.btn { display: inline-block; }
+label.btn { cursor: pointer; }
+
+.table { display: grid; grid-template-columns: minmax(0, 1fr) 15rem; gap: 1.25rem; align-items: start; }
+.sheet-wrap { min-width: 0; }
+.sheet {
+  --fs-s: .85rem; --fs-t: 1rem; --fs-i: .92rem; --h: 2.1rem; --gap: .75rem;
+  padding: 1.25rem; background: #22123bcc; border: 1px solid #8a5bd855; border-top: 0; border-radius: 0 0 .6rem .6rem;
+}
+.sheet > [hidden] { display: none; }
+
+/* ---------- page 1: three columns, areas follow the paper sheet ---------- */
+.p1 {
+  display: grid; gap: var(--gap); align-items: stretch;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.05fr) minmax(0, 1fr);
+  grid-template-areas:
+    "left hp    ke"
+    "left ident te"
+    "left ident ve"
+    "left ident ce"
+    "left ident hm"
+    "left armor armor"
+    "left arms  arms";
+}
+.p1 > * { min-width: 0; }
+.a-left { grid-area: left; display: grid; gap: var(--gap); align-content: start; }
+.a-hp { grid-area: hp; } .a-ident { grid-area: ident; } .a-ke { grid-area: ke; } .a-te { grid-area: te; }
+.a-ve { grid-area: ve; } .a-ce { grid-area: ce; } .a-hm { grid-area: hm; } .a-armor { grid-area: armor; } .a-arms { grid-area: arms; }
+.armor { display: grid; grid-template-columns: 1fr 1.1fr 1fr; gap: var(--gap); }
+.armor > * { min-width: 0; }
+
+.card { min-width: 0; padding: .8rem .9rem; background: #140b2299; border: 1px solid #8a5bd855; border-radius: .5rem; }
+.card h3 { margin: 0 0 .6rem; font-size: var(--fs-t); font-weight: 600; color: var(--candle); }
+.card > * + * { margin-top: .55rem; }
+.card > h3 + * { margin-top: 0; }
+
+/* fields: small label above a box */
+.f { display: grid; gap: .15rem; min-width: 0; font-size: var(--fs-s); color: #d9cbf2; }
+.f input, .f select, .f textarea, .tbl input, .attrs input {
+  width: 100%; min-width: 0; font: inherit; font-size: var(--fs-i); color: var(--moon);
+  background: #140b22; border: 1px solid #8a5bd866; border-radius: .3rem; padding: 0 .5rem;
+}
+.f input, .f select, .tbl input { height: var(--h); }
+.f select { cursor: pointer; }
+.f select option { color: var(--moon); background: #140b22; }
+.f textarea { padding: .4rem .5rem; resize: vertical; line-height: 1.45; }
+.f input:focus-visible, .f select:focus-visible, .f textarea:focus-visible, .tbl input:focus-visible, .attrs input:focus-visible { outline: 2px solid var(--candle); outline-offset: 1px; }
+.pair { display: grid; grid-template-columns: 1fr 1fr; gap: .55rem; }
+.pair > * { min-width: 0; }
+.trio { display: grid; grid-template-columns: repeat(3, 1fr); gap: .55rem; }
+.trio > * { min-width: 0; }
+
+/* fields with the label to the left (psi, identity) */
+.f.in { grid-template-columns: 8.5rem 1fr; align-items: center; gap: .5rem; font-size: var(--fs-t); color: var(--moon); }
+
+/* the nine main stats: one box per row, all boxes the same size and in line; three side boxes next to the first rows */
+.attrs { display: grid; grid-template-columns: 1fr 4.5rem 2.4rem 8rem; grid-auto-rows: 3rem; gap: .4rem .6rem; align-items: stretch; }
+.attrs > label.an { align-self: center; font-size: var(--fs-t); }
+.attrs > input { text-align: center; height: 100%; }
+.side { display: grid; grid-template-rows: auto 1fr; padding: .2rem .5rem 0; font-size: var(--fs-s); color: #d9cbf2; background: #140b22; border: 1px solid #8a5bd866; border-radius: .3rem; }
+.side input { height: 100%; padding: 0; background: none; border: 0; text-align: center; }
+.side:focus-within { outline: 2px solid var(--candle); outline-offset: 1px; }
+
+.ident .nm { text-align: center; }
+.ident .nm input { text-align: center; font-size: var(--fs-t); }
+.ident .f.in { margin-top: .55rem; }
+.portrait { display: grid; place-items: center; width: 10rem; aspect-ratio: 1; margin: 1rem auto .6rem !important; overflow: hidden; cursor: pointer; background: #140b22; border: 2px dashed #8a5bd8aa; border-radius: .5rem; color: #c9a2ffcc; font-size: var(--fs-s); text-align: center; }
+.portrait:hover, .portrait:focus-visible { border-color: var(--candle); }
+.portrait img { width: 100%; height: 100%; object-fit: cover; }
+.portrait img[hidden] { display: none; }
+.ident .btn.small { margin-top: .55rem; font-size: var(--fs-s); }
+.ident .lvl { text-align: center; }
+.ident .lvl input { text-align: center; }
+
+.pz { display: grid; grid-template-columns: 1fr 1fr; gap: var(--gap); }
+.pz > div { display: grid; gap: .5rem; align-content: start; }
+.pz strong { font-size: var(--fs-t); font-weight: 600; }
+
+/* tables */
+.tbl { overflow-x: auto; }
+.tbl table { width: 100%; border-collapse: collapse; }
+.tbl th { padding: .25rem .4rem; font-size: var(--fs-s); font-weight: 600; text-align: left; color: var(--orchid); border-bottom: 1px solid #8a5bd877; }
+.tbl td { padding: .15rem .2rem; }
+.tbl td:not(:first-child) input { text-align: center; }
+.tbl th:not(:first-child) { text-align: center; }
+.tbl.skills td:not(:first-child), .tbl.skills th:not(:first-child) { width: 4.5rem; }
+.tbl.gear td:nth-child(2), .tbl.gear th:nth-child(2) { width: 5rem; }
+.tbl.gear td:nth-child(3) input { text-align: left; }
+.tbl.gear td:nth-child(3), .tbl.gear th:nth-child(3) { width: 38%; }
+.tbl.arms td:not(:first-child), .tbl.arms th:not(:first-child) { width: 5rem; }
+.tbl.arms { min-width: 34rem; }
+
+.full { margin-top: var(--gap); }
+.two { display: grid; grid-template-columns: 1fr 1fr; gap: var(--gap); }
+.two > * { min-width: 0; }
+.coins { display: grid; grid-template-columns: repeat(auto-fit, minmax(7rem, 1fr)); gap: .6rem; }
+
+/* ---------- dice ---------- */
+.dice { position: sticky; top: 1rem; display: grid; gap: .8rem; padding: 1rem; background: #22123bcc; border: 1px solid #8a5bd855; border-radius: .6rem; }
+.dice h2 { margin: 0; font-size: var(--fs-t, 1rem); }
+.dice input[type="text"] { width: 100%; }
+.custom { display: flex; gap: .4rem; }
+.custom input { flex: 1; min-width: 0; }
+.rolls { list-style: none; margin: 0; padding: 0; display: grid; gap: .4rem; max-height: 22rem; overflow: auto; }
+.rolls:empty::before { content: "Rolls appear here."; font-size: .85rem; color: #c9a2ff99; }
+.rolls li { padding: .4rem .55rem; font-size: .85rem; background: #140b22; border-left: 3px solid var(--amethyst); border-radius: .3rem; overflow-wrap: anywhere; }
+.rolls strong { display: block; font-size: 1rem; color: var(--candle); }
+.rolls small { color: #c9a2ffcc; }
+
+@media (max-width: 1200px) {
+  .table { grid-template-columns: 1fr; }
+  .dice { position: static; }
+}
+@media (max-width: 1000px) {
+  .p1 { grid-template-columns: 1fr; grid-template-areas: "left" "hp" "ident" "ke" "te" "ve" "ce" "hm" "armor" "arms"; }
+}
+@media (max-width: 640px) {
+  .two, .armor { grid-template-columns: 1fr; }
+  .attrs { grid-template-columns: 1fr 4rem 2.2rem 6.5rem; }
+}
+
+/* calculated boxes and HM buttons */
+.chead { display: flex; align-items: center; justify-content: space-between; gap: .5rem; }
+.chead h3 { margin: 0; }
+.f .btn { height: var(--h); }
+.sheetbar { display: flex; flex-wrap: wrap; align-items: center; gap: .6rem 1rem; margin-top: 1rem; }
+.sheetbar .hint { margin: 0; }
+.hmbtns { display: flex; gap: .3rem; }
+.wlist { list-style: none; margin: 0; padding: 0; display: grid; gap: .25rem; }
+.wlist:empty { display: none; }
+.wlist li { display: flex; justify-content: space-between; gap: .5rem; padding: .25rem .5rem; font-size: var(--fs-s); background: #2b1a47; border-radius: .3rem; }
+.wlist li span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--candle); }
+.wlist li span:last-child { flex: none; font-variant-numeric: tabular-nums; }
+.attrs .rm { align-self: center; text-align: center; font-size: var(--fs-s); font-weight: 600; color: var(--candle); }

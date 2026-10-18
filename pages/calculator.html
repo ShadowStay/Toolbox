@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Calculator</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Uncial+Antiqua&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/shared/site.css">
+</head>
+<body>
+  <aside id="site-nav" aria-label="Main navigation"></aside>
+
+  <main class="page wide">
+    <h1 class="tool-title">Calculator</h1>
+    <p class="tool-intro">Type a calculation, a unit conversion or an equation and the answer appears as you type. Press Enter to keep it in the history. Everything is worked out in your browser.</p>
+
+    <div class="calc">
+      <label class="sr" for="expr">Calculation</label>
+      <input type="text" id="expr" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Try: x + 10 = 200" autofocus>
+      <div class="live" id="live" role="status" aria-live="polite"></div>
+      <div class="calc-bar">
+        <label class="inline">Angles
+          <select id="angle"><option value="rad">Radians</option><option value="deg">Degrees</option></select>
+        </label>
+        <label class="inline">Digits
+          <select id="digits"><option>6</option><option>8</option><option selected>10</option><option>12</option><option>15</option></select>
+        </label>
+        <button class="btn small" type="button" id="clear">Clear history</button>
+      </div>
+    </div>
+
+    <div class="chips" id="chips" aria-label="Examples"></div>
+
+    <div class="vars" id="vars" hidden></div>
+
+    <section class="history-box" aria-labelledby="hist-title">
+      <h2 class="ctitle" id="hist-title">History</h2>
+      <ol class="history" id="history"></ol>
+      <p class="empty-note" id="empty">Nothing yet. Type something above.</p>
+    </section>
+
+    <details class="help">
+      <summary>What can I type?</summary>
+      <table>
+        <tbody>
+          <tr><th>Arithmetic</th><td><code>2 + 3 * 4</code>, <code>2^10</code>, <code>(1 + 2) / 3</code>, <code>7 mod 3</code>, <code>5!</code>, <code>2x</code> means 2 times x</td></tr>
+          <tr><th>Equations</th><td><code>x + 10 = 200</code>, <code>x^2 - 5x + 6 = 0</code>, <code>x^3 = 8</code>, <code>2^x = 64</code>, <code>sqrt(x) = 3</code>. Any equation with one unknown is solved, with complex answers where needed. When there is no exact method it is solved numerically.</td></tr>
+          <tr><th>Systems</th><td>Separate linear equations with commas: <code>x + y = 10, x - y = 2</code></td></tr>
+          <tr><th>Percentages</th><td><code>15% of 80</code>, <code>120 + 20%</code> (adds 20% of 120), <code>200 - 15%</code></td></tr>
+          <tr><th>Units</th><td><code>5 km to miles</code>, <code>90 km/h to m/s</code>, <code>72 °F to °C</code>, <code>2 h + 30 min</code>, <code>3 GB to MiB</code>. Length, mass, time, temperature, area, volume, speed, force, pressure, energy, power and data are included, with SI prefixes (k, M, m, µ ...).</td></tr>
+          <tr><th>Functions</th><td>sqrt, cbrt, root, abs, sin, cos, tan, asin, acos, atan, atan2, sinh, cosh, tanh, exp, ln, log, log2, log10, floor, ceil, round, trunc, sign, min, max, sum, mean, gcd, lcm, ncr, npr, hypot, mod</td></tr>
+          <tr><th>Constants</th><td><code>pi</code>, <code>e</code>, <code>tau</code>, <code>phi</code>, <code>inf</code>, and <code>ans</code> for the previous answer</td></tr>
+          <tr><th>Variables</th><td><code>a := 12</code> stores a value for later: <code>a * 3</code>. They are remembered on this device.</td></tr>
+          <tr><th>Not included</th><td>Currency conversion (it needs live exchange rates), inequalities with unknowns, equations that contain units, and symbolic answers like <code>x = (y - 3) / 2</code>.</td></tr>
+        </tbody>
+      </table>
+    </details>
+  </main>
+
+  <script src="/shared/site.js"></script>
+</body>
+</html>

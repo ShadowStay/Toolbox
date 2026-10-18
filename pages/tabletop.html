@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Tabletop</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Uncial+Antiqua&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/shared/site.css">
+</head>
+<body>
+  <aside id="site-nav" aria-label="Main navigation"></aside>
+
+  <main class="page wide">
+    <h1 class="tool-title">Tabletop</h1>
+    <p class="tool-intro">Keep your characters on the server, fill in their sheets and roll dice at the table. Changes save by themselves.</p>
+
+    <div class="charbar">
+      <label class="field">Character <select id="chars"></select></label>
+      <div class="actions">
+        <button class="btn primary" type="button" data-act="new">New character</button>
+        <button class="btn" type="button" data-act="duplicate">Duplicate</button>
+        <button class="btn" type="button" data-act="export">Export</button>
+        <label class="btn" tabindex="0" id="import-label">Import<input type="file" id="import" accept=".json,application/json" hidden></label>
+        <button class="btn" type="button" data-act="delete">Delete</button>
+      </div>
+    </div>
+    <p class="status" id="status" role="status" aria-live="polite"></p>
+
+    <div class="table">
+      <div class="sheet-wrap">
+        <div class="sheetbar">
+          <button class="btn primary" type="button" id="apply-class">Apply class &amp; calculate</button>
+          <p class="hint">Fills the base values of the class in Kaszt, then calculates Fegyver nélkül, Max. Ép, Max. Fp and the Ψ pajzs ME values. Every box stays editable.</p>
+        </div>
+        <div class="tabs" role="tablist" aria-label="Sheet pages">
+          <button class="tab" role="tab" data-page="1" aria-selected="true">Character</button>
+          <button class="tab" role="tab" data-page="2" aria-selected="false">Skills &amp; gear</button>
+        </div>
+        <div class="sheet" id="sheet"></div>
+      </div>
+
+      <aside class="dice" aria-label="Dice roller">
+        <h2>Dice</h2>
+        <label class="field">Modifier <input type="text" id="mod" value="0" inputmode="numeric" autocomplete="off"></label>
+        <div class="actions" id="quick">
+          <button class="btn" type="button" data-die="d6">d6</button>
+          <button class="btn" type="button" data-die="d10">d10</button>
+          <button class="btn primary" type="button" data-die="d100">d100</button>
+        </div>
+        <form id="custom" class="custom">
+          <input type="text" id="expr" placeholder="2d6+3" aria-label="Dice expression" autocomplete="off" spellcheck="false">
+          <button class="btn" type="submit">Roll</button>
+        </form>
+        <ol id="rolls" class="rolls" aria-live="polite"></ol>
+        <button class="btn small" type="button" id="clear-rolls">Clear log</button>
+      </aside>
+    </div>
+  </main>
+
+  <script src="/shared/site.js"></script>
+</body>
+</html>

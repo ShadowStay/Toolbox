@@ -1,0 +1,54 @@
+/* Calculator: big input, live answer, examples, variables, history and the help table. */
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+.ctitle { margin: 0 0 .6rem; font-size: 1.05rem; font-weight: 600; }
+.empty-note { margin: .5rem 0 0; color: #d9cbf2; }
+
+.calc { margin-top: 1.5rem; padding: 1.1rem; background: #22123bcc; border: 1px solid #8a5bd855; border-radius: .7rem; }
+#expr {
+  width: 100%;
+  padding: .8rem 1rem;
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  font-size: 1.35rem;
+}
+.live { min-height: 4.2rem; margin: .8rem .2rem .2rem; font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-size: 1.5rem; line-height: 1.45; overflow-wrap: anywhere; }
+.live .line { display: block; }
+.live .line .rel { color: var(--candle); }
+.live .note { display: block; margin-top: .3rem; font-family: "Inter", system-ui, sans-serif; font-size: .85rem; color: #c9a2ffcc; }
+.live.err { font-family: "Inter", system-ui, sans-serif; font-size: 1rem; color: #ff9fb3cc; }
+
+.calc-bar { display: flex; flex-wrap: wrap; align-items: center; gap: .6rem 1.25rem; margin-top: .6rem; padding-top: .8rem; border-top: 1px solid #8a5bd833; }
+.inline { display: flex; align-items: center; gap: .5rem; font-size: .9rem; color: #d9cbf2; }
+.calc-bar .btn { margin-left: auto; }
+
+.chips { display: flex; flex-wrap: wrap; gap: .45rem; margin-top: 1rem; }
+.chip { padding: .3rem .7rem; font: inherit; font-size: .85rem; font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; color: var(--moon); cursor: pointer; background: #3a1f6b; border: 1px solid #8a5bd855; border-radius: 2rem; }
+.chip:hover { background: #4b2a85; border-color: var(--candle); }
+
+.vars { display: flex; flex-wrap: wrap; align-items: center; gap: .45rem; margin-top: 1rem; font-size: .9rem; }
+.vars .label { color: var(--orchid); }
+.vars .var { display: inline-flex; align-items: center; gap: .4rem; padding: .15rem .3rem .15rem .7rem; font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; background: #140b22; border: 1px solid #8a5bd855; border-radius: 2rem; }
+.vars .var button { padding: 0 .4rem; font: inherit; color: var(--orchid); cursor: pointer; background: none; border: 0; }
+.vars .var button:hover { color: #fff; }
+
+.history-box { margin-top: 1.75rem; }
+.history { list-style: none; margin: 0; padding: 0; display: grid; gap: .6rem; }
+.history li { display: grid; grid-template-columns: 1fr auto; gap: .2rem .8rem; padding: .7rem .9rem; background: #22123bcc; border: 1px solid #8a5bd855; border-radius: .6rem; }
+.history .q { padding: 0; font: inherit; font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-size: .95rem; color: #d9cbf2; text-align: left; cursor: pointer; background: none; border: 0; overflow-wrap: anywhere; }
+.history .q:hover { color: #fff; text-decoration: underline; }
+.history .r { grid-column: 1; font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-size: 1.15rem; overflow-wrap: anywhere; }
+.history .r span { display: block; }
+.history .btn { grid-column: 2; grid-row: 1 / span 2; align-self: center; }
+
+.help { margin-top: 2rem; max-width: 56rem; padding: .7rem 1rem; background: #22123bcc; border: 1px solid #8a5bd855; border-radius: .6rem; }
+.help summary { cursor: pointer; font-weight: 600; }
+.help table { width: 100%; margin-top: .8rem; border-collapse: collapse; font-size: .92rem; }
+.help th { width: 8.5rem; padding: .5rem .6rem .5rem 0; text-align: left; vertical-align: top; font-weight: 600; color: var(--orchid); }
+.help td { padding: .5rem 0; color: #d9cbf2; border-bottom: 1px solid #8a5bd822; }
+.help code { padding: .05rem .35rem; font-size: .88em; color: var(--moon); background: #140b22; border-radius: .25rem; }
+
+@media (max-width: 760px) {
+  .history li { grid-template-columns: 1fr; }
+  .history .btn { grid-column: 1; grid-row: auto; justify-self: start; }
+  .help th { display: block; width: auto; padding-bottom: 0; }
+  .help td { display: block; }
+}
