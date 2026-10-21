@@ -120,7 +120,10 @@
     get: () => ({ ...opts }),
     set, open, call,
     server: () => opts.process === "server",
-    json: async (path, body) => (await call(path, body)).json(),
+    json: async (path, body) => {                        // an empty reply (204) is {} instead of a parse error
+      const text = await (await call(path, body)).text();
+      return text ? JSON.parse(text) : {};
+    },
     blob: async (path, body) => (await call(path, body)).blob(),
   };
   apply();

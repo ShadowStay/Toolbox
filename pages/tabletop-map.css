@@ -1,0 +1,114 @@
+/* Tabletop map: view tabs, the bars above the board, the board with walls, doors, fog and tokens, the saves dialog.
+   Loaded by tabletop.html next to tabletop.css. Anything marked .dm-only is hidden unless the role is "dm". */
+html:not([data-role="dm"]) .dm-only { display: none !important; }
+
+.viewtabs { margin-top: 1.5rem; }
+#view-sheet .charbar { margin-top: 1rem; }
+
+.rolebar { display: flex; flex-wrap: wrap; align-items: center; gap: .6rem 1rem; margin-top: 1rem; color: #d9cbf2; }
+.pill { padding: .1rem .6rem; font-size: .8rem; font-weight: 600; color: #fff; background: #8f2a45; border-radius: 1rem; }
+
+.mapbar, .dmbar { display: flex; flex-wrap: wrap; align-items: end; gap: .75rem 1.5rem; margin-top: 1rem; }
+.dmbar { padding: .8rem 1rem; background: #22123bcc; border: 1px solid #8a5bd855; border-radius: .6rem; }
+.toolgroup { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; }
+.mapbar .field { min-width: 15rem; }
+.mapbar .field.size { min-width: 11rem; }
+.dmbar .field.vis { min-width: 9rem; }
+.dmbar input[type="number"] { width: 100%; font: inherit; color: var(--moon); background: #140b22; border: 1px solid #8a5bd877; border-radius: .4rem; padding: .45rem .6rem; }
+.mapbar input[type="range"] { width: 100%; accent-color: var(--amethyst); }
+.btn[aria-pressed="true"] { background: var(--amethyst); border-color: var(--candle); }
+.btn:disabled { opacity: .45; cursor: default; }
+.mapnote { margin: .75rem 0 0; }
+.nomargin { margin: 0; }
+.empty-note { margin-top: 1rem; color: #d9cbf2; }
+
+/* The board is a fixed 16:10 area (16 x 10 squares); everything is placed by percentage or in squares, so everybody
+   sees the same layout at any size. */
+.mapframe { margin-top: .5rem; }
+.mapboard {
+  --tok: 76px;
+  position: relative; width: min(100%, 128vh); aspect-ratio: 16 / 10; margin: 0 auto; overflow: hidden;
+  background-color: #1a0f2e;
+  background-image:
+    linear-gradient(#8a5bd822 1px, transparent 1px), linear-gradient(90deg, #8a5bd822 1px, transparent 1px),
+    radial-gradient(ellipse at 50% 40%, #3a1b6a55, transparent 70%);
+  background-size: 6.25% 10%, 6.25% 10%, 100% 100%;
+  border: 1px solid #8a5bd877; border-radius: .6rem; box-shadow: inset 0 0 40px #0008;
+  touch-action: none; user-select: none;
+}
+.mapboard.drawing { cursor: crosshair; }
+
+/* walls and doors (drawn in squares; strokes stay a fixed number of pixels) */
+.geo { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; overflow: visible; }
+.geo line { vector-effect: non-scaling-stroke; stroke-linecap: round; }
+.geo .wall { stroke: #cdb8ff; stroke-width: 5px; }
+.geo .wall.sel { stroke: var(--candle); }
+.geo .door { stroke-width: 6px; }
+.geo .door.closed { stroke: #e9a23b; }
+.geo .door.open { stroke: #e9a23b; stroke-width: 3px; stroke-dasharray: 3 7; opacity: .75; }
+.geo .door.locked { stroke: #ff6b8b; }
+.geo .door.sel { stroke: var(--candle); filter: drop-shadow(0 0 4px #e9c776); }
+.geo .hit { stroke: transparent; stroke-width: 16px; pointer-events: stroke; cursor: pointer; }
+.geo .lock { font-size: .42px; text-anchor: middle; dominant-baseline: central; pointer-events: none; }
+.geo .pv { stroke: var(--candle); stroke-width: 3px; stroke-dasharray: 6 6; opacity: .9; }
+.drawing .geo .hit, .drawing .token { pointer-events: none; }
+
+/* fog of war: black where nobody has been, dim where they were, clear in view */
+.fog { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; image-rendering: auto; }
+.fog.preview { opacity: .5; }
+.mapcover { position: absolute; inset: 0; z-index: 20; display: grid; place-items: center; padding: 2rem; text-align: center; color: var(--moon); background: #0e0718; }
+
+.token {
+  position: absolute; z-index: 3; width: var(--tok); display: grid; justify-items: center; gap: .15rem;
+  transform: translate(-50%, -50%); cursor: grab; touch-action: none; outline: none;
+}
+.token.drag { cursor: grabbing; z-index: 5; }
+.token.drag .disc { transform: scale(1.08); box-shadow: 0 8px 22px #000a, 0 0 0 3px var(--ring); }
+.token.sel .disc { box-shadow: 0 0 0 3px var(--candle), 0 0 18px #e9c776aa; }
+.token:focus-visible .disc { box-shadow: 0 0 0 3px var(--candle); }
+.token.character { --ring: #e9c776; }
+.token.enemy { --ring: #ff6b8b; }
+.token.fixed { cursor: default; }
+
+.disc {
+  position: relative; width: var(--tok); height: var(--tok); overflow: hidden; border-radius: 50%;
+  border: 3px solid var(--ring); background: #22123b; box-shadow: 0 4px 12px #000a; transition: transform .1s, box-shadow .1s;
+}
+/* The left half of the token is Ép, the right half is Fp. Each half has the portrait in grey laid over the top part
+   (the HP that is missing, cut from the top down) and a slight tint over the rest: green for Ép, red for Fp. */
+.layer { position: absolute; inset: 0; display: grid; place-items: center; }
+.layer img { width: 100%; height: 100%; object-fit: cover; pointer-events: none; -webkit-user-drag: none; }
+.layer.grey { filter: grayscale(1) brightness(.72) contrast(1.05); }
+.layer .init { font-weight: 700; font-size: calc(var(--tok) * .36); color: #fff; letter-spacing: .02em; }
+.character .layer { background: linear-gradient(135deg, #8a5bd8, #4b2a85); }
+.enemy .layer { background: linear-gradient(135deg, #c2395a, #6b1c33); }
+.tint { position: absolute; inset: 0; pointer-events: none; }
+.tint.ep { background: rgba(60, 214, 118, .30); }
+.tint.fp { background: rgba(240, 66, 88, .30); }
+.mid { position: absolute; left: 50%; top: 0; bottom: 0; width: 1px; margin-left: -.5px; background: #0007; pointer-events: none; }
+
+.vit { display: flex; gap: .2rem; font-size: max(.62rem, calc(var(--tok) * .15)); font-weight: 600; line-height: 1.35; font-variant-numeric: tabular-nums; }
+.vit span { padding: 0 .35rem; color: #fff; border-radius: .6rem; white-space: nowrap; }
+.vit .ep { background: #1f8f55e6; }
+.vit .fp { background: #b8344ae6; }
+.token.down .vit .ep { background: #8f2a45; }
+.tname {
+  max-width: calc(var(--tok) * 1.9); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 0 .45rem;
+  font-size: .82rem; font-weight: 600; line-height: 1.5; color: var(--moon); background: #140b22d9; border: 1px solid #8a5bd877; border-radius: .6rem;
+}
+.token.sel .tname { border-color: var(--candle); }
+
+/* save / load dialog */
+#saves { width: min(36rem, 94vw); padding: 1.4rem; color: var(--moon); background: var(--dusk); border: 1px solid var(--amethyst); border-radius: .7rem; box-shadow: 0 20px 60px #000a; }
+#saves::backdrop { background: #000a; }
+#saves h2 { margin: 0 0 .5rem; font-size: 1.2rem; }
+.savebar { display: flex; align-items: end; gap: .6rem; margin: 1rem 0; }
+.savebar .field { flex: 1; }
+.savelist { list-style: none; margin: 0 0 .5rem; padding: 0; display: grid; gap: .4rem; max-height: 40vh; overflow: auto; }
+.savelist:empty::before { content: "No saved maps yet."; color: #c9a2ffcc; font-size: .9rem; }
+.savelist li { display: flex; align-items: center; gap: .6rem; padding: .45rem .6rem; background: #140b22; border: 1px solid #8a5bd855; border-radius: .45rem; }
+.savelist .sn { flex: 1; min-width: 0; }
+.savelist .sn strong { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.savelist .sn small { color: #c9a2ffcc; }
+
+@media (prefers-reduced-motion: reduce) { .disc { transition: none; } }

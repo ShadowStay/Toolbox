@@ -4,10 +4,13 @@
   GET  /api/characters/<id>         -> {id, updated, data}
   POST /api/characters/<id>         {data} -> {updated}       save
   POST /api/characters/<id>/delete  -> 204
+  GET  /api/characters/<id>/portrait -> the portrait image (used by the map)
   GET  /api/classes                 -> {classes: [...]}  from rules/classes.json
   GET  /api/races                   -> {races: [...]}    from rules/races.json
+  GET  /api/weapons                 -> {category: [weapon, ...]}  from rules/weapons.json
 A sheet is a flat {field: text} map, so the page can add fields without changing this file.
 The password gate in auth.py already covers /api/, so only signed-in people can reach these routes."""
+import base64
 import json
 import os
 import re
@@ -15,7 +18,7 @@ import threading
 import time
 import uuid
 
-from flask import jsonify, request
+from flask import Response, abort, jsonify, request
 
 from auth import BASE, DATA
 from .core import Fail, bp
@@ -100,6 +103,26 @@ def characters_save(cid):
     return jsonify(updated=write(cid, d.get("data"))["updated"])
 
 
+PORTRAIT = re.compile(r"^data:(image/(?:png|jpeg|webp|gif));base64,(.+)$", re.S)
+
+
+def portrait_response(doc):
+    """The portrait of a stored sheet as a real image. Only raster types are served (never SVG, which can carry scripts)."""
+    m = PORTRAIT.match((doc.get("data") or {}).get("portrait", ""))
+    if not m:
+        abort(404, "No portrait.")
+    try:
+        raw = base64.b64decode(m.group(2), validate=True)
+    except ValueError:
+        abort(404, "No portrait.")
+    return Response(raw, mimetype=m.group(1), headers={"Cache-Control": "private, max-age=86400", "X-Content-Type-Options": "nosniff"})
+
+
+@bp.get("/characters/<cid>/portrait")
+def characters_portrait(cid):
+    return portrait_response(read(cid))
+
+
 @bp.post("/characters/<cid>/delete")
 def characters_delete(cid):
     path_of(cid).unlink(missing_ok=True)
@@ -121,3 +144,8 @@ def classes():
 @bp.get("/races")
 def races():
     return rules_file("races.json")
+
+
+@bp.get("/weapons")
+def weapons():
+    return rules_file("weapons.json")

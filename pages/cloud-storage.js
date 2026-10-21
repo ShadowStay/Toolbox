@@ -66,6 +66,7 @@
       if (last) return nav.append(el("strong", "", label));
       const a = el("a", "", label);
       a.href = "#" + id;
+      a.dataset.folder = id;                          // drop target for drag-and-drop moves
       nav.append(a);
     };
     crumb("Cloud storage", "", !path.length);
@@ -80,6 +81,8 @@
   function row(it) {
     const tr = el("tr");
     tr.dataset.id = it.id;
+    tr.draggable = true;                              // drag onto a folder or the path above to move it
+    if (it.is_dir) tr.dataset.dir = "1";
     const c0 = el("td", "chk"), box = el("input");
     box.type = "checkbox"; box.checked = selected.has(it.id); box.dataset.act = "sel";
     box.setAttribute("aria-label", "Select " + it.name);
@@ -95,10 +98,11 @@
     const dl = el("a", "btn small", "Download");
     dl.href = `${API}/download/${it.id}`;
     if (it.is_dir) dl.title = "Download the folder as a .zip";
-    const rn = el("button", "btn small", "Rename"), rm = el("button", "btn small", "Delete");
-    rn.type = rm.type = "button";
-    rn.dataset.act = "rename"; rm.dataset.act = "delete";
-    c4.append(dl, rn, rm);
+    const rn = el("button", "btn small", "Rename"), mv = el("button", "btn small", "Move"), rm = el("button", "btn small", "Delete");
+    rn.type = mv.type = rm.type = "button";
+    rn.dataset.act = "rename"; mv.dataset.act = "move"; rm.dataset.act = "delete";
+    mv.title = "Move to another folder";
+    c4.append(dl, rn, mv, rm);
 
     tr.append(c0, c1, el("td", "sz", it.is_dir ? "–" : fmtSize(it.size)), el("td", "dt", fmtDate(it.created)), c4);
     return tr;
@@ -150,7 +154,9 @@
     const b = e.target.closest("button[data-act]");
     if (!b) return;
     const it = data.items.find((i) => i.id === b.closest("tr").dataset.id);
-    if (it) run(() => (b.dataset.act === "rename" ? rename(it) : remove([it.id], it.name)));
+    if (!it) return;
+    if (b.dataset.act === "move") run(() => openMover([it.id]));
+    else run(() => (b.dataset.act === "rename" ? rename(it) : remove([it.id], it.name)));
   });
   $("#sel-delete").addEventListener("click", () => run(() => remove([...selected])));
   $("#new-folder").addEventListener("click", () => run(async () => {
@@ -162,24 +168,70 @@
   }));
 
   const mover = $("#mover"), moveTo = $("#move-to");
-  $("#sel-move").addEventListener("click", () => run(async () => {
+  let moving = [];                                    // the ids the dialog is about to move
+  async function openMover(ids) {
     const { folders } = await window.Options.json(API + "/folders");
     const by = new Map(folders.map((f) => [f.id, f]));
+    const set = new Set(ids);
     const label = (id) => { const p = []; for (let f = by.get(id); f; f = by.get(f.parent)) p.unshift(f.name); return "/" + p.join("/"); };
-    const blocked = (id) => { for (let f = by.get(id); f; f = by.get(f.parent)) if (selected.has(f.id)) return true; return false; };
+    // A folder can't go into itself or anything inside it.
+    const blocked = (id) => { for (let f = by.get(id); f; f = by.get(f.parent)) if (set.has(f.id)) return true; return false; };
     const choices = folders.filter((f) => f.id !== dir && !blocked(f.id)).map((f) => [f.id, label(f.id)]).sort((a, b) => a[1].localeCompare(b[1]));
     if (dir) choices.unshift(["", "/ (top level)"]);
     if (!choices.length) return say("There is no other folder to move these into.", true);
+    moving = ids;
     moveTo.replaceChildren(...choices.map(([id, text]) => new Option(text, id)));
     mover.showModal();
-  }));
+  }
+  async function moveItems(ids, dest) {
+    ids = ids.filter((i) => i !== dest);
+    if (!ids.length) return;
+    await post("/move", { ids, parent: dest });
+    await load(dir);
+    say(ids.length === 1 ? "Moved." : `Moved ${ids.length} items.`);
+  }
+  $("#sel-move").addEventListener("click", () => run(() => openMover([...selected])));
   $("#move-cancel").addEventListener("click", () => mover.close());
   $("#move-go").addEventListener("click", () => run(async () => {
-    await post("/move", { ids: [...selected], parent: moveTo.value });
     mover.close();
-    await load(dir);
-    say("Moved.");
+    await moveItems(moving, moveTo.value);
   }));
+
+  // Drag rows onto a folder row, or onto a folder in the path above the list. Touch screens can't drag, so the
+  // Move buttons above stay as the other way in. (File drags from the computer are handled further down.)
+  const MIME = "application/x-spells-items";
+  const dragging = (e) => e.dataTransfer?.types?.includes(MIME);
+  const clearOver = () => document.querySelectorAll(".drop-over").forEach((x) => x.classList.remove("drop-over"));
+  const targetOf = (e) => e.target.closest?.('#rows tr[data-dir="1"], #crumbs a[data-folder]');
+  const targetId = (t) => t.dataset.folder != null ? t.dataset.folder : t.dataset.id;
+  rows.addEventListener("dragstart", (e) => {
+    const tr = e.target.closest("tr");
+    if (!tr) return;
+    const ids = selected.has(tr.dataset.id) ? [...selected] : [tr.dataset.id];   // dragging a ticked row takes the whole selection
+    e.dataTransfer.setData(MIME, JSON.stringify(ids));
+    e.dataTransfer.effectAllowed = "move";
+    requestAnimationFrame(() => rows.querySelectorAll("tr").forEach((r) => r.classList.toggle("dragging", ids.includes(r.dataset.id))));
+  });
+  document.addEventListener("dragend", () => { clearOver(); rows.querySelectorAll(".dragging").forEach((r) => r.classList.remove("dragging")); });
+  document.addEventListener("dragover", (e) => {
+    if (!dragging(e)) return;
+    const t = targetOf(e);
+    clearOver();
+    if (!t) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "move";
+    t.classList.add("drop-over");
+  });
+  document.addEventListener("drop", (e) => {
+    if (!dragging(e)) return;
+    const t = targetOf(e);
+    clearOver();
+    if (!t) return;
+    e.preventDefault();
+    let ids;
+    try { ids = JSON.parse(e.dataTransfer.getData(MIME)); } catch { return; }
+    if (Array.isArray(ids)) run(() => moveItems(ids.map(String), targetId(t)));
+  });
 
   // ---------- uploading ----------
   const jobs = [];

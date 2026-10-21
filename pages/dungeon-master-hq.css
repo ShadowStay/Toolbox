@@ -1,0 +1,30 @@
+/* Dungeon Master HQ: an enemy sheet. The boxes, cards and portrait come from tabletop.css; this lays them out. */
+.dmsheet { border-top: 1px solid #8a5bd855; border-radius: .6rem; margin-top: 1rem; }
+.dm-grid {
+  display: grid; gap: var(--gap); align-items: start;
+  grid-template-columns: minmax(14rem, 1fr) minmax(16rem, 1.1fr) minmax(0, 1.4fr);
+  grid-template-areas: "ident col attacks" "notes notes notes";
+}
+.dm-grid > * { min-width: 0; }
+.dm-grid .ident { grid-area: ident; }
+.dm-col { grid-area: col; display: grid; gap: var(--gap); }
+.dm-attacks { grid-area: attacks; }
+.dm-notes { grid-area: notes; display: grid; gap: .75rem; grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr)); }
+.dm-notes > * { margin-top: 0 !important; }
+.ident .btn.small { display: block; margin: .55rem auto 0; }
+
+.hurt { display: grid; grid-template-columns: 5rem repeat(3, auto); gap: .5rem; align-items: end; }
+.hurt .btn { height: var(--h); }
+
+.tbl.attacks td:nth-child(2), .tbl.attacks th:nth-child(2), .tbl.attacks td:nth-child(3), .tbl.attacks th:nth-child(3) { width: 4.5rem; }
+.tbl.attacks td:nth-child(4), .tbl.attacks th:nth-child(4) { width: 6rem; }
+.tbl.attacks td:first-child input { text-align: left; }
+.tbl.attacks { min-width: 20rem; }
+
+@media (max-width: 1100px) {
+  .dm-grid { grid-template-columns: 1fr 1fr; grid-template-areas: "ident col" "attacks attacks" "notes notes"; }
+}
+@media (max-width: 640px) {
+  .dm-grid { grid-template-columns: 1fr; grid-template-areas: "ident" "col" "attacks" "notes"; }
+  .hurt { grid-template-columns: 1fr 1fr; }
+}

@@ -29,13 +29,14 @@
   const ATTRS = [["str", "Erő"], ["spd", "Gyorsaság"], ["dex", "Ügyesség"], ["sta", "Állóképesség"], ["hea", "Egészség"], ["bea", "Szépség"], ["int", "Intelligencia"], ["wil", "Akaraterő"], ["ast", "Asztrál"]];
   const SIDE = [["str", "Sebzés járulék"], ["spd", "Páncélban"], ["dex", "Páncélban"]];     // boxes beside the first three stats
   const attrs = `<div class="attrs">${
-    ATTRS.map(([k, l], i) => `<label class="an" for="a-${k}" style="grid-row:${i + 1};grid-column:1">${l}</label><input type="text" id="a-${k}" data-k="attr.${k}" style="grid-row:${i + 1};grid-column:2" autocomplete="off" inputmode="numeric"><span class="rm" data-rm="${k}" style="grid-row:${i + 1};grid-column:3" title="Faj módosító"></span>`).join("")
+    ATTRS.map(([k, l], i) => `<button type="button" class="an" data-calc="${k}" aria-expanded="false" title="Click to show the calculation" style="grid-row:${i + 1};grid-column:1"><span>${l}</span><small class="acalc" data-acalc="${k}" hidden></small></button><div class="acell" style="grid-row:${i + 1};grid-column:2"><input type="text" id="a-${k}" aria-label="${l}" data-k="attr.${k}" autocomplete="off" inputmode="numeric"><span class="tot" data-tot="${k}" hidden></span></div><span class="rm" data-rm="${k}" style="grid-row:${i + 1};grid-column:3" title="Faj módosító"></span>`).join("")
   }${
     SIDE.map(([k, l], i) => `<label class="side" style="grid-row:${i + 1};grid-column:4"><span>${l}</span><input type="text" data-k="attr.${k}.x" autocomplete="off"></label>`).join("")
   }</div>`;
 
-  const chead = (id, title) => `<div class="chead"><h3>${title}</h3><span class="hmbtns"><button class="btn small" type="button" data-hm-undo="${id}" title="Undo: give 1 HM back and lower Alap by 1">−1 HM</button><button class="btn small" type="button" data-hm="${id}" title="Spend 1 HM to raise Alap by 1">+1 HM</button></span></div>`;
-  const combat = (id, title) => card("", chead(id, title) + pair(f(id + ".arm", "Páncélban"), f(id + ".nak", "Páncél nélkül")) + pair(f(id + ".base", "Alap"), f(id + ".wpn", "Fegyver nélkül")) + f(id + ".mod", "Módosítók") + `<ul class="wlist" data-wl="${id}"></ul>`, "a-" + id);
+  // The title is a button: clicking it shows the calculation and the −1 / +1 HM buttons (which also show whenever there is HM to spend).
+  const chead = (id, title) => `<div class="chead"><h3 class="sname" role="button" tabindex="0" data-calc="${id}" aria-expanded="false" title="Click to show the calculation">${title}</h3><span class="hmb" data-hmb="${id}" hidden></span><span class="hmbtns" data-hmbtns="${id}" hidden><button class="btn small" type="button" data-hm-undo="${id}" title="Undo: give 1 HM back and lower Alap by 1">−1 HM</button><button class="btn small" type="button" data-hm="${id}" title="Spend 1 HM to raise Alap by 1">+1 HM</button></span></div>`;
+  const combat = (id, title) => card("", chead(id, title) + `<div class="calc" data-calcbox="${id}" hidden></div>` + pair(f(id + ".arm", "Páncélban"), f(id + ".nak", "Páncél nélkül")) + pair(f(id + ".base", "Alap"), f(id + ".wpn", "Fegyver nélkül")) + f(id + ".mod", "Módosítók") + `<ul class="wlist" data-wl="${id}"></ul>`, "a-" + id);
   const pz = (id, title) => `<div><strong>${title}</strong>${f(id + ".st", "Statikus")}${f(id + ".dy", "Dinamikus")}${f(id + ".me", "ME")}</div>`;
 
   const page1 = `
@@ -58,7 +59,7 @@
       ${combat("te", "Támadó Érték (TÉ)")}
       ${combat("ve", "Védő Érték (VÉ)")}
       ${combat("ce", "Célző Érték (CÉ)")}
-      ${card("", pair(f("hm", "HM/Szint"), f("tam", "Tám./kör")) + pair(f("hm.left", "Elkölthető HM"), `<div class="f"><span>Új szint</span><button class="btn" type="button" id="hm-add" title="Add HM/Szint to the pool">+ HM/Szint</button></div>`) + f("hm.owed", "Kötelező HM") + '<input type="hidden" data-k="hm.paid">', "a-hm")}
+      ${card("", pair(f("hm", "HM/Szint"), f("tam", "Tám./kör")) + pair(f("hm.left", "Elkölthető HM"), `<div class="f"><span>Új szint</span><button class="btn" type="button" id="hm-add" title="Add HM/Szint to the pool">+ HM/Szint</button></div>`) + f("hm.owed", "Kötelező HM") + '<input type="hidden" data-k="hm.paid"><input type="hidden" data-k="hm.spent">', "a-hm")}
       <div class="a-armor armor">
         ${card("", f("armor.worn", "Viselt páncél"))}
         ${card("", trio(f("armor.mgt", "MGT"), f("armor.sfe", "Max. SFÉ"), f("armor.cur", "SFÉ")))}
@@ -112,22 +113,102 @@
     refreshWeapons();
   }
 
-  // Under each of KÉ/TÉ/VÉ/CÉ: every named weapon that has a value for it, as "Fegyver nélkül + weapon = total".
+  // Under each of KÉ/TÉ/VÉ/CÉ: every named weapon that has a value for it, as the total ("Fegyver nélkül + weapon").
+  // Only the total is shown; click the title of the stat to see "Fegyver nélkül + weapon = total".
+  const STATS = ["ke", "te", "ve", "ce"], NAME = Object.fromEntries(ATTRS);
   function refreshWeapons() {
     const named = Array.from({ length: 10 }, (_, i) => [i, fld(`w.${i}.n`).value.trim()]).filter(([, n]) => n);
-    for (const stat of ["ke", "te", "ve", "ce"]) {
+    for (const stat of STATS) {
       const base = parseFloat(fld(stat + ".wpn").value) || 0;
       sheet.querySelector(`[data-wl="${stat}"]`).replaceChildren(...named.flatMap(([i, name]) => {
         const w = parseFloat(fld(`w.${i}.${stat}`).value);
         if (isNaN(w)) return [];
-        const li = document.createElement("li"), a = document.createElement("span"), b = document.createElement("span");
+        const open = expanded.has(stat) || openWeapons.has(i);          // the whole stat is open, or this weapon was clicked
+        const li = document.createElement("li"), a = document.createElement("button"), b = document.createElement("span");
+        a.type = "button"; a.className = "wname"; a.dataset.w = i;
         a.textContent = name;
-        b.textContent = `${base} + ${w} = ${base + w}`;
+        a.title = "Click to show the calculation";
+        a.setAttribute("aria-expanded", String(open));
+        b.title = `Fegyver nélkül ${base} ${w < 0 ? "−" : "+"} ${name} ${Math.abs(w)}`;
+        b.textContent = open ? `${base} ${w < 0 ? "−" : "+"} ${Math.abs(w)} = ${base + w}` : String(base + w);
         li.append(a, b);
         return [li];
       }));
     }
+    refreshCalc();
   }
+
+  // ---------- opening a stat: calculation, HM label and HM buttons ----------
+  // Settings of this page, kept in this browser. showHm: a "+3 HM" label next to KÉ/TÉ/VÉ/CÉ, like the race modifier next to the stats.
+  const SETTINGS = "tabletop-settings";
+  const settings = { showHm: true };
+  try { Object.assign(settings, JSON.parse(store.get(SETTINGS) || "{}")); } catch { /* keep the defaults */ }
+  const expanded = new Set();                               // the stats whose title was clicked
+  const openWeapons = new Set();                            // the weapons (table rows) whose name was clicked
+
+  // How many HM went into each of KÉ/TÉ/VÉ/CÉ: "hm.spent" counts them; an older sheet without it is worked out from
+  // Alap minus the class's base value.
+  function spentMap() {
+    if (fld("hm.spent").value.trim()) return mapGet("hm.spent");
+    const c = findClass(), o = {};
+    for (const s of STATS) {
+      const b = parseFloat(fld(s + ".base").value), cb = c && c[s + "_alap"];
+      if (!isNaN(b) && typeof cb === "number" && b > cb) o[s] = b - cb;
+    }
+    return o;
+  }
+  // "Alap 12 (9 + 3 HM) + Gyorsaság 3 = 15": what "Fegyver nélkül" is made of, by the same rule calculate() uses.
+  function calcLines(stat) {
+    const [baseKey, stats] = RULES[stat + ".wpn"], text = fld(baseKey).value.trim();
+    if (text === "-") return ["Alap is “-”: the class has no such value."];
+    const base = toNum(baseKey), hm = spentMap()[stat] || 0;
+    const parts = [`Alap ${base}${hm ? ` (${base - hm} + ${hm} HM)` : ""}`];
+    let total = base, bonus = false;
+    for (const st of stats) {
+      const x = Math.max(0, eff(st) - 10);
+      if (x > 0) { parts.push(`${NAME[st]} ${x}`); total += x; bonus = true; }
+    }
+    const lines = [`${parts.join(" + ")} = ${total}`];
+    if (bonus) lines.push("A stat adds how far it is above 10 (race modifier included).");
+    const typed = fld(stat + ".wpn").value.trim();
+    if (typed && parseFloat(typed) !== total) lines.push(`The Fegyver nélkül box shows ${typed}: typed by hand, or not recalculated yet (press “Apply class & calculate”).`);
+    return lines;
+  }
+  function refreshCalc() {
+    const pool = parseInt(fld("hm.left").value, 10) || 0;
+    sheet.querySelectorAll("[data-calc]").forEach((e) => e.setAttribute("aria-expanded", String(expanded.has(e.dataset.calc))));
+    const spent = spentMap();
+    for (const stat of STATS) {
+      const box = sheet.querySelector(`[data-calcbox="${stat}"]`), open = expanded.has(stat);
+      box.hidden = !open;
+      if (open) box.replaceChildren(...calcLines(stat).map((t) => Object.assign(document.createElement("div"), { textContent: t })));
+      const badge = sheet.querySelector(`[data-hmb="${stat}"]`), n = spent[stat] || 0;
+      badge.hidden = !(settings.showHm && n > 0);
+      badge.textContent = `+${n} HM`;
+      badge.title = `${n} HM spent on ${HM_NAMES[stat]}`;
+      sheet.querySelector(`[data-hmbtns="${stat}"]`).hidden = !(pool > 0 || open);     // spendable, or the title was clicked
+    }
+    for (const [k] of ATTRS) {                               // typed value + race modifier = what the calculations use
+      const small = sheet.querySelector(`[data-acalc="${k}"]`), open = expanded.has(k), v = fld("attr." + k).value.trim(), m = raceMod(k);
+      const tot = sheet.querySelector(`[data-tot="${k}"]`);       // the box shows the end result; click into it to edit the typed value
+      tot.hidden = !(v && m);
+      tot.textContent = toNum("attr." + k) + m;
+      tot.title = `${v} ${m > 0 ? "+" : "−"} ${Math.abs(m)} (faj)`;
+      small.hidden = !open;
+      small.textContent = !v ? "–" : m ? `${v} ${m > 0 ? "+" : "−"} ${Math.abs(m)} (faj) = ${toNum("attr." + k) + m}` : `${v}, no race modifier`;
+    }
+  }
+  const toggleStat = (el) => { const k = el.dataset.calc; expanded.has(k) ? expanded.delete(k) : expanded.add(k); refreshWeapons(); };
+  sheet.addEventListener("click", (e) => {
+    const wn = e.target.closest(".wname");
+    if (wn) { const i = +wn.dataset.w; openWeapons.has(i) ? openWeapons.delete(i) : openWeapons.add(i); return refreshWeapons(); }
+    const t = e.target.closest("[data-calc]");
+    if (t) toggleStat(t);
+  });
+  sheet.addEventListener("keydown", (e) => {
+    const t = e.target.closest("h3[data-calc]");
+    if (t && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); toggleStat(t); }
+  });
 
   // ---------- spending HM ----------
   // "+ HM/Szint" adds the level's HM to the pool and records what the class makes you spend on a given value
@@ -160,6 +241,9 @@
       paid[stat] = (paid[stat] || 0) + 1;
       mapSet("hm.paid", paid);
     } else if (pool - 1 < total) throw new Error(`Your class requires ${owedText(owed)} HM first. Spend those before the rest.`);
+    const spent = spentMap();                    // before Alap changes, so an older sheet is counted right
+    spent[stat] = (spent[stat] || 0) + 1;
+    mapSet("hm.spent", spent);
     bump(stat, 1);
     fld("hm.left").value = String(pool - 1);
     owedSet(owed);
@@ -179,6 +263,8 @@
     if (!base.value.trim() || base.value.trim() === "-") throw new Error(`${HM_NAMES[stat]} Alap has no number to lower.`);
     const c = findClass(), floor = c && c[stat + "_alap"] != null ? c[stat + "_alap"] : 0;
     if (toNum(stat + ".base") <= floor) throw new Error(`${HM_NAMES[stat]} Alap is already at ${c ? "the class base value" : "0"}.`);
+    const spent = spentMap();
+    if (spent[stat] > 0) { spent[stat]--; mapSet("hm.spent", spent); }
     bump(stat, -1);
     fld("hm.left").value = String((parseInt(fld("hm.left").value, 10) || 0) + 1);
     const paid = mapGet("hm.paid");
@@ -205,6 +291,7 @@
       else note = ` The class limit of ${l.amount} has no stat in rules/classes.json, so it is not enforced.`;
     }
     owedSet(owed);
+    refreshCalc();
     mark();
     const req = owedText(owed);
     say(`Added ${per} HM to the pool.${req ? ` Required: ${req}.` : ""}${note}`, !!note);
@@ -344,6 +431,54 @@
   }));
   $("#import-label").addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); $("#import").click(); } });
 
+  // ---------- weapons (rules/weapons.json via /api/weapons) ----------
+  // The weapon name boxes suggest the weapons of the rules; choosing one fills its row (and a shield fills the Pajzs boxes).
+  //   ke -> KÉ,  te_ce -> TÉ,  ve_tav -> VÉ,  tam_kor -> Tám/kör,  dmg -> Sebzés.
+  //   Ranged weapons (célzófegyverek) have no TÉ/VÉ: their first extra value goes to CÉ.
+  let arms = [], shields = [];
+  const norm = (t) => String(t).trim().toLowerCase();
+  async function loadWeapons() {
+    const all = await api.json("/api/weapons");
+    shields = all["pajzsok"] || [];
+    arms = Object.entries(all).filter(([cat]) => cat !== "pajzsok").flatMap(([cat, list]) => list.map((x) => ({ ...x, cat })));
+    const fill = (id, list, withCat) => {
+      let dl = document.getElementById(id);
+      if (!dl) { dl = document.createElement("datalist"); dl.id = id; document.body.append(dl); }
+      dl.replaceChildren(...list.map((x) => Object.assign(new Option(x.weapon_name), withCat ? { label: x.cat } : {})));
+    };
+    fill("weapon-list", arms, true);
+    fill("shield-list", shields, false);
+    for (let i = 0; i < 10; i++) fld(`w.${i}.n`).setAttribute("list", "weapon-list");
+    fld("shield.name").setAttribute("list", "shield-list");
+  }
+  const put = (k, v) => { fld(k).value = v == null ? "" : String(v); };
+  sheet.addEventListener("change", (e) => {                // change = a suggestion was chosen, or the box was left
+    const el = e.target, key = el.dataset && el.dataset.k;
+    if (!key) return;
+    const row = /^w\.(\d+)\.n$/.exec(key), name = norm(el.value);
+    if (row) {
+      const x = arms.find((a) => norm(a.weapon_name) === name);
+      if (!x) return;
+      const ranged = x.cat === "célzófegyverek", i = row[1];
+      put(`w.${i}.t`, x.tam_kor);
+      put(`w.${i}.ke`, x.ke);
+      put(`w.${i}.te`, ranged ? "" : x.te_ce);
+      put(`w.${i}.ve`, ranged ? "" : x.ve_tav);
+      put(`w.${i}.ce`, ranged ? (x.extra_values || [])[0] : "");
+      put(`w.${i}.s`, x.dmg);
+      el.value = x.weapon_name;
+      say(`${x.weapon_name}: filled in from the weapon list${ranged && x.extra_values ? ` (range ${x.extra_values[1]})` : ""}.`);
+    } else if (key === "shield.name") {
+      const x = shields.find((a) => norm(a.weapon_name) === name);
+      if (!x) return;
+      put("shield.ve", x.ve_tav);
+      put("shield.dmg", x.dmg);
+      el.value = x.weapon_name;
+      say(`Pajzs ${x.weapon_name}: filled in from the weapon list.`);
+    } else return;
+    refreshWeapons(); refreshRace(); mark();
+  });
+
   // ---------- classes (rules/classes.json via /api/classes) ----------
   let classes = [], races = [];
   const RACE_KEY = { str: "ero", spd: "gyorsasag", dex: "ugyesseg", sta: "allokepesseg", hea: "egeszseg", bea: "szepseg", int: "intelligencia", wil: "akaratero", ast: "asztral" };
@@ -356,6 +491,7 @@
       const m = raceMod(e.dataset.rm);
       e.textContent = m ? (m > 0 ? "+" : "−") + Math.abs(m) : "";
     });
+    refreshCalc();
   }
   function fillSelect(key, names) {
     const sel = fld(key), keep = sel.value;
@@ -371,6 +507,7 @@
   async function loadClasses() {
     classes = (await api.json("/api/classes")).classes;
     fillSelect("caste", classes.map((c) => c.classname));
+    refreshCalc();
   }
   const findClass = () => {
     const typed = fld("caste").value.trim().toLowerCase();
@@ -386,7 +523,7 @@
       const set = {
         "ke.base": n(c.ke_alap), "te.base": n(c.te_alap), "ve.base": n(c.ve_alap), "ce.base": n(c.ce_alap),
         hm: c.hm + limit, skp: n(c.kp_alap), skl: n(c.kp_szint),
-        "hp.epbase": n(c.ep_alap), "hp.fpbase": n(c.fp_alap), "hp.fpl": n(c.fp_szint), "hm.paid": "",
+        "hp.epbase": n(c.ep_alap), "hp.fpbase": n(c.fp_alap), "hp.fpl": n(c.fp_szint), "hm.paid": "", "hm.spent": "",
       };
       for (const [k, v] of Object.entries(set)) fld(k).value = v;
       msg = `Applied ${c.classname} and calculated the stats.`;
@@ -399,6 +536,17 @@
     say(msg);
   }
   $("#apply-class").addEventListener("click", () => run(async () => applyClass()));
+
+  // ---------- page settings ----------
+  const dlg = $("#tt-settings"), setHm = $("#set-hm");
+  $("#tt-settings-open").addEventListener("click", () => { setHm.checked = settings.showHm; dlg.showModal(); });
+  setHm.addEventListener("change", () => { settings.showHm = setHm.checked; store.set(SETTINGS, JSON.stringify(settings)); refreshCalc(); });
+  $("#tt-settings-close").addEventListener("click", () => dlg.close());
+  dlg.addEventListener("click", (e) => {                     // a click on the backdrop closes it
+    if (e.target !== dlg) return;
+    const r = dlg.getBoundingClientRect();
+    if (e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom) dlg.close();
+  });
 
   // ---------- dice ----------
   const log = $("#rolls");
@@ -434,6 +582,7 @@
   run(async () => {
     await loadClasses().catch((err) => say(err.message, true));
     await loadRaces().catch((err) => say(err.message, true));
+    await loadWeapons().catch((err) => say(err.message, true));
     await refreshList();
     const last = store.get("tabletop-last");
     if (list.length) await open(list.some((c) => c.id === last) ? last : list[0].id);

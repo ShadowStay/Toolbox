@@ -57,6 +57,13 @@ a.btn { text-decoration: none; display: inline-block; }
 .listing .ac { white-space: nowrap; text-align: right; }
 .listing .ac .btn { margin-left: .25rem; }
 
+/* ---------- drag and drop moves ---------- */
+.listing tbody tr[draggable="true"] { cursor: grab; }
+.listing tbody tr.dragging { opacity: .45; }
+.listing tbody tr.drop-over { background: #8a5bd844; outline: 2px solid var(--candle); outline-offset: -2px; }
+.crumbs a.drop-over { padding: 0 .4rem; background: #8a5bd855; outline: 2px solid var(--candle); border-radius: .3rem; }
+.move-hint { margin: 0 0 .6rem; }
+
 /* ---------- move dialog ---------- */
 #mover { width: min(26rem, 92vw); padding: 1.25rem; color: var(--moon); background: var(--dusk); border: 1px solid var(--amethyst); border-radius: .7rem; }
 #mover::backdrop { background: #000a; }

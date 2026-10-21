@@ -8,14 +8,22 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Uncial+Antiqua&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/shared/site.css">
+  <link rel="stylesheet" href="/tabletop-map.css">
 </head>
 <body>
   <aside id="site-nav" aria-label="Main navigation"></aside>
 
   <main class="page wide">
     <h1 class="tool-title">Tabletop</h1>
-    <p class="tool-intro">Keep your characters on the server, fill in their sheets and roll dice at the table. Changes save by themselves.</p>
+    <p class="tool-intro">Keep your characters on the server, fill in their sheets, roll dice and move everyone around on the shared map. Changes save by themselves.</p>
 
+    <div class="tabs viewtabs" role="tablist" aria-label="Tabletop views">
+      <button class="tab" role="tab" data-view="sheet" aria-selected="true">Character sheet</button>
+      <button class="tab" role="tab" data-view="map" aria-selected="false">Map</button>
+      <button class="btn small tabset" type="button" id="tt-settings-open" title="Tabletop settings">⚙ Settings</button>
+    </div>
+
+    <div id="view-sheet">
     <div class="charbar">
       <label class="field">Character <select id="chars"></select></label>
       <div class="actions">
@@ -57,8 +65,87 @@
         <button class="btn small" type="button" id="clear-rolls">Clear log</button>
       </aside>
     </div>
+    </div>
+
+    <dialog id="tt-settings" aria-labelledby="tt-settings-title">
+      <h2 id="tt-settings-title">Tabletop settings</h2>
+      <fieldset>
+        <legend>Character sheet</legend>
+        <label class="switch-row">
+          <span><strong>Show spent HM next to the stat</strong><small>A “+3 HM” label next to KÉ, TÉ, VÉ and CÉ, like the race modifier next to the main stats. Click a stat's title to see how it is calculated.</small></span>
+          <input type="checkbox" role="switch" id="set-hm" checked>
+        </label>
+      </fieldset>
+      <div class="opt-actions"><button class="opt-done" type="button" id="tt-settings-close">Done</button></div>
+    </dialog>
+
+    <!-- Map -->
+    <section id="view-map" hidden aria-label="Tabletop map">
+      <div class="rolebar">
+        <span>Playing as <strong id="role-name"></strong></span>
+        <button class="btn small" type="button" id="role-change">Change role</button>
+        <span class="pill dm-only" id="hidden-badge" hidden>Hidden from players</span>
+      </div>
+
+      <div class="mapbar">
+        <label class="field">Add to the map <select id="map-add"></select></label>
+        <div class="actions">
+          <button class="btn primary" type="button" id="map-add-go">Add</button>
+          <button class="btn" type="button" id="map-remove" disabled>Remove selected</button>
+        </div>
+        <label class="field size">Token size <input type="range" id="map-size" min="44" max="140" value="76"></label>
+      </div>
+
+      <div class="dmbar dm-only">
+        <div class="toolgroup" role="group" aria-label="Map tools">
+          <button class="btn" type="button" data-tool="move" aria-pressed="true">Move</button>
+          <button class="btn" type="button" data-tool="wall" aria-pressed="false">Draw walls</button>
+          <button class="btn" type="button" data-tool="door" aria-pressed="false">Place doors</button>
+          <button class="btn small" type="button" id="chain-end" hidden>Finish wall</button>
+        </div>
+        <div class="toolgroup" role="group" aria-label="Selected door">
+          <button class="btn" type="button" id="door-toggle" disabled>Open / close door</button>
+          <button class="btn" type="button" id="door-lock" disabled>Lock door</button>
+        </div>
+        <label class="field vis">Player sight (squares) <input type="number" id="map-vision" min="1" max="20" value="7"></label>
+        <div class="toolgroup">
+          <button class="btn" type="button" id="map-hide">Hide map from players</button>
+          <label class="check"><input type="checkbox" id="fog-preview" checked> Show the players' fog</label>
+          <button class="btn" type="button" id="fog-reset">Reset explored area</button>
+          <button class="btn" type="button" id="saves-open">Save / load…</button>
+        </div>
+      </div>
+
+      <p class="hint mapnote" id="map-help"></p>
+      <p class="status" id="map-status" role="status" aria-live="polite"></p>
+      <div class="mapframe">
+        <div class="mapboard" id="map" aria-label="Map board">
+          <svg class="geo" id="geo" viewBox="0 0 16 10" preserveAspectRatio="none" aria-hidden="true">
+            <g id="g-geo"></g>
+            <line class="pv" id="pv" hidden></line>
+          </svg>
+          <img class="fog" id="fog" alt="" hidden>
+          <div class="mapcover" id="mapcover" hidden><div><strong>The dungeon master is setting up the map.</strong><br>It will appear here when it is ready.</div></div>
+        </div>
+      </div>
+      <p class="empty-note" id="map-empty" hidden>Nobody is on the map yet. Add a character above<span class="dm-only"> or an enemy from <a href="/dungeon-master-hq">Dungeon Master HQ</a></span>.</p>
+
+      <dialog id="saves" aria-labelledby="saves-title">
+        <h2 id="saves-title">Save and load maps</h2>
+        <p class="hint nomargin">A save keeps the tokens, walls, doors, player sight and the explored area. Loading replaces the current map and hides it from players until you show it.</p>
+        <div class="savebar">
+          <label class="field">Save the current map as <input type="text" id="save-name" maxlength="60" autocomplete="off" spellcheck="false" placeholder="e.g. Goblin cave, level 1"></label>
+          <button class="btn primary" type="button" id="save-go">Save</button>
+        </div>
+        <ul class="savelist" id="save-list"></ul>
+        <p class="status" id="save-status" role="status"></p>
+        <div class="actions"><button class="btn" type="button" id="saves-close">Close</button></div>
+      </dialog>
+    </section>
   </main>
 
   <script src="/shared/site.js"></script>
+  <script src="/shared/role.js" data-ask="always"></script>
+  <script src="/tabletop-map.js"></script>
 </body>
 </html>

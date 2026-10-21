@@ -17,8 +17,22 @@
     {
       "racename": "Elf",
       "modifiers": {
-        "ero": 100,
-        "gyorsasag": 0,
+        "ero": -2,
+        "gyorsasag": 1,
+        "ugyesseg": 1,
+        "allokepesseg": -1,
+        "egeszseg": 0,
+        "szepseg": 1,
+        "intelligencia": 0,
+        "akaratero": 0,
+        "asztral": 0
+      }
+    },
+    {
+      "racename": "Félelf",
+      "modifiers": {
+        "ero": -1,
+        "gyorsasag": 1,
         "ugyesseg": 0,
         "allokepesseg": 0,
         "egeszseg": 0,
@@ -26,6 +40,34 @@
         "intelligencia": 0,
         "akaratero": 0,
         "asztral": 0
+      }
+    },
+    {
+      "racename": "Törpe",
+      "modifiers": {
+        "ero": 1,
+        "gyorsasag": 0,
+        "ugyesseg": 0,
+        "allokepesseg": 1,
+        "egeszseg": 1,
+        "szepseg": -2,
+        "intelligencia": -1,
+        "akaratero": 0,
+        "asztral": -1
+      }
+    },
+    {
+      "racename": "Udvari ork",
+      "modifiers": {
+        "ero": 2,
+        "gyorsasag": 0,
+        "ugyesseg": 0,
+        "allokepesseg": 1,
+        "egeszseg": 2,
+        "szepseg": -3,
+        "intelligencia": -1,
+        "akaratero": 0,
+        "asztral": -3
       }
     }
   ]

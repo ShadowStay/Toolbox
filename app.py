@@ -33,8 +33,10 @@ TOOLS = {
     "omni-file-viewer": ("❂", "View, convert and combine images, PDFs, Word files and spreadsheets."),
     "cloud-storage": ("☁", "Keep files of any size and download them from anywhere. Up to 500 GB."),
     "live": ("☄", "A shared room: chat, voice, screen sharing and a drawing board."),
-    "tabletop": ("✠", "Keep character sheets and roll dice at the table."),
+    "tabletop": ("✠", "Keep character sheets, roll dice and move everyone around on the shared map."),
+    "dungeon-master-hq": ("☠", "Keep enemies and track their HP, then send them to the map."),
 }
+LABELS = {"dungeon-master-hq": "Dungeon Master HQ"}      # names that title-casing the file name would get wrong
 FALLBACK = ("✦", "A spell worth casting.")
 
 
@@ -50,6 +52,8 @@ def option(name: str, allowed: tuple, default: str) -> str:
 
 
 def label_for(name: str) -> str:
+    if name in LABELS:
+        return LABELS[name]
     return name.replace("-", " ").replace("_", " ").title()
 
 
