@@ -649,22 +649,59 @@
     if (e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom) dlg.close();
   });
 
-  // ---------- dice ----------
+  // ---------- dice (visual card UI) ----------
   const log = $("#rolls");
-  function roll(expr) {
+  async function roll(expr) {
     const m = /^\s*(\d{0,3})d(\d{1,4})\s*([+-]\s*\d+)?\s*$/i.exec(expr);
     if (!m) throw new Error("Use a roll like d100, 2d6+3 or d10-1.");
     const n = +m[1] || 1, sides = +m[2], mod = m[3] ? +m[3].replace(/\s/g, "") : 0;
     if (n > 100 || sides < 2) throw new Error("Roll 1 to 100 dice with at least 2 sides.");
+
+    // Clear previous rolls from the dice roller
+    $("#dice-roller").replaceChildren();
+
+    // Show the roller UI
+    $("#dice-roller").style.display = "";
+
+    // Generate random rolls and build cards
     const dice = Array.from({ length: n }, () => 1 + Math.floor(Math.random() * sides));
     const total = dice.reduce((a, b) => a + b, 0) + mod;
-    const li = document.createElement("li"), big = document.createElement("strong"), small = document.createElement("small");
-    big.textContent = total;
-    small.textContent = `${n}d${sides}${mod ? (mod > 0 ? "+" : "") + mod : ""}: [${dice.join(", ")}]${mod ? (mod > 0 ? " + " : " − ") + Math.abs(mod) : ""}`;
-    li.append(big, small);
-    log.prepend(li);
-    while (log.children.length > 50) log.lastChild.remove();
+
+    // Create each die card with animation
+    const container = $("#dice-roller");
+    for (const d of dice) {
+      const card = document.createElement("div");
+      card.className = "dice-result-card";
+      card.innerHTML = `
+        <span class="die-name">${sides} face</span>
+        <div class="die-visual die-shake" data-value="${d}" aria-label="${d} on a ${sides}-sided die">
+          ${d === 1 ? "⚀" : d === 2 ? "⚁" : d === 3 ? "⚂" : d === 4 ? "⚃" : d === 5 ? "⚄" : "⚅"}
+        </div>
+        <span class="result-value">${d}</span>
+        <span class="roll-total">+${mod > 0 ? mod : ""} ${total > 0 ? "(" + total + ")" : ""}</span>
+      `;
+      container.appendChild(card);
+    }
+
+    // After all cards are in, remove shake animation and reveal
+    setTimeout(() => {
+      for (const c of container.children) {
+        const v = parseInt(c.querySelector(".result-value").textContent, 10);
+        c.querySelector(".die-visual").classList.remove("die-shake");
+        c.classList.add("revealed");
+        if (mod > 0) c.querySelector(".roll-total").innerHTML = "(total: " + total + ")";
+      }
+    }, 600);
+
+    // Auto-scroll to new rolls and update log
+    container.scrollIntoView({ behavior: "smooth", block: "end" });
+    const exprText = `${n}d${sides}${mod > 0 ? "+" : ""}${mod}`;
+    const totalEl = document.createElement("strong");
+    totalEl.textContent = total + (mod < 0 ? ` (${total})` : "");
+    log.prepend(totalEl);
   }
+
+  // Helper to format modifier for display
   const modifier = () => {
     const v = parseInt($("#mod").value, 10) || 0;
     return v ? (v > 0 ? "+" : "") + v : "";
