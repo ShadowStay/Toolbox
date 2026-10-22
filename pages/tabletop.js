@@ -345,11 +345,99 @@
     refreshWeapons();
     refreshRace();
   };
+  // A character with a password shows a lock: closed until its password was typed in this browser, open after that.
   function renderList() {
-    picker.replaceChildren(...list.map((c) => new Option(c.name, c.id)));
+    picker.replaceChildren(...list.map((c) => new Option((c.locked ? (c.open ? "🔓 " : "🔒 ") : "") + c.name, c.id)));
     picker.value = cur;
+    syncLockButtons();
   }
   async function refreshList() { list = (await api.json("/api/characters")).characters; renderList(); }
+
+  // ---------- locking a character with a password ----------
+  const entry = (id) => list.find((c) => c.id === id);
+  const needsPassword = (c) => !!c && c.locked && !c.open;
+  const isDM = () => window.Role.get() === "dm";
+  function syncLockButtons() {
+    const c = entry(cur);
+    document.querySelector('[data-act="password"]').hidden = !c;
+    document.querySelector('[data-act="relock"]').hidden = !(c && c.locked && !isDM());       // the dungeon master can open everything anyway
+  }
+  // Nothing is open (a campaign without characters you can open, or you just locked yours): the sheet cannot be edited.
+  function setActive(on) {
+    sheet.inert = !on;
+    document.querySelector(".sheetbar").inert = !on;
+    sheet.style.opacity = on ? "" : ".45";
+  }
+  function clearSheet() {
+    cur = ""; dirty = false;
+    fill({});
+    setActive(false);
+    renderList();
+    say(list.length ? "Choose a character above. Characters with a lock need their password." : "");
+  }
+
+  // Asks for the password of c; true when it was right.
+  function askPassword(c) {
+    const dlg = $("#pw-dialog"), form = $("#pw-form"), input = $("#pw-input"), st = $("#pw-status");
+    $("#pw-text").textContent = `“${c.name}” is protected. Type its password to open it. It stays open in this browser until you lock it again.`;
+    input.value = ""; st.textContent = ""; st.classList.remove("error");
+    return new Promise((resolve) => {
+      const end = (ok) => {
+        form.removeEventListener("submit", onSubmit);
+        $("#pw-cancel").removeEventListener("click", onCancel);
+        dlg.removeEventListener("close", onCancel);
+        if (dlg.open) dlg.close();
+        resolve(ok);
+      };
+      const onCancel = () => end(false);
+      const onSubmit = async (e) => {
+        e.preventDefault();
+        try { await api.json(`/api/characters/${c.id}/unlock`, { password: input.value }); c.open = true; end(true); }
+        catch (err) { st.textContent = err.message; st.classList.add("error"); input.select(); }
+      };
+      form.addEventListener("submit", onSubmit);
+      $("#pw-cancel").addEventListener("click", onCancel);
+      dlg.addEventListener("close", onCancel);                 // Escape
+      dlg.showModal();
+      input.focus();
+    });
+  }
+
+  // Set, change or remove the password of the open character.
+  function openLockDialog() {
+    const c = entry(cur);
+    if (!c) return;
+    const dlg = $("#lock-dialog"), st = $("#lock-status");
+    $("#lock-text").textContent = c.locked
+      ? "This character has a password. Type a new one to change it, or remove it."
+      : "Without a password everybody at the table can open and edit this character. With one, they need it first. The dungeon master can always open every character.";
+    $("#lock-new").value = ""; $("#lock-new2").value = "";
+    st.textContent = ""; st.classList.remove("error");
+    $("#lock-remove").hidden = !c.locked;
+    $("#lock-save").textContent = c.locked ? "Change password" : "Set password";
+    dlg.showModal();
+    $("#lock-new").focus();
+  }
+  $("#lock-cancel").addEventListener("click", () => $("#lock-dialog").close());
+  $("#lock-form").addEventListener("submit", (e) => {
+    e.preventDefault();
+    const st = $("#lock-status"), pw = $("#lock-new").value;
+    st.classList.add("error");
+    if (pw !== $("#lock-new2").value) { st.textContent = "The two passwords are not the same."; return; }
+    run(async () => {
+      try { await api.json(`/api/characters/${cur}/lock`, { password: pw }); }
+      catch (err) { st.textContent = err.message; return; }
+      $("#lock-dialog").close();
+      await refreshList();
+      say("Password set. This character stays open in this browser; others need the password.");
+    });
+  });
+  $("#lock-remove").addEventListener("click", () => run(async () => {
+    await api.json(`/api/characters/${cur}/lock/remove`, {});
+    $("#lock-dialog").close();
+    await refreshList();
+    say("Password removed.");
+  }));
 
   function mark() {
     dirty = true;
@@ -369,14 +457,19 @@
     if (entry) { entry.name = data.name || "Unnamed"; renderList(); }
     say("Saved.");
   }
+  // Opens a character (asking for its password first when it has one). False when that was cancelled.
   async function open(id) {
     await save();
+    const c = entry(id);
+    if (needsPassword(c) && !(await askPassword(c))) { renderList(); return false; }      // the picker goes back to what was open
     const d = await api.json("/api/characters/" + id);
     cur = id;
     fill(d.data);
+    setActive(true);
     store.set("tabletop-last", id);
-    picker.value = id;
+    renderList();
     say("");
+    return true;
   }
   async function create(data) {
     await save();
@@ -403,6 +496,14 @@
       await refreshList();
       if (list.length) await open(list[0].id); else await create({ name: "New character" });
       say(`Deleted ${name}.`);
+    },
+    password: () => openLockDialog(),
+    async relock() {                                     // close this character again in this browser
+      await save();
+      const id = cur, name = (entry(id) || {}).name || "The character";
+      await api.json(`/api/characters/${id}/relock`, {});
+      await loadCharacters(id);
+      say(`${name} is locked again.`);
     },
     async export() {
       await save();
@@ -579,13 +680,103 @@
   $("#clear-rolls").addEventListener("click", () => log.replaceChildren());
 
   // ---------- start ----------
+  // Loads the characters of the current campaign and opens one you can open (the last one, if possible). When every
+  // character is locked, the first one asks for its password; when there are none, a new one is created.
+  // skip: a character id not to open (the one that was just locked).
+  async function loadCharacters(skip) {
+    cur = ""; dirty = false;
+    await refreshList();
+    const last = store.get("tabletop-last"), free = (c) => (!c.locked || c.open) && c.id !== skip;
+    const pick = list.find((c) => c.id === last && free(c)) || list.find(free);
+    if (pick) await open(pick.id);
+    else if (list.length) { clearSheet(); await open(list.find((c) => c.id !== skip || list.length === 1).id) || clearSheet(); }
+    else await create({ name: "New character" });
+    
+    // Show the selection dialog only when there are unlocked characters that weren't opened (e.g. all locked ones were skipped)
+    // OR when we just created a new character but it's not locked and no previous one was open.
+    const showSelection = list.length && 
+                          (!last || !list.find((c) => c.id === last)) &&  // no saved last opened, or that one doesn't exist anymore
+                          list.some((c) => !c.locked);  // at least one character is unlocked
+    
+    if (showSelection && !open) {
+      await openSelection();
+    }
+  }
+
+  // ---------- Character selection dialog ----------
+  async function openSelection() {
+    await save();
+    const sel = $(`#char-selection`);
+    const list = $(`#selection-list`), actions = $(`#selection-actions`);
+    if (!list) return;
+    
+    // Clear previous selections
+    list.replaceChildren();
+    
+    // Use the list array that was loaded by refreshList() 
+    let hasUnlocked = false;
+    for (const c of list) {
+      if (c.locked && !c.open) continue;  // skip locked characters that aren't currently open
+      hasUnlocked = true;
+      const li = document.createElement("div");
+      li.className = "char-option";
+      li.dataset.id = c.id;
+      
+      let iconSrc = c.icon || "/shared/icons/person.svg";
+      if (c.racename) {
+        try {
+          iconSrc = `/shared/icons/${slugify(c.racename.toLowerCase())}.svg`;
+        } catch {}
+      }
+      if (!iconSrc.includes("http") && !(await get(`/shared/icons/${encodeURIComponent(iconSrc)}`)).ok) {
+        iconSrc = "/shared/icons/person.svg";
+      }
+      
+      const name = c.name || `Character ${c.id.slice(-4)}`;
+      const lvl = c.caste ? `${c.caste} (Lvl ${c.level})` : c.level ? `Level ${c.level}` : "New character";
+      
+      li.innerHTML = `<img class="char-icon" src="${iconSrc}" alt="" aria-hidden="true">
+                      <div style="flex:1;min-width:0;">
+                        <div class="char-name">${escapeHTML(name)}</div>
+                        <div class="char-level">${escapeHTML(lvl)}</div>
+                      </div>`;
+      
+      li.addEventListener("click", () => {
+        list.querySelectorAll(".char-option").forEach((x) => x.classList.remove("active"));
+        li.classList.add("active");
+        run(async () => {
+          try { await open(c.id); } catch (err) { say(err.message, true); }
+        });
+      });
+      
+      list.append(li);
+    }
+    
+    if (!hasUnlocked) {
+      actions.style.display = "";
+      $(`#new-selection`).addEventListener("click", async () => {
+        await open();  // creates a new character and opens it
+      });
+    } else {
+      actions.style.display = "none";
+    }
+    
+    if (!sel.open) sel.showModal();
+  }
+
+  // The bar with the role and the campaign (shared/role.js). Unsaved work is saved before another campaign opens, and
+  // the lists are loaded again whenever the role or the campaign changes.
+  window.Role.mount($("#rolebar"));
+  window.Role.beforeChange(() => save());
+  let live = false;
+  document.addEventListener("rolechange", () => { if (live) run(() => loadCharacters()); });
+
   run(async () => {
     await loadClasses().catch((err) => say(err.message, true));
     await loadRaces().catch((err) => say(err.message, true));
     await loadWeapons().catch((err) => say(err.message, true));
-    await refreshList();
-    const last = store.get("tabletop-last");
-    if (list.length) await open(list.some((c) => c.id === last) ? last : list[0].id);
-    else await create({ name: "New character" });
+    await window.Role.ready;
+    live = true;
+    await loadCharacters();
   });
 })();

@@ -1,7 +1,9 @@
 """The shared tabletop map on pages/tabletop.*. One map for everybody. The board is 16 x 10 squares ("cells"); tokens
 are stored as 0..1 fractions of the board, walls and doors in cells (snapped to half a cell).
 
-  tokens  {id, kind: "character" | "enemy", ref, x, y}   ref points at a sheet; name, portrait and HP are read from it
+  tokens  {id, kind: "character" | "enemy", ref, x, y}   ref points at a sheet; name and portrait are read from it.
+          A character's HP is read from its sheet. Every enemy token has its own HP (hp, max, fp, fpmax, copied from the
+          enemy sheet when it is put on the map and edited per token), so three goblins keep three separate HPs.
   walls   {id, x1, y1, x2, y2}                           block sight
   doors   {id, x1, y1, x2, y2, open, locked}             block sight while closed
   vision  how many cells a player character can see      hidden  true = players see nothing (the DM is arranging)
@@ -12,9 +14,11 @@ is stored; enemies are only sent while in view; walls and doors only once seen. 
 
   GET  /api/map                       everything the caller may see (see roles.py: players get the filtered version)
   GET  /api/map/fog.png               the fog overlay (black = unexplored, dim = explored, clear = in view)
-  POST /api/map/tokens                {kind, ref}  add (players: characters only)
+  POST /api/map/tokens                {kind, ref, count?}  add (players: characters only; DM: up to 20 enemies at once)
   POST /api/map/tokens/<id>           {x, y}       move (players: characters only)
   POST /api/map/tokens/<id>/delete                 take off the map (players: characters only)
+  POST /api/map/tokens/<id>/stats     {hp?, max?, fp?, fpmax?}  change Ép / Fp. Enemies: DM. Characters: DM, or whoever
+                                      has the sheet open (a locked sheet needs its password). Enemy HP is never sent to players.
   GET  /api/map/tokens/<id>/portrait               the token's portrait (enemy ids are never sent to players)
   POST /api/map/walls | /doors        {x1, y1, x2, y2}   DM
   POST /api/map/walls/<id>/delete | /doors/<id>/delete   DM
@@ -26,7 +30,8 @@ is stored; enemies are only sent while in view; walls and doors only once seen. 
   POST /api/map/saves                 DM    {name} save the map now (same name = replace)
   POST /api/map/saves/<id>/load       DM    replace the map with a save (it comes back hidden from players)
   POST /api/map/saves/<id>/delete     DM
-Every answer is JSON (never an empty body). Stored in data/map.json and data/map_saves/ (git-ignored).
+Every answer is JSON (never an empty body). Each campaign has its own map: data/campaigns/<id>/map.json and map_saves/
+(git-ignored), see campaigns.py.
 Run a single process (threads are fine)."""
 import base64
 import hashlib
@@ -43,26 +48,54 @@ import numpy as np
 from flask import Response, abort, jsonify, request
 from PIL import Image, ImageChops, ImageDraw, ImageFilter
 
-from auth import DATA
-from . import characters, enemies
+from . import campaigns, characters, enemies
 from .core import Fail, bp
 from .roles import current_role, need_dm
 
 CW, CH, PPC = 16, 10, 20                      # board size in cells, fog pixels per cell
 FW, FH = CW * PPC, CH * PPC
-FILE, SAVES = DATA / "map.json", DATA / "map_saves"
 KINDS = {"character": characters, "enemy": enemies}
 MAX_TOKENS, MAX_WALLS, MAX_DOORS, MAX_SAVES = 200, 1500, 300, 100
 HEX = re.compile(r"^[0-9a-f]{32}$")
 _lock = threading.RLock()
 _cache = {}                                   # sheet path -> (mtime_ns, summary), so polling does not re-read every sheet
-_fog = {"sig": None, "key": None, "explored": None, "vis": None, "known": None, "png": b"", "hash": ""}
+
+
+class _FogStore:
+    """The fog cache, kept separately for every campaign (each has its own map). Used like a dict."""
+
+    def __init__(self):
+        self._all = {}
+
+    def _cur(self):
+        return self._all.setdefault(campaigns.current_id(), {"sig": None, "key": None, "explored": None, "vis": None,
+                                                              "known": None, "png": b"", "hash": ""})
+
+    def __getitem__(self, key):
+        return self._cur()[key]
+
+    def __setitem__(self, key, value):
+        self._cur()[key] = value
+
+    def update(self, **kw):
+        self._cur().update(kw)
+
+
+_fog = _FogStore()
+
+
+def map_file():
+    return campaigns.folder("map.json")
+
+
+def saves_dir():
+    return campaigns.folder("map_saves")
 
 
 # ---------- storage ----------
 def load():
     try:
-        doc = json.loads(FILE.read_text(encoding="utf-8"))
+        doc = json.loads(map_file().read_text(encoding="utf-8"))
     except (OSError, ValueError):
         doc = {}
     doc = doc if isinstance(doc, dict) else {}
@@ -79,10 +112,11 @@ def load():
 
 
 def save(doc):
-    DATA.mkdir(exist_ok=True)
-    tmp = FILE.with_suffix(".tmp")
+    target = map_file()
+    target.parent.mkdir(parents=True, exist_ok=True)
+    tmp = target.with_suffix(".tmp")
     tmp.write_text(json.dumps(doc), encoding="utf-8")
-    os.replace(tmp, FILE)
+    os.replace(tmp, target)
 
 
 # ---------- what a token shows (read from the sheet) ----------
@@ -97,7 +131,7 @@ def summary(kind, ref):
     """What the map shows about a sheet, or None when the sheet is gone."""
     if kind not in KINDS or not isinstance(ref, str) or not characters.ID.match(ref):
         return None
-    path = KINDS[kind].DIR / f"{ref}.json"
+    path = KINDS[kind].directory() / f"{ref}.json"
     try:
         stamp = path.stat().st_mtime_ns
     except OSError:
@@ -106,14 +140,16 @@ def summary(kind, ref):
     if hit and hit[0] == stamp:
         return hit[1]
     try:
-        data = json.loads(path.read_text(encoding="utf-8")).get("data") or {}
+        doc = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return None
+    data = doc.get("data") or {}
     pic = data.get("portrait", "")
     out = {"name": data.get("name") or "Unnamed",
            "hp": number(data.get("hp.curep")), "max": number(data.get("hp.maxep")),      # Ép: left half of the token
            "fp": number(data.get("hp.curfp")), "fpmax": number(data.get("hp.maxfp")),    # Fp: right half
-           "portrait": bool(pic), "v": hashlib.md5(pic.encode()).hexdigest()[:10] if pic else ""}
+           "portrait": bool(pic), "v": hashlib.md5(pic.encode()).hexdigest()[:10] if pic else "",
+           "locked": bool(doc.get("lock"))}
     _cache[str(path)] = (stamp, out)
     return out
 
@@ -254,6 +290,45 @@ def find(items, oid):
     return next((o for o in items if o.get("id") == oid), None)
 
 
+# ---------- enemy tokens: numbering and their own HP ----------
+STATS = ("hp", "max", "fp", "fpmax")
+
+
+def enemy_numbers(tokens):
+    """token id -> its number among the tokens of the same enemy sheet (Goblin 1, Goblin 2, ...). The number is stored
+    when the token is added and never changes, so removing Goblin 2 does not turn Goblin 3 into Goblin 2. Tokens from
+    before numbering existed are counted in the order they were added."""
+    out, seen = {}, {}
+    for t in tokens:
+        if t.get("kind") != "enemy":
+            continue
+        seen[t["ref"]] = seen.get(t["ref"], 0) + 1
+        n = t.get("n")
+        out[t["id"]] = n if isinstance(n, int) and not isinstance(n, bool) and n > 0 else seen[t["ref"]]
+    return out
+
+
+def token_view(t, role, numbers, shared):
+    """One token as the caller may see it. Players never get an enemy's HP: with the numbers missing, the map draws no
+    health bars on it, no HP labels and no grey, so nothing about an enemy's health is left to read."""
+    s = summary(t["kind"], t["ref"])
+    out = {"id": t["id"], "kind": t["kind"], "x": t["x"], "y": t["y"], **s}
+    locked = out.pop("locked")
+    if t["kind"] == "enemy":
+        for k in STATS:
+            if k in t:
+                out[k] = t[k]                                  # this token's own HP, not the sheet's
+        if role != "dm":
+            for k in STATS:
+                out[k] = None
+        if shared.get(t["ref"], 0) > 1:
+            out["name"] = f'{s["name"]} {numbers[t["id"]]}'
+        out["editable"] = role == "dm"
+    else:
+        out["editable"] = role == "dm" or not locked or t["ref"] in characters.unlocked_ids()
+    return out
+
+
 # ---------- reading the map ----------
 @bp.get("/map")
 def map_get():
@@ -268,10 +343,14 @@ def map_get():
         out = {"role": role, "vision": doc["vision"], "hidden": doc["hidden"], "tokens": [], "walls": [], "doors": [], "fog": None}
         if role != "dm" and doc["hidden"]:
             return jsonify(out)
+        numbers, shared = enemy_numbers(keep), {}
+        for t in keep:
+            if t["kind"] == "enemy":
+                shared[t["ref"]] = shared.get(t["ref"], 0) + 1
         for t in keep:
             if role != "dm" and t["kind"] == "enemy" and not token_in_view(t):
                 continue
-            out["tokens"].append({"id": t["id"], "kind": t["kind"], "x": t["x"], "y": t["y"], **summary(t["kind"], t["ref"])})
+            out["tokens"].append(token_view(t, role, numbers, shared))
         for key in ("walls", "doors"):
             out[key] = [o for o in doc[key] if role == "dm" or seg_known(seg_of(o))]
         out["fog"] = _fog["hash"]
@@ -308,21 +387,35 @@ def map_add():
         need_dm()
     elif dm_or_player() == "player" and load()["hidden"]:
         abort(403, "The map is hidden right now.")
-    if summary(kind, ref) is None:
+    sheet = summary(kind, ref)
+    if sheet is None:
         raise Fail("That " + kind + " no longer exists.")
+    count = d.get("count", 1) if kind == "enemy" else 1
+    if isinstance(count, bool) or not isinstance(count, int) or not 1 <= count <= 20:
+        raise Fail("You can add between 1 and 20 at a time.")
     with _lock:
         doc = load()
         tokens = doc["tokens"]
-        if len(tokens) >= MAX_TOKENS:
+        if len(tokens) + count > MAX_TOKENS:
             raise Fail("The map is full. Remove some tokens first.")
         if kind == "character" and any(t.get("kind") == "character" and t.get("ref") == ref for t in tokens):
             raise Fail("That character is already on the map.")
-        n = len(tokens)                      # new tokens land in a staggered row so they do not hide each other
-        tid = uuid.uuid4().hex
-        tokens.append({"id": tid, "kind": kind, "ref": ref, "x": round(0.08 + (n % 10) * 0.09, 4), "y": round(0.12 + (n // 10 % 7) * 0.12, 4)})
+        ids = []
+        for _ in range(count):
+            n = len(tokens)                  # new tokens land in a staggered row so they do not hide each other
+            tid = uuid.uuid4().hex
+            token = {"id": tid, "kind": kind, "ref": ref, "x": round(0.08 + (n % 10) * 0.09, 4), "y": round(0.12 + (n // 10 % 7) * 0.12, 4)}
+            if kind == "enemy":              # every enemy gets its own HP, copied from the sheet (full when the sheet has no current value)
+                token["n"] = max(enemy_numbers([t for t in tokens if t.get("ref") == ref]).values(), default=0) + 1
+                token["hp"] = sheet["hp"] if sheet["hp"] is not None else sheet["max"]
+                token["max"] = sheet["max"]
+                token["fp"] = sheet["fp"] if sheet["fp"] is not None else sheet["fpmax"]
+                token["fpmax"] = sheet["fpmax"]
+            tokens.append(token)
+            ids.append(tid)
         ensure_fog(doc)
         save(doc)
-    return jsonify(id=tid)
+    return jsonify(id=ids[0], ids=ids)
 
 
 @bp.post("/map/tokens/<tid>")
@@ -342,6 +435,43 @@ def map_move(tid):
         t["x"], t["y"] = x, y
         ensure_fog(doc)                      # what the character sees from here is now explored
         save(doc)
+    return jsonify(ok=True)
+
+
+def stat_value(v):
+    """A number typed into an HP box, or None for an empty box."""
+    if v is None or (isinstance(v, str) and not v.strip()):
+        return None
+    if isinstance(v, bool):
+        raise Fail("Type a number.")
+    try:
+        f = float(str(v).replace(",", ".").strip())
+    except ValueError:
+        raise Fail("Type a number.")
+    if f != f or abs(f) > 1_000_000_000:
+        raise Fail("That number is not valid.")
+    return round(f, 4)
+
+
+@bp.post("/map/tokens/<tid>/stats")
+def map_stats(tid):
+    d = request.get_json(silent=True) or {}
+    patch = {k: stat_value(d[k]) for k in STATS if k in d}
+    if not patch:
+        raise Fail("Nothing to change.")
+    with _lock:
+        doc = load()
+        t = find(doc["tokens"], tid)
+        if not t:
+            raise Fail("That token is no longer on the map.")
+        if t["kind"] == "enemy":
+            need_dm()
+            t.update(patch)
+            save(doc)
+        else:
+            if dm_or_player() == "player" and doc["hidden"]:
+                abort(403, "The map is hidden right now.")
+            characters.update_stats(t["ref"], patch)        # refuses a locked sheet that is not open for this browser
     return jsonify(ok=True)
 
 
@@ -474,7 +604,7 @@ def fog_reset():
 def save_path(sid):
     if not HEX.match(sid):
         abort(404, "No such saved map.")
-    return SAVES / f"{sid}.json"
+    return saves_dir() / f"{sid}.json"
 
 
 def read_save(path):
@@ -489,8 +619,9 @@ def read_save(path):
 def saves_list():
     need_dm()
     out = []
-    if SAVES.is_dir():
-        for p in SAVES.glob("*.json"):
+    folder = saves_dir()
+    if folder.is_dir():
+        for p in folder.glob("*.json"):
             d = read_save(p)
             if d:
                 doc = d["doc"]
@@ -508,13 +639,14 @@ def saves_create():
         raise Fail("Give the save a name.")
     with _lock:
         doc = load()
-        SAVES.mkdir(parents=True, exist_ok=True)
-        old = next((d for d in map(read_save, SAVES.glob("*.json")) if d and d["name"].casefold() == name.casefold()), None)
-        if not old and len(list(SAVES.glob("*.json"))) >= MAX_SAVES:
+        folder = saves_dir()
+        folder.mkdir(parents=True, exist_ok=True)
+        old = next((d for d in map(read_save, folder.glob("*.json")) if d and d["name"].casefold() == name.casefold()), None)
+        if not old and len(list(folder.glob("*.json"))) >= MAX_SAVES:
             raise Fail("There are too many saved maps. Delete some first.")
         sid = old["id"] if old else uuid.uuid4().hex
         body = {k: doc[k] for k in ("tokens", "walls", "doors", "vision", "explored")}
-        tmp = SAVES / f"{sid}.tmp"
+        tmp = folder / f"{sid}.tmp"
         tmp.write_text(json.dumps({"id": sid, "name": name, "saved": int(time.time()), "doc": body}), encoding="utf-8")
         os.replace(tmp, save_path(sid))
     return jsonify(id=sid, name=name, replaced=bool(old))

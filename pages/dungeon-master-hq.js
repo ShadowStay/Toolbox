@@ -1,5 +1,6 @@
 // Page script for pages/dungeon-master-hq.html. An enemy is the flat {key: text} map of the inputs that carry a
 // data-k key (stored by processing/enemies.py), the same way the character sheet works. Changes save by themselves.
+// Enemies belong to the campaign chosen with the bar at the top (shared/role.js); switching campaign loads that campaign's enemies.
 (function () {
   const $ = (s) => document.querySelector(s);
   const api = window.Options;
@@ -12,9 +13,9 @@
   async function run(fn) { try { await fn(); } catch (err) { say(err.message || String(err), true); } }
   const fld = (k) => sheet.querySelector(`[data-k="${k}"]`);
 
-  // The attack table: a few rows of name, attacks per round, TÉ and damage.
+  // The attack table: a few rows of name, attacks per round, TÉ, damage and a description of the attack.
   $("#attacks").innerHTML = Array.from({ length: 6 }, (_, i) =>
-    "<tr>" + [["n", "Támadás"], ["t", "Tám/kör"], ["te", "TÉ"], ["s", "Sebzés"]].map(([c, label]) =>
+    "<tr>" + [["n", "Támadás"], ["t", "Tám/kör"], ["te", "TÉ"], ["s", "Sebzés"], ["d", "Leírás"]].map(([c, label]) =>
       `<td><input type="text" data-k="a.${i}.${c}" aria-label="${label}, row ${i + 1}" autocomplete="off" spellcheck="false"></td>`).join("") + "</tr>").join("");
 
   // ---------- portrait ----------
@@ -101,25 +102,28 @@
     if (cur && dirty) fetch("/api/enemies/" + cur, { method: "POST", credentials: "same-origin", keepalive: true, headers: { "Content-Type": "application/json" }, body: JSON.stringify({ data: collect() }) }).catch(() => {});
   });
 
-  // ---------- damage and healing ----------
+  // ---------- healing ----------
+  // Full HP, Heal FP and Heal HP (with the amount from the box). Damage is just typing the new number into Akt. Ép / Akt. Fp.
   const num = (k) => { const v = parseFloat(String(fld(k).value).replace(",", ".")); return isNaN(v) ? null : v; };
   const put = (k, v) => { fld(k).value = String(v); };
+  const HEAL = { ep: ["hp.curep", "hp.maxep", "Ép"], fp: ["hp.curfp", "hp.maxfp", "Fp"] };
   function hp(kind) {
     if (kind === "full") {
       for (const [c, m] of [["hp.curep", "hp.maxep"], ["hp.curfp", "hp.maxfp"]]) if (num(m) != null) put(c, num(m));
       mark();
       return say("Back to full HP.");
     }
+    const [curKey, maxKey, label] = HEAL[kind];
     const amount = parseFloat(String($("#amount").value).replace(",", "."));
-    if (!(amount > 0)) throw new Error("Type how much damage or healing, as a number above 0.");
-    const max = num("hp.maxep");
-    let now = num("hp.curep");
+    if (!(amount > 0)) throw new Error("Type how much to heal, as a number above 0.");
+    const max = num(maxKey);
+    let now = num(curKey);
     if (now == null) now = max == null ? 0 : max;        // no current value yet: start from full
-    now = kind === "hit" ? now - amount : now + amount;  // Ép may drop below 0; healing stops at Max. Ép
-    if (kind === "heal" && max != null) now = Math.min(now, max);
-    put("hp.curep", now);
+    now += amount;
+    if (max != null) now = Math.min(now, max);           // healing stops at the maximum
+    put(curKey, now);
     mark();
-    say(kind === "hit" ? `Took ${amount} damage: ${now} Ép left.` : `Healed ${amount}: ${now} Ép.`);
+    say(`Healed ${amount}: ${now} ${label}.`);
   }
   sheet.addEventListener("click", (e) => {
     const b = e.target.closest("[data-hp]");
@@ -132,8 +136,11 @@
     duplicate: async () => { const d = collect(); d.name = (d.name || "Unnamed") + " (copy)"; await create(d); },
     async map() {
       await save();
-      await api.json("/api/map/tokens", { kind: "enemy", ref: cur });
-      say("Added to the map. Open the Map tab on the Tabletop page to move it.");
+      const count = Math.max(1, Math.min(20, parseInt($("#map-count").value, 10) || 1));
+      await api.json("/api/map/tokens", { kind: "enemy", ref: cur, count });
+      say(count === 1
+        ? "Added to the map with its own HP. Open the Map tab on the Tabletop page to move it."
+        : `Added ${count} to the map, each with its own HP (edit them in the sidebar of the map).`);
     },
     async delete() {
       const name = (list.find((c) => c.id === cur) || {}).name || "this enemy";
@@ -170,24 +177,79 @@
   }));
   $("#import-label").addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); $("#import").click(); } });
 
+  // ---------- campaigns and the dungeon master password ----------
+  const Role = window.Role;
+  const CAMPAIGN = {
+    async new() {
+      const name = (prompt("Name of the new campaign:") || "").trim();
+      if (!name) return;
+      await save();
+      const made = await api.json("/api/campaigns", { name });
+      await api.json("/api/campaign", { id: made.id });
+      await Role.refresh();                               // the campaign changed: the page loads its enemies
+      say(`Created “${made.name}” and switched to it.`);
+    },
+    async rename() {
+      const now = Role.campaign();
+      const name = (prompt("New name of this campaign:", now.name) || "").trim();
+      if (!name || name === now.name) return;
+      await api.json(`/api/campaigns/${now.id}/rename`, { name });
+      await Role.refresh();
+      say(`Renamed to “${name}”.`);
+    },
+    async delete() {
+      const now = Role.campaign();
+      if (!confirm(`Delete the campaign “${now.name}” with all its characters, enemies and maps? This cannot be undone.`)) return;
+      await api.json(`/api/campaigns/${now.id}/delete`, {});
+      dirty = false; cur = "";                            // its enemies are gone: nothing left to save
+      await Role.refresh();                               // the cookie points nowhere now, so another campaign opens
+      say(`Deleted “${now.name}”.`);
+    },
+  };
+  $("#settings").addEventListener("click", (e) => {
+    const b = e.target.closest("[data-camp]");
+    if (b) run(CAMPAIGN[b.dataset.camp]);
+  });
+  function showPasswordNote() {
+    const env = Role.passwordInfo().source === "env";
+    $("#pw-note").textContent = env
+      ? "The password is set by the DM_PASSWORD environment variable on the server. Change it there."
+      : "Changing it signs everybody else out of the dungeon master role.";
+    $("#pw-change").querySelectorAll("input, button").forEach((el) => { el.disabled = env; });
+  }
+  $("#pw-change").addEventListener("submit", (e) => {
+    e.preventDefault();
+    run(async () => {
+      if ($("#pw-new").value !== $("#pw-new2").value) throw new Error("The two new passwords are not the same.");
+      await api.json("/api/role/password", { current: $("#pw-cur").value, new: $("#pw-new").value });
+      ["#pw-cur", "#pw-new", "#pw-new2"].forEach((id) => { $(id).value = ""; });
+      say("The dungeon master password was changed.");
+    });
+  });
+
   // ---------- start ----------
-  // Only the dungeon master gets in (the server refuses players too). shared/role.js asks who you are if that is not known yet.
-  let booted = false;
+  // Only the dungeon master gets in (the server refuses players too). shared/role.js asks who you are and which campaign
+  // you play if that is not known yet. Whenever the campaign changes, that campaign's enemies are loaded.
+  let bootedFor = "";
   async function boot() {
-    if (booted) return;
-    booted = true;
+    const camp = Role.campaign().id;
+    if (bootedFor === camp) return;
+    bootedFor = camp;
+    cur = ""; dirty = false;
     await refreshList();
     const last = store.get("dm-last");
     if (list.length) await open(list.some((c) => c.id === last) ? last : list[0].id);
     else await create({ name: "New enemy" });
   }
   function gate() {
-    const dm = window.Role.get() === "dm";
+    const dm = Role.get() === "dm";
     $("#locked").hidden = dm;
     $("#dm-content").hidden = !dm;
-    if (dm) run(boot);
+    if (dm) { showPasswordNote(); run(boot); }
   }
-  $("#switch-role").addEventListener("click", () => run(async () => { await window.Role.ask(); }));
+  Role.mount($("#rolebar"));
+  Role.beforeChange(() => save());
+  $("#switch-role").addEventListener("click", () => run(async () => { await Role.ask(); }));
   document.addEventListener("rolechange", gate);
-  window.Role.ready.then(gate);
+  Role.ready.then(gate);
 })();

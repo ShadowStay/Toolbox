@@ -22,6 +22,40 @@ html:not([data-role="dm"]) .dm-only { display: none !important; }
 .nomargin { margin: 0; }
 .empty-note { margin-top: 1rem; color: #d9cbf2; }
 
+/* ---------- the map with the hit points sidebar next to it ---------- */
+.mapwrap { display: grid; grid-template-columns: minmax(0, 1fr) 19rem; gap: 1rem; align-items: start; margin-top: .5rem; }
+.mapwrap .mapframe { margin-top: 0; min-width: 0; }
+.mapside { display: grid; gap: .6rem; padding: .9rem; background: #22123bcc; border: 1px solid #8a5bd855; border-radius: .6rem; }
+.mapside h2 { margin: 0; font-size: 1rem; font-weight: 600; color: var(--candle); }
+.mapside .dm-only { display: grid; gap: .6rem; }
+.sidelist { list-style: none; margin: 0; padding: 0; display: grid; gap: .5rem; }
+.sidelist:empty::before { content: "Nobody yet."; font-size: .85rem; color: #c9a2ff99; }
+.srow { display: grid; gap: .35rem; padding: .5rem .6rem; background: #140b22; border: 1px solid #8a5bd855; border-left: 4px solid #e9c776; border-radius: .45rem; }
+.srow.enemy { border-left-color: #ff6b8b; }
+.srow.sel { outline: 2px solid var(--candle); outline-offset: 1px; }
+.srow .sel-btn { padding: 0; font: inherit; font-weight: 600; text-align: left; color: var(--moon); background: none; border: 0; cursor: pointer; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.srow .sel-btn:hover { text-decoration: underline dotted; text-underline-offset: 3px; }
+.sgs { display: grid; grid-template-columns: 1fr 1fr; gap: .4rem; }
+.sg { display: grid; grid-template-columns: auto minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; gap: .2rem; font-size: .8rem; color: #d9cbf2; }
+.sg i { font-style: normal; opacity: .6; }
+.sg input { width: 100%; min-width: 0; padding: .2rem .3rem; font: inherit; font-size: .88rem; text-align: center; color: var(--moon); background: #22123b; border: 1px solid #8a5bd877; border-radius: .3rem; }
+.sg input:disabled { opacity: .5; }
+.srow .btn { justify-self: start; }
+@media (max-width: 1200px) { .mapwrap { grid-template-columns: 1fr; } }
+
+/* ---------- small dialogs: the character password prompts ---------- */
+.dlg { width: min(26rem, 94vw); padding: 1.4rem; color: var(--moon); background: var(--dusk); border: 1px solid var(--amethyst); border-radius: .7rem; box-shadow: 0 20px 60px #000a; }
+.dlg::backdrop { background: #000a; }
+.dlg h2 { margin: 0 0 .5rem; font-size: 1.2rem; }
+.dlg form { display: grid; gap: .6rem; }
+.dlg .field input { width: 100%; font: inherit; padding: .55rem .65rem; color: var(--moon); background: #140b22; border: 1px solid #8a5bd877; border-radius: .4rem; }
+.dlg .status { margin: 0; }
+.dlg .actions { display: flex; flex-wrap: wrap; gap: .5rem; justify-content: flex-end; }
+
+/* The bar with the role and the campaign (drawn by shared/role.js) */
+#rolebar { margin-top: 1rem; }
+#rolebar.role-bar { margin-top: 1rem; }
+
 /* The board is a fixed 16:10 area (16 x 10 squares); everything is placed by percentage or in squares, so everybody
    sees the same layout at any size. */
 .mapframe { margin-top: .5rem; }

@@ -15,7 +15,9 @@
 
   <main class="page wide">
     <h1 class="tool-title">Dungeon Master HQ</h1>
-    <p class="tool-intro">Keep your enemies on the server and track their HP. Put them on the <a href="/tabletop">Tabletop map</a> when they enter the fight. Changes save by themselves.</p>
+    <p class="tool-intro">Keep your enemies on the server and track their HP. Put them on the <a href="/tabletop">Tabletop map</a> when they enter the fight; every enemy you add gets its own HP there. Enemies belong to the campaign you are playing. Changes save by themselves.</p>
+
+    <div id="rolebar" aria-live="polite"></div>
 
     <section class="card locked" id="locked" hidden>
       <p><strong>Only the dungeon master can open this page.</strong></p>
@@ -29,6 +31,7 @@
       <div class="actions">
         <button class="btn primary" type="button" data-act="new">New enemy</button>
         <button class="btn" type="button" data-act="duplicate">Duplicate</button>
+        <label class="count" title="How many of this enemy to put on the map. Each one gets its own HP."><span>×</span><input type="number" id="map-count" min="1" max="20" value="1" aria-label="How many to add to the map"></label>
         <button class="btn" type="button" data-act="map">Add to map</button>
         <button class="btn" type="button" data-act="export">Export</button>
         <label class="btn" tabindex="0" id="import-label">Import<input type="file" id="import" accept=".json,application/json" hidden></label>
@@ -47,53 +50,75 @@
           <button class="btn small" type="button" id="portrait-clear">Remove portrait</button>
         </section>
 
-        <div class="dm-col">
-          <section class="card">
-            <h3>Életerő</h3>
-            <div class="pair">
-              <label class="f"><span>Akt. Ép</span><input type="text" data-k="hp.curep" inputmode="numeric" autocomplete="off"></label>
-              <label class="f"><span>Max. Ép</span><input type="text" data-k="hp.maxep" inputmode="numeric" autocomplete="off"></label>
-            </div>
-            <div class="pair">
-              <label class="f"><span>Akt. Fp</span><input type="text" data-k="hp.curfp" inputmode="numeric" autocomplete="off"></label>
-              <label class="f"><span>Max. Fp</span><input type="text" data-k="hp.maxfp" inputmode="numeric" autocomplete="off"></label>
-            </div>
-            <div class="hurt">
-              <label class="f"><span>Amount</span><input type="text" id="amount" value="1" inputmode="numeric" autocomplete="off"></label>
-              <button class="btn" type="button" data-hp="hit" title="Subtract the amount from Akt. Ép">Damage</button>
-              <button class="btn" type="button" data-hp="heal" title="Add the amount to Akt. Ép (not above Max. Ép)">Heal</button>
-              <button class="btn" type="button" data-hp="full" title="Set Akt. Ép and Akt. Fp to their maximum">Full HP</button>
-            </div>
-          </section>
-          <section class="card">
-            <h3>Harci értékek</h3>
-            <div class="pair">
-              <label class="f"><span>KÉ</span><input type="text" data-k="ke" inputmode="numeric" autocomplete="off"></label>
-              <label class="f"><span>TÉ</span><input type="text" data-k="te" inputmode="numeric" autocomplete="off"></label>
-            </div>
-            <div class="pair">
-              <label class="f"><span>VÉ</span><input type="text" data-k="ve" inputmode="numeric" autocomplete="off"></label>
-              <label class="f"><span>CÉ</span><input type="text" data-k="ce" inputmode="numeric" autocomplete="off"></label>
-            </div>
-            <label class="f"><span>Tám./kör</span><input type="text" data-k="tam" inputmode="numeric" autocomplete="off"></label>
-          </section>
-        </div>
+        <section class="card dm-hp">
+          <h3>Életerő</h3>
+          <div class="pair">
+            <label class="f"><span>Akt. Ép</span><input type="text" data-k="hp.curep" inputmode="numeric" autocomplete="off"></label>
+            <label class="f"><span>Max. Ép</span><input type="text" data-k="hp.maxep" inputmode="numeric" autocomplete="off"></label>
+          </div>
+          <div class="pair">
+            <label class="f"><span>Akt. Fp</span><input type="text" data-k="hp.curfp" inputmode="numeric" autocomplete="off"></label>
+            <label class="f"><span>Max. Fp</span><input type="text" data-k="hp.maxfp" inputmode="numeric" autocomplete="off"></label>
+          </div>
+          <div class="hurt">
+            <label class="f"><span>Amount</span><input type="text" id="amount" value="1" inputmode="numeric" autocomplete="off"></label>
+            <button class="btn" type="button" data-hp="full" title="Set Akt. Ép and Akt. Fp to their maximum">Full HP</button>
+            <button class="btn" type="button" data-hp="fp" title="Add the amount to Akt. Fp (not above Max. Fp)">Heal FP</button>
+            <button class="btn" type="button" data-hp="ep" title="Add the amount to Akt. Ép (not above Max. Ép)">Heal HP</button>
+          </div>
+        </section>
+
+        <section class="card dm-combat">
+          <h3>Harci értékek</h3>
+          <div class="pair">
+            <label class="f"><span>KÉ</span><input type="text" data-k="ke" inputmode="numeric" autocomplete="off"></label>
+            <label class="f"><span>TÉ</span><input type="text" data-k="te" inputmode="numeric" autocomplete="off"></label>
+          </div>
+          <div class="pair">
+            <label class="f"><span>VÉ</span><input type="text" data-k="ve" inputmode="numeric" autocomplete="off"></label>
+            <label class="f"><span>CÉ</span><input type="text" data-k="ce" inputmode="numeric" autocomplete="off"></label>
+          </div>
+          <label class="f"><span>Tám./kör</span><input type="text" data-k="tam" inputmode="numeric" autocomplete="off"></label>
+        </section>
 
         <section class="card dm-attacks">
           <h3>Támadások</h3>
           <div class="tbl attacks"><table>
-            <thead><tr><th>Támadás</th><th>Tám/kör</th><th>TÉ</th><th>Sebzés</th></tr></thead>
+            <thead><tr><th>Támadás</th><th>Tám/kör</th><th>TÉ</th><th>Sebzés</th><th>Leírás</th></tr></thead>
             <tbody id="attacks"></tbody>
           </table></div>
         </section>
 
         <section class="card dm-notes">
           <label class="f"><span>Különleges képességek</span><textarea data-k="abilities" rows="5" spellcheck="false"></textarea></label>
-          <label class="f"><span>Zsákmány</span><textarea data-k="loot" rows="3" spellcheck="false"></textarea></label>
+          <label class="f"><span>Zsákmány</span><textarea data-k="loot" rows="5" spellcheck="false"></textarea></label>
           <label class="f"><span>Jegyzetek</span><textarea data-k="notes" rows="5" spellcheck="false"></textarea></label>
         </section>
       </div>
     </div>
+
+    <details class="card settings" id="settings">
+      <summary>Campaigns &amp; dungeon master password</summary>
+      <div class="settings-grid">
+        <div class="settings-col">
+          <h3>Campaigns</h3>
+          <p class="hint nomargin">Characters, enemies and maps belong to a campaign. Everybody chooses the one they play with the Change button at the top of the page.</p>
+          <div class="actions">
+            <button class="btn" type="button" data-camp="new">New campaign</button>
+            <button class="btn" type="button" data-camp="rename">Rename this campaign</button>
+            <button class="btn" type="button" data-camp="delete">Delete this campaign</button>
+          </div>
+        </div>
+        <form class="settings-col" id="pw-change">
+          <h3>Dungeon master password</h3>
+          <p class="hint nomargin" id="pw-note"></p>
+          <label class="f"><span>Current password</span><input type="password" id="pw-cur" autocomplete="current-password"></label>
+          <label class="f"><span>New password (at least 4 characters)</span><input type="password" id="pw-new" autocomplete="new-password"></label>
+          <label class="f"><span>Repeat the new password</span><input type="password" id="pw-new2" autocomplete="new-password"></label>
+          <div class="actions"><button class="btn primary" type="submit" id="pw-go">Change password</button></div>
+        </form>
+      </div>
+    </details>
     </div>
   </main>
 
