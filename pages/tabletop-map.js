@@ -1,7 +1,8 @@
 // Tabletop map (the "Map" tab of pages/tabletop.html; server side: processing/battlemap.py and roles.py).
 // One map shared by everybody. The server keeps the tokens, walls, doors and the fog of war, and only sends each
 // person what their role may see; this page draws it and polls every 2 seconds. Role (player / dungeon master) is
-// asked by shared/role.js; the DM-only controls carry the class "dm-only" and the server refuses players anyway.
+// asked by shared/role.js (which also picks the campaign: every campaign has its own map); the DM-only controls carry
+// the class "dm-only" and the server refuses players anyway.
 (function () {
   const $ = (s) => document.querySelector(s);
   const api = window.Options;
@@ -15,6 +16,7 @@
     set: (k, v) => { try { localStorage.setItem(k, v); } catch { /* storage unavailable */ } },
   };
   const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
+  const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   const initials = (name) => (name.replace(/[^\p{L}\p{N}]/gu, "").slice(0, 2) || "?").toUpperCase();
   const isDM = () => window.Role.get() === "dm";
   const num1 = (v) => +v.toFixed(1);
@@ -42,13 +44,11 @@
   // ---------- role ----------
   function applyRole() {
     const dm = isDM();
-    $("#role-name").textContent = dm ? "Dungeon master" : "Player";
     if (!dm) setTool("move");
     $("#map-help").textContent = dm
       ? "Drag tokens to move them. Use Draw walls and Place doors to build the map: click a point, then click the next point (double-click or Esc to stop). Click a door to select it, double-click to open or close it."
       : "Drag your character to move. Click a door you can see to open or close it. You only see what your characters can see.";
   }
-  $("#role-change").addEventListener("click", () => run(async () => { await window.Role.ask(); }));
   document.addEventListener("rolechange", () => {
     if ($("#view-map").hidden) return;
     applyRole();
@@ -140,6 +140,61 @@
   }
   const canMove = (t) => isDM() || t.kind === "character";
 
+  // ---------- hit points sidebar ----------
+  // The party (everybody sees it) and, for the dungeon master, the enemies. Each token has its own Ép / Fp boxes, which
+  // you edit like any number: type, then leave the box. Every enemy token has its own HP, so three goblins are three
+  // rows. Players never receive an enemy's HP, so they only get the party. A character whose sheet is locked can only be
+  // edited here once it was opened with its password on the sheet tab (the boxes are greyed out until then).
+  const showNum = (v) => (v == null ? "" : String(num1(v)));
+  let sideSig = "";
+  function sideRow(t) {
+    const li = document.createElement("li");
+    li.className = "srow " + t.kind + (sel.type === "token" && sel.id === t.id ? " sel" : "");
+    li.dataset.id = t.id;
+    const box = (f, v, label) => `<input type="text" inputmode="decimal" autocomplete="off" data-f="${f}" value="${esc(showNum(v))}" aria-label="${esc(t.name)}: ${label}"${t.editable ? "" : " disabled"}>`;
+    li.innerHTML =
+      `<button type="button" class="sel-btn" data-select title="Show on the map">${esc(t.name)}</button>` +
+      `<div class="sgs"><div class="sg"><span>Ép</span>${box("hp", t.hp, "Ép now")}<i>/</i>${box("max", t.max, "Max. Ép")}</div>` +
+      `<div class="sg"><span>Fp</span>${box("fp", t.fp, "Fp now")}<i>/</i>${box("fpmax", t.fpmax, "Max. Fp")}</div></div>` +
+      (t.editable ? '<button type="button" class="btn small" data-full title="Set Ép and Fp to their maximum">Full</button>' : "");
+    if (!t.editable) li.title = "This character is locked. Open it with its password on the Character sheet tab first.";
+    return li;
+  }
+  function renderSide() {
+    const side = document.querySelector(".mapside"), dm = isDM();
+    const rows = data.tokens.filter((t) => t.kind === "character" || dm);
+    const sig = JSON.stringify([dm, rows.map((t) => [t.id, t.kind, t.name, t.hp, t.max, t.fp, t.fpmax, t.editable])]);
+    if (sig === sideSig) return;
+    if (side.contains(document.activeElement) && document.activeElement.tagName === "INPUT") return;   // do not pull the box out from under a typing hand
+    sideSig = sig;
+    $("#side-party").replaceChildren(...rows.filter((t) => t.kind === "character").map(sideRow));
+    $("#side-enemies").replaceChildren(...rows.filter((t) => t.kind === "enemy").map(sideRow));
+  }
+  document.querySelector(".mapside").addEventListener("change", (e) => {
+    const input = e.target.closest("input[data-f]"), li = input && input.closest(".srow");
+    if (!li) return;
+    run(async () => {
+      try { await api.json(`/api/map/tokens/${li.dataset.id}/stats`, { [input.dataset.f]: input.value }); }
+      finally { sideSig = ""; await refresh(); }              // on an error the box goes back to the stored number
+    });
+  });
+  document.querySelector(".mapside").addEventListener("click", (e) => {
+    const li = e.target.closest(".srow");
+    if (!li) return;
+    const t = data.tokens.find((x) => x.id === li.dataset.id);
+    if (!t) return;
+    if (e.target.closest("[data-select]")) return select("token", t.id);
+    if (e.target.closest("[data-full]")) run(async () => {
+      const body = {};
+      if (t.max != null) body.hp = t.max;
+      if (t.fpmax != null) body.fp = t.fpmax;
+      if (!Object.keys(body).length) throw new Error(`${t.name} has no maximum Ép or Fp yet.`);
+      await api.json(`/api/map/tokens/${t.id}/stats`, body);
+      sideSig = "";
+      await refresh();
+    });
+  });
+
   // ---------- walls and doors ----------
   let geoSig = "";
   function drawGeo() {
@@ -176,6 +231,7 @@
     if (sel.type === "wall" && !data.walls.some((w) => w.id === sel.id)) select("", "");
     if (sel.type === "door" && !data.doors.some((d) => d.id === sel.id)) select("", "");
     drawGeo();
+    renderSide();
 
     if (data.fog) {
       if (fogImg.dataset.h !== data.fog) { fogImg.dataset.h = data.fog; fogImg.src = "/api/map/fog.png?h=" + data.fog; }
@@ -190,6 +246,7 @@
   function select(type, id) {
     sel = { type, id };
     els.forEach((el, k) => el.classList.toggle("sel", type === "token" && k === id));
+    document.querySelectorAll(".srow").forEach((li) => li.classList.toggle("sel", type === "token" && li.dataset.id === id));
     geoSig = "";
     drawGeo();
     updateButtons();

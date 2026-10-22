@@ -48,6 +48,21 @@ label.btn { cursor: pointer; }
 .f input, .f select, .tbl input { height: var(--h); }
 .f select { cursor: pointer; }
 .f select option { color: var(--moon); background: #140b22; }
+
+/* ---------- Character selection dialog ---------- */
+#char-selection {
+  width: min(48rem, 96vw); padding: 1.5rem; color: var(--moon); background: var(--dusk); border: 1px solid var(--amethyst); border-radius: .8rem; box-shadow: 0 20px 60px #000a;
+}
+#char-selection::backdrop { background: #000a; }
+#char-selection h2 { margin: 0 0 1rem; font-size: 1.4rem; font-weight: 600; color: var(--candle); }
+#char-selection .hint { margin-bottom: 1.5rem; font-size: .9rem; opacity: .85; }
+#selection-list { display: flex; flex-wrap: wrap; gap: 1rem; margin-bottom: 1.25rem; }
+#selection-list .char-option { width: min(14rem, 20vw); padding: 1rem; background: #1a0e33; border: 1px solid var(--candle); border-radius: .6rem; cursor: pointer; transition: all .2s; display: flex; align-items: center; gap: .8rem; }
+#selection-list .char-option:hover { border-color: var(--moon); transform: translateY(-2px); box-shadow: 0 8px 25px #0004; }
+#selection-list .char-option.active { border-color: var(--amethyst); background: #1d114a; }
+#selection-list .char-icon { width: 3.6rem; height: 3.6rem; border-radius: 50%; object-fit: cover; border: 2px solid #6e53cc66; }
+#selection-list .char-name { font-weight: 600; color: var(--candle); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+#selection-list .char-level { font-size: .85rem; color: #9a8cc5; padding-top: .1rem; }
 .f textarea { padding: .4rem .5rem; resize: vertical; line-height: 1.45; }
 .f input:focus-visible, .f select:focus-visible, .f textarea:focus-visible, .tbl input:focus-visible, .attrs input:focus-visible { outline: 2px solid var(--candle); outline-offset: 1px; }
 .pair { display: grid; grid-template-columns: 1fr 1fr; gap: .55rem; }

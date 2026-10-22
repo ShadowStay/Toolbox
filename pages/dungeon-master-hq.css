@@ -1,30 +1,52 @@
-/* Dungeon Master HQ: an enemy sheet. The boxes, cards and portrait come from tabletop.css; this lays them out. */
+/* Dungeon Master HQ: an enemy sheet. The boxes, cards and portrait come from tabletop.css; this lays them out.
+   Layout: identity on the left, Életerő (HP) in the middle, Harci értékek on the right, the attacks (with a description
+   for each) underneath the HP and the Harci értékek, and the three note boxes in one row at the bottom. */
 .dmsheet { border-top: 1px solid #8a5bd855; border-radius: .6rem; margin-top: 1rem; }
 .dm-grid {
   display: grid; gap: var(--gap); align-items: start;
-  grid-template-columns: minmax(14rem, 1fr) minmax(16rem, 1.1fr) minmax(0, 1.4fr);
-  grid-template-areas: "ident col attacks" "notes notes notes";
+  grid-template-columns: minmax(14rem, .9fr) minmax(16rem, 1fr) minmax(16rem, 1fr);
+  grid-template-areas: "ident hp combat" "ident attacks attacks" "notes notes notes";
 }
 .dm-grid > * { min-width: 0; }
 .dm-grid .ident { grid-area: ident; }
-.dm-col { grid-area: col; display: grid; gap: var(--gap); }
+.dm-hp { grid-area: hp; }
+.dm-combat { grid-area: combat; }
 .dm-attacks { grid-area: attacks; }
-.dm-notes { grid-area: notes; display: grid; gap: .75rem; grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr)); }
+.dm-notes { grid-area: notes; display: grid; gap: .75rem; grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr)); align-items: start; }
 .dm-notes > * { margin-top: 0 !important; }
+/* The three note boxes are the same height (the loot box used to be shorter than the others). */
+.dm-notes textarea { min-height: 8.5rem; }
 .ident .btn.small { display: block; margin: .55rem auto 0; }
 
+/* Full HP / Heal FP / Heal HP with the amount to heal */
 .hurt { display: grid; grid-template-columns: 5rem repeat(3, auto); gap: .5rem; align-items: end; }
 .hurt .btn { height: var(--h); }
 
+/* attacks: name, attacks per round, TÉ, damage, and a wide description */
+.tbl.attacks { min-width: 30rem; }
 .tbl.attacks td:nth-child(2), .tbl.attacks th:nth-child(2), .tbl.attacks td:nth-child(3), .tbl.attacks th:nth-child(3) { width: 4.5rem; }
 .tbl.attacks td:nth-child(4), .tbl.attacks th:nth-child(4) { width: 6rem; }
-.tbl.attacks td:first-child input { text-align: left; }
-.tbl.attacks { min-width: 20rem; }
+.tbl.attacks td:first-child input, .tbl.attacks td:last-child input { text-align: left; }
+.tbl.attacks td:first-child, .tbl.attacks th:first-child { width: 20%; }
+.tbl.attacks th:last-child { text-align: left; }
+
+/* how many to put on the map */
+.charbar .count { display: inline-flex; align-items: center; gap: .3rem; color: #d9cbf2; }
+.charbar .count input { width: 4rem; height: 2.1rem; padding: 0 .4rem; font: inherit; text-align: center; color: var(--moon); background: #140b22; border: 1px solid #8a5bd877; border-radius: .3rem; }
+
+/* campaigns and the dungeon master password */
+.settings { margin-top: var(--gap, .75rem); }
+.settings > summary { cursor: pointer; font-weight: 600; color: var(--candle); }
+.settings-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(18rem, 1fr)); gap: 1.5rem; margin-top: .9rem; }
+.settings-col { display: grid; gap: .6rem; align-content: start; }
+.settings-col h3 { margin: 0; }
+.settings-col .actions { display: flex; flex-wrap: wrap; gap: .5rem; }
+.nomargin { margin: 0; }
 
 @media (max-width: 1100px) {
-  .dm-grid { grid-template-columns: 1fr 1fr; grid-template-areas: "ident col" "attacks attacks" "notes notes"; }
+  .dm-grid { grid-template-columns: 1fr 1fr; grid-template-areas: "ident hp" "combat combat" "attacks attacks" "notes notes"; }
 }
 @media (max-width: 640px) {
-  .dm-grid { grid-template-columns: 1fr; grid-template-areas: "ident" "col" "attacks" "notes"; }
+  .dm-grid { grid-template-columns: 1fr; grid-template-areas: "ident" "hp" "combat" "attacks" "notes"; }
   .hurt { grid-template-columns: 1fr 1fr; }
 }

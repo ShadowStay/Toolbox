@@ -7,6 +7,7 @@ characters ("hp.curep" / "hp.maxep"), which is what lets the map draw both the s
   POST /api/enemies/<id>         {data} -> {updated}       save
   POST /api/enemies/<id>/delete  -> 204
   GET  /api/enemies/<id>/portrait   the portrait image (used by the map)
+Enemies belong to the current campaign (data/campaigns/<id>/enemies/, see campaigns.py).
 Only the dungeon master can reach these routes (roles.py); players get a 403."""
 import json
 import os
@@ -16,23 +17,26 @@ import uuid
 
 from flask import jsonify, request
 
-from auth import DATA
+from . import campaigns
 from .characters import ID, clean, portrait_response
 from .core import Fail, bp
 from .roles import need_dm
 
-DIR = DATA / "enemies"
 _lock = threading.Lock()
+
+
+def directory():
+    return campaigns.folder("enemies")
 
 
 def path_of(eid):
     if not ID.match(eid):
         raise Fail("That enemy does not exist.")
-    return DIR / f"{eid}.json"
+    return directory() / f"{eid}.json"
 
 
 def write(eid, data):
-    DIR.mkdir(parents=True, exist_ok=True)
+    directory().mkdir(parents=True, exist_ok=True)
     doc = {"id": eid, "updated": int(time.time()), "data": clean(data)}
     target = path_of(eid)
     tmp = target.with_suffix(".tmp")
@@ -53,8 +57,9 @@ def read(eid):
 def enemies_list():
     need_dm()
     out = []
-    if DIR.is_dir():
-        for p in DIR.glob("*.json"):
+    folder = directory()
+    if folder.is_dir():
+        for p in folder.glob("*.json"):
             try:
                 d = json.loads(p.read_text(encoding="utf-8"))
                 out.append({"id": d["id"], "name": d["data"].get("name") or "Unnamed", "updated": d["updated"]})

@@ -17,6 +17,19 @@
     <h1 class="tool-title">Tabletop</h1>
     <p class="tool-intro">Keep your characters on the server, fill in their sheets, roll dice and move everyone around on the shared map. Changes save by themselves.</p>
 
+    <!-- Character selection modal (hidden by default) -->
+    <dialog id="char-selection" aria-labelledby="selection-title">
+      <h2 id="selection-title">Select a character</h2>
+      <p class="hint">Choose one of your saved characters, or create a new one.</p>
+      <div id="selection-list"></div>
+      <div class="actions" id="selection-actions" style="display:none;">
+        <button class="btn primary" type="button" data-act="new-selection">Create new character</button>
+        <p class="hint">Or choose an existing character above.</p>
+      </div>
+    </dialog>
+
+    <div id="rolebar" aria-live="polite"></div>
+
     <div class="tabs viewtabs" role="tablist" aria-label="Tabletop views">
       <button class="tab" role="tab" data-view="sheet" aria-selected="true">Character sheet</button>
       <button class="tab" role="tab" data-view="map" aria-selected="false">Map</button>
@@ -29,6 +42,8 @@
       <div class="actions">
         <button class="btn primary" type="button" data-act="new">New character</button>
         <button class="btn" type="button" data-act="duplicate">Duplicate</button>
+        <button class="btn" type="button" data-act="password" title="Protect this character with a password">🔒 Password…</button>
+        <button class="btn" type="button" data-act="relock" hidden title="Close this character again in this browser">Lock now</button>
         <button class="btn" type="button" data-act="export">Export</button>
         <label class="btn" tabindex="0" id="import-label">Import<input type="file" id="import" accept=".json,application/json" hidden></label>
         <button class="btn" type="button" data-act="delete">Delete</button>
@@ -67,6 +82,31 @@
     </div>
     </div>
 
+    <dialog id="pw-dialog" class="dlg" aria-labelledby="pw-title">
+      <form id="pw-form">
+        <h2 id="pw-title">Locked character</h2>
+        <p class="hint nomargin" id="pw-text"></p>
+        <label class="field">Password <input type="password" id="pw-input" autocomplete="off"></label>
+        <p class="status" id="pw-status" role="alert"></p>
+        <div class="actions"><button class="btn" type="button" id="pw-cancel">Cancel</button><button class="btn primary" type="submit">Unlock</button></div>
+      </form>
+    </dialog>
+
+    <dialog id="lock-dialog" class="dlg" aria-labelledby="lock-title">
+      <form id="lock-form">
+        <h2 id="lock-title">Password for this character</h2>
+        <p class="hint nomargin" id="lock-text"></p>
+        <label class="field">New password <input type="password" id="lock-new" autocomplete="new-password"></label>
+        <label class="field">Repeat the password <input type="password" id="lock-new2" autocomplete="new-password"></label>
+        <p class="status" id="lock-status" role="alert"></p>
+        <div class="actions">
+          <button class="btn" type="button" id="lock-remove" hidden>Remove password</button>
+          <button class="btn" type="button" id="lock-cancel">Cancel</button>
+          <button class="btn primary" type="submit" id="lock-save">Set password</button>
+        </div>
+      </form>
+    </dialog>
+
     <dialog id="tt-settings" aria-labelledby="tt-settings-title">
       <h2 id="tt-settings-title">Tabletop settings</h2>
       <fieldset>
@@ -82,8 +122,6 @@
     <!-- Map -->
     <section id="view-map" hidden aria-label="Tabletop map">
       <div class="rolebar">
-        <span>Playing as <strong id="role-name"></strong></span>
-        <button class="btn small" type="button" id="role-change">Change role</button>
         <span class="pill dm-only" id="hidden-badge" hidden>Hidden from players</span>
       </div>
 
@@ -118,6 +156,7 @@
 
       <p class="hint mapnote" id="map-help"></p>
       <p class="status" id="map-status" role="status" aria-live="polite"></p>
+      <div class="mapwrap">
       <div class="mapframe">
         <div class="mapboard" id="map" aria-label="Map board">
           <svg class="geo" id="geo" viewBox="0 0 16 10" preserveAspectRatio="none" aria-hidden="true">
@@ -127,6 +166,15 @@
           <img class="fog" id="fog" alt="" hidden>
           <div class="mapcover" id="mapcover" hidden><div><strong>The dungeon master is setting up the map.</strong><br>It will appear here when it is ready.</div></div>
         </div>
+      </div>
+      <aside class="mapside" aria-label="Hit points">
+        <h2>Party</h2>
+        <ul class="sidelist" id="side-party"></ul>
+        <div class="dm-only">
+          <h2>Enemies</h2>
+          <ul class="sidelist" id="side-enemies"></ul>
+        </div>
+      </aside>
       </div>
       <p class="empty-note" id="map-empty" hidden>Nobody is on the map yet. Add a character above<span class="dm-only"> or an enemy from <a href="/dungeon-master-hq">Dungeon Master HQ</a></span>.</p>
 
@@ -145,7 +193,7 @@
   </main>
 
   <script src="/shared/site.js"></script>
-  <script src="/shared/role.js" data-ask="always"></script>
+  <script src="/shared/role.js" data-ask="unset"></script>
   <script src="/tabletop-map.js"></script>
 </body>
 </html>
