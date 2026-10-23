@@ -1,9 +1,7 @@
 /* Cloud Storage: space meter, drop zone, upload queue, breadcrumbs and the file list. */
 .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
 .spaced-top { margin-top: 1rem; }
-.empty-note { margin-top: 1.5rem; color: #d9cbf2; }
 .ctitle { margin: 0; font-size: 1.05rem; font-weight: 600; }
-.btn:disabled { opacity: .45; cursor: default; }
 a.btn { text-decoration: none; display: inline-block; }
 
 /* ---------- space meter ---------- */
@@ -24,7 +22,6 @@ a.btn { text-decoration: none; display: inline-block; }
 .toolbar { margin-bottom: .25rem; }
 
 /* ---------- uploads ---------- */
-.stage-box { margin-top: .75rem; padding: 1rem; background: #22123bcc; border: 1px solid #8a5bd855; border-radius: .6rem; }
 .vbar { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: .6rem; margin-bottom: .75rem; }
 .uploads { list-style: none; margin: 0; padding: 0; display: grid; gap: .5rem; max-height: 18rem; overflow: auto; }
 .uploads li { display: grid; grid-template-columns: 1fr auto; gap: .2rem .8rem; align-items: center; padding: .45rem .7rem; background: #140b22; border: 1px solid #8a5bd855; border-radius: .45rem; }

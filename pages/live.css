@@ -1,7 +1,6 @@
 /* Live: one shared room with a voice channel, members list, screen-share stage, chat and a drawing board. */
 .card { max-width: 26rem; margin-top: 1.5rem; padding: 1.25rem; background: #22123bcc; border: 1px solid #8a5bd855; border-radius: .6rem; }
 .spaced-top { margin-top: 1rem; }
-input[type="range"] { width: 100%; accent-color: var(--amethyst); }
 
 .app { display: grid; grid-template-columns: 17rem 1fr; gap: 1rem; height: min(48rem, 82vh); margin-top: 1rem; }
 .side, .chat, .board { display: flex; flex-direction: column; min-height: 0; background: #22123bcc; border: 1px solid #8a5bd855; border-radius: .6rem; }
@@ -47,10 +46,10 @@ input[type="range"] { width: 100%; accent-color: var(--amethyst); }
 .chat-form { display: flex; gap: .5rem; padding: .6rem; border-top: 1px solid #8a5bd855; }
 .chat-form input { flex: 1; min-width: 0; }
 
-dialog { width: min(26rem, 92vw); padding: 1.25rem; color: var(--moon); background: var(--dusk); border: 1px solid var(--amethyst); border-radius: .7rem; }
-dialog::backdrop { background: #000a; }
-dialog h2 { margin: 0 0 1rem; font-size: 1.1rem; }
-dialog .field { margin-bottom: .9rem; }
+#settings { width: min(26rem, 92vw); padding: 1.25rem; color: var(--moon); background: var(--dusk); border: 1px solid var(--amethyst); border-radius: .7rem; }
+#settings::backdrop { background: #000a; }
+#settings h2 { margin: 0 0 1rem; font-size: 1.1rem; }
+#settings .field { margin-bottom: .9rem; }
 
 /* ---------- tabs under the screen shares ---------- */
 .live-tabs { margin-top: 0; }
@@ -63,8 +62,6 @@ dialog .field { margin-bottom: .9rem; }
 .board-bar .sep { width: 1px; height: 1.4rem; background: #8a5bd855; }
 .board-bar input[type="color"] { width: 2.3rem; height: 2rem; padding: .1rem; cursor: pointer; background: #140b22; border: 1px solid #8a5bd877; border-radius: .4rem; }
 .board-bar input[type="range"] { width: 6rem; }
-.board .btn[aria-pressed="true"] { background: var(--amethyst); border-color: var(--candle); }
-.board .btn:disabled { opacity: .45; cursor: default; }
 .board-note { min-height: 1.3rem; margin: 0; padding: .25rem .8rem 0; font-size: .85rem; color: var(--orchid); }
 .board-note.error { color: #ff9fb3; }
 .board-stage { flex: 1; min-height: 0; overflow: auto; padding: .5rem .7rem .7rem; }

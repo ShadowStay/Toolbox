@@ -37,9 +37,9 @@ from pathlib import Path
 from urllib.parse import quote
 
 from flask import Blueprint, Response, abort, jsonify, request, send_file
-from werkzeug.exceptions import HTTPException
 
 from auth import DATA
+from errors import Fail, handle_errors
 
 bp = Blueprint("storage", __name__, url_prefix="/api/storage")
 
@@ -55,23 +55,7 @@ _lock = threading.Lock()                # guards quota checks and tree changes
 _locks = {}                             # upload id -> lock, so two requests never write the same temp file at once
 
 
-class Fail(Exception):
-    """An error whose message is meant for the person using the page."""
-
-
-@bp.errorhandler(Fail)
-def _fail(e):
-    return jsonify(error=str(e)), 400
-
-
-@bp.errorhandler(HTTPException)
-def _http(e):
-    return jsonify(error=e.description), e.code
-
-
-@bp.errorhandler(Exception)
-def _boom(e):
-    return jsonify(error=f"The server could not do that: {e}"), 500
+handle_errors(bp, "The server could not do that.")
 
 
 # ---------- database ----------
@@ -300,8 +284,12 @@ def _begin(parent, name, size):
 
 def _receive(uid, offset, stream):
     """Write the stream into the temp file at offset. Returns (accepted, bytes received so far)."""
+    with conn() as c:
+        u = c.execute("SELECT size, received FROM uploads WHERE id=?", (uid,)).fetchone()
+    if not u:
+        raise Fail("This upload is no longer on the server. Start it again.")
     with _locks.setdefault(uid, threading.Lock()):
-        with conn() as c:
+        with conn() as c:                       # read again now that this request owns the upload
             u = c.execute("SELECT size, received FROM uploads WHERE id=?", (uid,)).fetchone()
         if not u:
             raise Fail("This upload is no longer on the server. Start it again.")

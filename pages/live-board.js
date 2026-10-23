@@ -37,7 +37,7 @@
   let chainOps = Promise.resolve(), chainLive = Promise.resolve(), liveBusy = 0;
   const post = (path, body) => fetch(API + path, {
     method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ from: me(), ...body }),
+    body: JSON.stringify({ from: me(), key: window.Live.key(), ...body }),
   });
   function sendOp(op) {                  // one at a time and in order, so an undo never overtakes the action it undoes
     chainOps = chainOps.then(async () => {
@@ -455,7 +455,7 @@
     strokes.forEach((o) => paintStroke(c, o));
     const blob = await new Promise((res) => off.toBlob(res, "image/png"));
     if (!blob) return say("This browser could not make the image.", true);
-    const r = await fetch(`${API}/image?from=${encodeURIComponent(me())}`, {
+    const r = await fetch(`${API}/image?from=${encodeURIComponent(me())}&key=${encodeURIComponent(window.Live.key())}`, {
       method: "POST", credentials: "same-origin", headers: { "Content-Type": "image/png" }, body: blob,
     });
     const d = await r.json().catch(() => ({}));

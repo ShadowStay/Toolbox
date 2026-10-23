@@ -31,10 +31,8 @@
 .tray .x { padding: 0 .6rem; color: var(--orchid); }
 .tray .x:hover, .tray .pick:hover { background: #8a5bd833; }
 
-.empty-note { margin-top: 1.5rem; color: #d9cbf2; }
 
 /* ---------- viewer shell ---------- */
-.stage-box { margin-top: .75rem; padding: 1rem; background: #22123bcc; border: 1px solid #8a5bd855; border-radius: .6rem; }
 .vbar { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: .6rem 1.5rem; margin-bottom: .75rem; }
 .vtitle { min-width: 0; }
 .vtitle strong { display: block; overflow-wrap: anywhere; }
@@ -58,8 +56,7 @@
 }
 .vtools input[type="number"] { width: 4.4rem; }
 .vtools input:focus-visible, .vtools select:focus-visible, .vexport select:focus-visible { outline: 2px solid var(--candle); outline-offset: 1px; }
-.btn:disabled, .vexport select:disabled { opacity: .45; cursor: default; }
-.btn[aria-pressed="true"] { background: var(--amethyst); border-color: var(--candle); }
+.vexport select:disabled { opacity: .45; cursor: default; }
 
 .vhost { min-height: 10rem; }
 .vhost .note { margin: 0; padding: 2.5rem 1rem; text-align: center; }

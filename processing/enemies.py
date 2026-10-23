@@ -1,4 +1,4 @@
-"""Enemy storage for pages/dungeon-master-hq.*. Same idea as characters.py: one JSON file per enemy in data/enemies/,
+"""Enemy storage for the Dungeon Master HQ tab of pages/tabletop.* (pages/tabletop-dm.js). Same idea as characters.py: one JSON file per enemy in the campaign's enemies folder,
 a flat {field: text} sheet, so the page can add fields without changing this file. Enemies use the same HP keys as
 characters ("hp.curep" / "hp.maxep"), which is what lets the map draw both the same way.
   GET  /api/enemies              -> {enemies: [{id, name, updated}]}

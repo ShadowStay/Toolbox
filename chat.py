@@ -1,6 +1,7 @@
 """One shared room. Everyone who opens the page is online and in the text chat; people can also join the
 voice channel. The server relays chat, keeps presence (who is in voice, muted, deafened, sharing) and passes
 WebRTC setup messages. Audio and screens flow directly between browsers. State lives in memory."""
+import hmac
 import json
 import queue
 import re
@@ -16,7 +17,8 @@ MAX_USERS = 100
 MAX_VOICE = 8          # peer-to-peer mesh: everyone in voice connects to everyone else in voice
 HISTORY = 200
 LOCK = threading.Lock()
-USERS = {}             # id -> {name, q, voice, muted, deafened, sharing}
+USERS = {}             # id -> {name, key, q, voice, muted, deafened, sharing}. The id is public (everybody sees it);
+                       # the key is private to the connection and must accompany every request made as that user.
 LOG = []               # chat history
 
 
@@ -26,6 +28,14 @@ def sse(event, data):
 
 def clean(value, limit):
     return re.sub(r"[\x00-\x1f\x7f]", "", str(value or "")).strip()[:limit]
+
+
+def acting_as(uid, key):
+    """The user a request is made as, or None. Both the public id and the private key must match."""
+    with LOCK:
+        user = USERS.get(uid) if isinstance(uid, str) else None
+    ok = user is not None and isinstance(key, str) and hmac.compare_digest(user["key"], key)
+    return user if ok else None
 
 
 def public(uid, u):
@@ -42,35 +52,37 @@ def deliver(event, data, to=None, exclude=None):
 @bp.get("/api/chat/events")
 def events():
     name = clean(request.args.get("name"), 24) or "Guest"
-    uid, q = secrets.token_hex(4), queue.Queue()
+    uid, key, q = secrets.token_hex(4), secrets.token_hex(16), queue.Queue()
     with LOCK:
         if len(USERS) >= MAX_USERS:
             abort(429)
-        USERS[uid] = {"name": name, "q": q, "voice": False, "muted": False, "deafened": False, "sharing": None}
+        USERS[uid] = {"name": name, "key": key, "q": q, "voice": False, "muted": False, "deafened": False, "sharing": None}
         users = [public(i, u) for i, u in USERS.items()]
         history = list(LOG)
-    q.put(sse("welcome", {"id": uid, "users": users, "history": history}))
+    q.put(sse("welcome", {"id": uid, "key": key, "users": users, "history": history}))
     deliver("join", public(uid, USERS[uid]), exclude=uid)
 
     def stream():
-        try:
-            while True:
-                try:
-                    msg = q.get(timeout=10)
-                except queue.Empty:
-                    yield ": ping\n\n"      # keeps the connection open and detects dead clients
-                    continue
-                if msg is None:             # explicit leave
-                    return
-                yield msg
-        finally:
-            with LOCK:
-                removed = USERS.pop(uid, None)
-            if removed:
-                deliver("leave", {"id": uid})
+        while True:
+            try:
+                msg = q.get(timeout=10)
+            except queue.Empty:
+                yield ": ping\n\n"          # keeps the connection open and detects dead clients
+                continue
+            if msg is None:                 # explicit leave
+                return
+            yield msg
 
-    return Response(stream_with_context(stream()), mimetype="text/event-stream",
+    def gone():
+        with LOCK:
+            removed = USERS.pop(uid, None)
+        if removed:
+            deliver("leave", {"id": uid})
+
+    resp = Response(stream_with_context(stream()), mimetype="text/event-stream",
                     headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
+    resp.call_on_close(gone)                # runs even when the client left before the first byte was sent
+    return resp
 
 
 @bp.post("/api/chat/send")
@@ -79,8 +91,7 @@ def send():
     sender, kind, to, data = body.get("from"), body.get("type"), body.get("to"), body.get("data")
     if kind not in ("chat", "signal", "state"):
         abort(400)
-    with LOCK:
-        user = USERS.get(sender)
+    user = acting_as(sender, body.get("key"))
     if not user:
         abort(404)
 
@@ -114,9 +125,8 @@ def send():
 
 @bp.post("/api/chat/leave")
 def leave():
-    sender = (request.get_json(silent=True) or {}).get("from")
-    with LOCK:
-        user = USERS.get(sender)
+    body = request.get_json(silent=True) or {}
+    user = acting_as(body.get("from"), body.get("key"))
     if user:
         user["q"].put(None)
     return "", 204

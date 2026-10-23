@@ -16,10 +16,7 @@ html:not([data-role="dm"]) .dm-only { display: none !important; }
 .dmbar .field.vis { min-width: 9rem; }
 .dmbar input[type="number"] { width: 100%; font: inherit; color: var(--moon); background: #140b22; border: 1px solid #8a5bd877; border-radius: .4rem; padding: .45rem .6rem; }
 .mapbar input[type="range"] { width: 100%; accent-color: var(--amethyst); }
-.btn[aria-pressed="true"] { background: var(--amethyst); border-color: var(--candle); }
-.btn:disabled { opacity: .45; cursor: default; }
 .mapnote { margin: .75rem 0 0; }
-.nomargin { margin: 0; }
 .empty-note { margin-top: 1rem; color: #d9cbf2; }
 
 /* ---------- the map with the hit points sidebar next to it ---------- */

@@ -96,8 +96,7 @@
       const srv = useServer() && e.ext !== "svg";        // the server's image library cannot read SVG; the browser can
       let url;
       if (srv) {                                         // the server decodes it, so TIFF and HEIC work too
-        await upload(e);
-        url = (e.purl ||= URL.createObjectURL(await api.blob(`/api/files/${e.sid}/preview`)));
+        url = (e.purl ||= URL.createObjectURL(await onServer(e, (id) => api.blob(`/api/files/${id}/preview`))));
       } else url = (e.url ||= URL.createObjectURL(e.file));
       const img = new Image();
       img.alt = e.name;
@@ -551,9 +550,6 @@
         pptx: "PowerPoint files can't be opened here yet. Export them to PDF and add the PDF.",
         odt: "OpenDocument text files can't be opened here yet. Save as .docx or PDF and add that.",
         rtf: "RTF files can't be opened here yet. Save as .docx or PDF and add that.",
-        heic: "HEIC photos can't be decoded by browsers. Convert to JPEG or PNG first.",
-        tif: "TIFF images can't be shown by most browsers. Convert to PNG or JPEG first.",
-        tiff: "TIFF images can't be shown by most browsers. Convert to PNG or JPEG first.",
       };
       const root = el("p", "hint note", hints[e.ext] || `There is no viewer for .${e.ext || "this"} files yet. You can still download the original.`);
       return { root, meta: "", tools: [], exports: [] };
@@ -577,6 +573,18 @@
     e.at = Date.now();
     return e.info;
   }
+  // Runs call(serverId) once the file is on the server. If the server has dropped the file meanwhile (it keeps 80 files,
+  // for 30 minutes, and forgets everything on a restart), the file is uploaded again and the call repeated once.
+  async function onServer(e, call) {
+    for (let again = false; ; again = true) {
+      await upload(e);
+      try { return await call(e.sid); }
+      catch (err) {
+        if (again || !/no longer on the server/.test(err.message)) throw err;
+        e.info = null;
+      }
+    }
+  }
   function forget(e) {
     if (e.sid) fetch("/api/files/" + e.sid, { method: "DELETE", credentials: "same-origin" }).catch(() => {});
     e.sid = e.info = null;
@@ -586,8 +594,7 @@
     id, label,
     async run(progress) {
       progress("Working on the server…");
-      await upload(e);
-      const blob = await api.blob(`/api/files/${e.sid}/export`, { format: id, ...(extra ? extra() : {}) });
+      const blob = await onServer(e, (sid) => api.blob(`/api/files/${sid}/export`, { format: id, ...(extra ? extra() : {}) }));
       return { blob, name: typeof name === "function" ? name() : name };
     },
   });
@@ -610,8 +617,7 @@
         const my = ++serial, [pw, ph] = sizes[n - 1];
         cur = zoom || clamp(((root.clientWidth || 800) - 32) / pw, 0.2, 2.5);
         const dpr = Math.min(devicePixelRatio || 1, 2);
-        await upload(e);
-        const blob = await api.blob(`/api/files/${e.sid}/page/${n}?scale=${(cur * dpr).toFixed(3)}`);
+        const blob = await onServer(e, (sid) => api.blob(`/api/files/${sid}/page/${n}?scale=${(cur * dpr).toFixed(3)}`));
         if (my !== serial) return;
         const url = URL.createObjectURL(blob);
         img.style.width = pw * cur + "px";
@@ -697,8 +703,7 @@
 
       async function draw() {
         const my = ++serial;
-        await upload(e);
-        const d = await api.json(`/api/files/${e.sid}/sheet?name=${encodeURIComponent(name)}`);
+        const d = await onServer(e, (sid) => api.json(`/api/files/${sid}/sheet?name=${encodeURIComponent(name)}`));
         if (my !== serial) return;
         const cols = d.rows.reduce((m, r) => Math.max(m, r.length), 0);
         const table = el("table"), head = table.createTHead().insertRow();
@@ -744,15 +749,22 @@
 
   // Combine through the server: every ticked file is uploaded (if it is not already there) and joined there.
   async function combineServer(choice, list, progress) {
-    const ids = [];
-    for (const [i, f] of list.entries()) {
-      progress(`Uploading ${f.name} (${i + 1} of ${list.length})…`);
-      await upload(f);
-      ids.push(f.sid);
+    for (let again = false; ; again = true) {
+      const ids = [];
+      for (const [i, f] of list.entries()) {
+        progress(`Uploading ${f.name} (${i + 1} of ${list.length})…`);
+        await upload(f);
+        ids.push(f.sid);
+      }
+      progress("Combining on the server…");
+      try {
+        const blob = await api.blob("/api/files/combine", { ids, format: choice.id, label: $("#clabel").checked });
+        return { blob, ext: choice.id };
+      } catch (err) {
+        if (again || !/no longer on the server/.test(err.message)) throw err;
+        list.forEach((f) => { f.info = null; });             // the server dropped one of them: send them all again
+      }
     }
-    progress("Combining on the server…");
-    const blob = await api.blob("/api/files/combine", { ids, format: choice.id, label: $("#clabel").checked });
-    return { blob, ext: choice.id };
   }
 
   // ---------- files and the viewer ----------
@@ -1060,7 +1072,8 @@
     cgo.disabled = true;
     say("Combining…");
     try {
-      const { blob, ext } = useServer() ? await combineServer(choice, list, say) : await choice.run(list, say);
+      // The server's image library cannot read SVG (the browser can), so a combination with an SVG is made in the browser.
+      const { blob, ext } = useServer() && !list.some((f) => f.ext === "svg") ? await combineServer(choice, list, say) : await choice.run(list, say);
       const name = `${baseOf(list[0].name)}-combined.${ext}`;
       save(blob, name);
       say(`Saved ${name} (${fmtSize(blob.size)}) with ${list.length} files in the order shown.`);

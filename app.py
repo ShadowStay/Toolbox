@@ -5,7 +5,7 @@ from pathlib import Path
 
 from flask import Flask, Response, abort, jsonify, redirect, request, send_from_directory
 
-from auth import init_auth
+from auth import init_auth, is_authed
 from board import bp as board_bp
 from chat import bp as chat_bp
 from processing import bp as processing_bp
@@ -18,6 +18,9 @@ IMAGE_DIR = BASE / "images"
 
 app = Flask(__name__, static_folder=None)
 app.config["MAX_CONTENT_LENGTH"] = 300 * 1024 * 1024      # biggest upload accepted by the processing API
+if os.environ.get("BEHIND_PROXY"):                        # nginx, Caddy, a tunnel...: trust its X-Forwarded-* headers, so
+    from werkzeug.middleware.proxy_fix import ProxyFix    # the real client address (login lockout) and https (Secure cookies) are seen
+    app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)
 init_auth(app)
 app.register_blueprint(chat_bp)
 app.register_blueprint(board_bp)                           # the drawing board on the Live page
@@ -33,17 +36,16 @@ TOOLS = {
     "omni-file-viewer": ("❂", "View, convert and combine images, PDFs, Word files and spreadsheets."),
     "cloud-storage": ("☁", "Keep files of any size and download them from anywhere. Up to 500 GB."),
     "live": ("☄", "A shared room: chat, voice, screen sharing and a drawing board."),
-    "tabletop": ("✠", "Keep character sheets, roll dice and move everyone around on the shared map."),
-    "dungeon-master-hq": ("☠", "Keep enemies and track their HP, then send them to the map."),
+    "tabletop": ("✠", "Keep character sheets, roll dice and move everyone around on the shared map. The dungeon master also gets enemies and map tools."),
 }
-LABELS = {"dungeon-master-hq": "Dungeon Master HQ"}      # names that title-casing the file name would get wrong
+LABELS = {}                                             # names that title-casing the file name would get wrong
 FALLBACK = ("✦", "A spell worth casting.")
 
 
 def origin() -> str:
     """Public address of the site, for canonical links and the sitemap. Set SITE_URL (e.g. https://spells.example.com)
     when running behind a proxy that hides the real host."""
-    return (os.environ.get("SITE_URL") or request.url_root).rstrip("/")
+    return escape((os.environ.get("SITE_URL") or request.url_root).rstrip("/"))    # it ends up in HTML and XML, and the Host header is not trusted
 
 
 def option(name: str, allowed: tuple, default: str) -> str:
@@ -122,7 +124,8 @@ def serve_page(category, name):
         html = inject(html, "</body>", f'  <script src="{prefix}{name}.js"></script>\n')
     motion = option("motion", ("on", "off"), "off")
     process = option("process", ("browser", "server"), "browser")
-    html = re.sub(r"<html\b", f'<html data-motion="{motion}" data-process="{process}"', html, count=1, flags=re.I)
+    auth = "yes" if is_authed() else "no"                 # so a signed-in visitor never sees the "Sign in" button flash
+    html = re.sub(r"<html\b", f'<html data-motion="{motion}" data-process="{process}" data-auth="{auth}"', html, count=1, flags=re.I)
     if not category and name == "index":
         html = html.replace("<!--SPELLBOOK-->", spellbook()).replace("{{ORIGIN}}", origin())
     return Response(html, mimetype="text/html", headers={"Vary": "Cookie"})
@@ -131,6 +134,20 @@ def serve_page(category, name):
 @app.route("/")
 def home():
     return serve_page(None, "index")
+
+
+@app.after_request
+def safe_headers(resp):
+    resp.headers.setdefault("X-Content-Type-Options", "nosniff")
+    resp.headers.setdefault("Referrer-Policy", "same-origin")
+    resp.headers.setdefault("X-Frame-Options", "SAMEORIGIN")
+    return resp
+
+
+@app.route("/dungeon-master-hq")
+def old_dungeon_master_hq():
+    """The Dungeon Master HQ is a tab of the Tabletop page now; old bookmarks land on it."""
+    return redirect("/tabletop#dm", 301)
 
 
 @app.route("/robots.txt")
@@ -167,6 +184,8 @@ def page(url):
     if url.endswith("/"):
         return redirect("/" + url.rstrip("/"), 301)
     *category, last = url.split("/")
+    if not category and last == "index":                  # the home page lives at "/" only
+        abort(404)
     if len(category) > 1 or not all(SAFE.match(c) for c in category):
         abort(404)
     folder = PAGES_DIR.joinpath(*category)

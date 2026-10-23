@@ -15,22 +15,20 @@
 
   <main class="page wide">
     <h1 class="tool-title">Tabletop</h1>
-    <p class="tool-intro">Keep your characters on the server, fill in their sheets, roll dice and move everyone around on the shared map. Changes save by themselves.</p>
+    <p class="tool-intro">Keep your characters on the server, fill in their sheets, roll dice and move everyone around on the shared map. Changes save by themselves.<span class="dm-only"> As the dungeon master you also have the Dungeon Master HQ tab for enemies and campaigns.</span></p>
 
     <!-- Character selection modal (hidden by default) -->
     <dialog id="char-selection" aria-labelledby="selection-title">
       <h2 id="selection-title">Select a character</h2>
       <p class="hint">Choose one of your saved characters, or create a new one.</p>
       <div id="selection-list"></div>
-      <div class="actions" id="selection-actions" style="display:none;">
-        <button class="btn primary" type="button" data-act="new-selection">Create new character</button>
-        <p class="hint">Or choose an existing character above.</p>
-      </div>
+      <div class="actions"><button class="btn primary" type="button" data-act="new-selection">Create new character</button></div>
     </dialog>
 
     <div id="rolebar" aria-live="polite"></div>
 
     <div class="tabs viewtabs" role="tablist" aria-label="Tabletop views">
+      <button class="tab dmtab dm-only" role="tab" data-view="dm" aria-selected="false">☠ Dungeon Master HQ</button>
       <button class="tab" role="tab" data-view="sheet" aria-selected="true">Character sheet</button>
       <button class="tab" role="tab" data-view="map" aria-selected="false">Map</button>
       <button class="btn small tabset" type="button" id="tt-settings-open" title="Tabletop settings">⚙ Settings</button>
@@ -61,11 +59,7 @@
           <button class="tab" role="tab" data-page="1" aria-selected="true">Character</button>
           <button class="tab" role="tab" data-page="2" aria-selected="false">Skills &amp; gear</button>
         </div>
-        <div class="sheet" id="sheet">
-          <!-- Dice roller UI container for visual dice results -->
-          <div id="dice-roller" style="display:none;"></div>
-
-    </div>
+        <div class="sheet" id="sheet"></div>
       </div>
 
       <aside class="dice" aria-label="Dice roller">
@@ -122,6 +116,104 @@
       </fieldset>
       <div class="opt-actions"><button class="opt-done" type="button" id="tt-settings-close">Done</button></div>
     </dialog>
+
+    <!-- Dungeon Master HQ (dungeon master only) -->
+    <section id="view-dm" class="dm-only" hidden aria-label="Dungeon Master HQ">
+      <p class="hint">Keep your enemies on the server and track their HP. Put them on the Map tab when they enter the fight; every enemy you add gets its own HP there. Enemies belong to the campaign you are playing.</p>
+        <div class="charbar" id="dm-bar">
+          <label class="field">Enemy <select id="enemies"></select></label>
+          <div class="actions">
+            <button class="btn primary" type="button" data-act="new">New enemy</button>
+            <button class="btn" type="button" data-act="duplicate">Duplicate</button>
+            <label class="count" title="How many of this enemy to put on the map. Each one gets its own HP."><span>×</span><input type="number" id="dm-count" min="1" max="20" value="1" aria-label="How many to add to the map"></label>
+            <button class="btn" type="button" data-act="map">Add to map</button>
+            <button class="btn" type="button" data-act="export">Export</button>
+            <label class="btn" tabindex="0" id="dm-import-label">Import<input type="file" id="dm-import" accept=".json,application/json" hidden></label>
+            <button class="btn" type="button" data-act="delete">Delete</button>
+          </div>
+        </div>
+        <p class="status" id="dm-status" role="status" aria-live="polite"></p>
+
+        <div class="sheet dmsheet" id="dm-sheet">
+          <div class="dm-grid">
+            <section class="card ident">
+              <label class="f nm"><span>Az ellenfél neve</span><input type="text" data-k="name" autocomplete="off" spellcheck="false"></label>
+              <label class="f in"><span>Típus / faj</span><input type="text" data-k="kind" autocomplete="off" spellcheck="false"></label>
+              <div class="portrait" id="dm-portrait" tabindex="0" role="button" aria-label="Choose a portrait"><img id="dm-portrait-img" alt="Portrait" hidden><span id="dm-portrait-hint">Click to add a portrait</span></div>
+              <input type="file" id="dm-portrait-file" accept="image/*" hidden>
+              <button class="btn small" type="button" id="dm-portrait-clear">Remove portrait</button>
+            </section>
+
+            <section class="card dm-hp">
+              <h3>Életerő</h3>
+              <div class="pair">
+                <label class="f"><span>Akt. Ép</span><input type="text" data-k="hp.curep" inputmode="numeric" autocomplete="off"></label>
+                <label class="f"><span>Max. Ép</span><input type="text" data-k="hp.maxep" inputmode="numeric" autocomplete="off"></label>
+              </div>
+              <div class="pair">
+                <label class="f"><span>Akt. Fp</span><input type="text" data-k="hp.curfp" inputmode="numeric" autocomplete="off"></label>
+                <label class="f"><span>Max. Fp</span><input type="text" data-k="hp.maxfp" inputmode="numeric" autocomplete="off"></label>
+              </div>
+              <div class="hurt">
+                <label class="f"><span>Amount</span><input type="text" id="dm-amount" value="1" inputmode="numeric" autocomplete="off"></label>
+                <button class="btn" type="button" data-hp="full" title="Set Akt. Ép and Akt. Fp to their maximum">Full HP</button>
+                <button class="btn" type="button" data-hp="fp" title="Add the amount to Akt. Fp (not above Max. Fp)">Heal FP</button>
+                <button class="btn" type="button" data-hp="ep" title="Add the amount to Akt. Ép (not above Max. Ép)">Heal HP</button>
+              </div>
+            </section>
+
+            <section class="card dm-combat">
+              <h3>Harci értékek</h3>
+              <div class="pair">
+                <label class="f"><span>KÉ</span><input type="text" data-k="ke" inputmode="numeric" autocomplete="off"></label>
+                <label class="f"><span>TÉ</span><input type="text" data-k="te" inputmode="numeric" autocomplete="off"></label>
+              </div>
+              <div class="pair">
+                <label class="f"><span>VÉ</span><input type="text" data-k="ve" inputmode="numeric" autocomplete="off"></label>
+                <label class="f"><span>CÉ</span><input type="text" data-k="ce" inputmode="numeric" autocomplete="off"></label>
+              </div>
+              <label class="f"><span>Tám./kör</span><input type="text" data-k="tam" inputmode="numeric" autocomplete="off"></label>
+            </section>
+
+            <section class="card dm-attacks">
+              <h3>Támadások</h3>
+              <div class="tbl attacks"><table>
+                <thead><tr><th>Támadás</th><th>Tám/kör</th><th>TÉ</th><th>Sebzés</th><th>Leírás</th></tr></thead>
+                <tbody id="dm-attacks"></tbody>
+              </table></div>
+            </section>
+
+            <section class="card dm-notes">
+              <label class="f"><span>Különleges képességek</span><textarea data-k="abilities" rows="5" spellcheck="false"></textarea></label>
+              <label class="f"><span>Zsákmány</span><textarea data-k="loot" rows="5" spellcheck="false"></textarea></label>
+              <label class="f"><span>Jegyzetek</span><textarea data-k="notes" rows="5" spellcheck="false"></textarea></label>
+            </section>
+          </div>
+        </div>
+
+        <details class="card settings" id="dm-settings">
+          <summary>Campaigns &amp; dungeon master password</summary>
+          <div class="settings-grid">
+            <div class="settings-col">
+              <h3>Campaigns</h3>
+              <p class="hint nomargin">Characters, enemies and maps belong to a campaign. Everybody chooses the one they play with the Change button at the top of the page.</p>
+              <div class="actions">
+                <button class="btn" type="button" data-camp="new">New campaign</button>
+                <button class="btn" type="button" data-camp="rename">Rename this campaign</button>
+                <button class="btn" type="button" data-camp="delete">Delete this campaign</button>
+              </div>
+            </div>
+            <form class="settings-col" id="dm-pw-change">
+              <h3>Dungeon master password</h3>
+              <p class="hint nomargin" id="dm-pw-note"></p>
+              <label class="f"><span>Current password</span><input type="password" id="dm-pw-cur" autocomplete="current-password"></label>
+              <label class="f"><span>New password (at least 4 characters)</span><input type="password" id="dm-pw-new" autocomplete="new-password"></label>
+              <label class="f"><span>Repeat the new password</span><input type="password" id="dm-pw-new2" autocomplete="new-password"></label>
+              <div class="actions"><button class="btn primary" type="submit" id="dm-pw-go">Change password</button></div>
+            </form>
+          </div>
+        </details>
+    </section>
 
     <!-- Map -->
     <section id="view-map" hidden aria-label="Tabletop map">
@@ -180,7 +272,7 @@
         </div>
       </aside>
       </div>
-      <p class="empty-note" id="map-empty" hidden>Nobody is on the map yet. Add a character above<span class="dm-only"> or an enemy from <a href="/dungeon-master-hq">Dungeon Master HQ</a></span>.</p>
+      <p class="empty-note" id="map-empty" hidden>Nobody is on the map yet. Add a character above<span class="dm-only"> or an enemy from <a href="#dm" data-goto="dm">Dungeon Master HQ</a></span>.</p>
 
       <dialog id="saves" aria-labelledby="saves-title">
         <h2 id="saves-title">Save and load maps</h2>
@@ -198,6 +290,8 @@
 
   <script src="/shared/site.js"></script>
   <script src="/shared/role.js" data-ask="unset"></script>
+  <script src="/shared/sheet-utils.js"></script>
   <script src="/tabletop-map.js"></script>
+  <script src="/tabletop-dm.js"></script>
 </body>
 </html>

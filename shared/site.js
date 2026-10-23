@@ -21,8 +21,9 @@
     process: cookie.get("spells_process") === "server" ? "server" : "browser",
   };
 
+  const IN_BROWSER = "Everything runs in your browser; nothing is uploaded.";
   const NOTES = {
-    browser: ["Everything runs in your browser; nothing is uploaded.", "Everything runs in your browser; nothing is uploaded."],
+    browser: [IN_BROWSER, IN_BROWSER],
     server: [
       "Processing happens on the server: your text and images are sent there when you run an action, used for that task and not stored.",
       "Processing happens on the server: files are uploaded and kept there for up to 30 minutes while open, then deleted.",

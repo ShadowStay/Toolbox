@@ -32,15 +32,12 @@ def _expand(m, rep):
         if g == "&": return m.group(0)
         if g.startswith("<"):
             try: return m.group(g[1:-1]) or ""
-            except (IndexError, error_type): return ""
+            except IndexError: return ""
         n = int(g)
         if n > m.re.groups and len(g) == 2: n, tail = int(g[0]), g[1]
         else: tail = ""
         return ((m.group(n) or "") + tail) if 0 < n <= m.re.groups else t.group(0)
     return re.sub(r"\$(\$|&|<\w+>|\d{1,2})", one, rep)
-
-
-error_type = re.error
 
 
 def regex(p, pattern, prefix, glob=True):
@@ -104,7 +101,8 @@ CASES = {
 # ---------- encoding ----------
 def b64dec(s):
     try:
-        return base64.b64decode(s.strip(), validate=False).decode("utf-8")
+        s = "".join(s.split()).replace("-", "+").replace("_", "/")      # like the browser: spaces and URL-safe letters are fine
+        return base64.b64decode(s + "=" * (-len(s) % 4)).decode("utf-8")
     except Exception:
         raise Fail("Input is not valid Base64 text.")
 

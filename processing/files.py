@@ -9,8 +9,8 @@ temporary folder for 30 minutes (or until closed) and referred to by id afterwar
   POST   /api/files/combine            {ids, format, label} -> bytes
 Requires: pymupdf, mammoth, pandas, openpyxl, odfpy (and xlrd for old .xls). LibreOffice is optional (Word -> PDF)."""
 import atexit
+import csv
 import io
-import json
 import re
 import shutil
 import subprocess
@@ -38,6 +38,8 @@ EXT = {
 }
 TTL, MAX_ITEMS = 30 * 60, 80
 ROWS, COLS = 1000, 60
+csv.field_size_limit(1 << 27)
+NUMBER = re.compile(r"^-?(?:0|[1-9]\d{0,14})(?:\.\d+)?$")      # what counts as a number when a CSV becomes a workbook ("007" does not)
 ROOT = Path(tempfile.mkdtemp(prefix="spells-files-"))
 atexit.register(shutil.rmtree, ROOT, ignore_errors=True)
 _store, _lock = {}, threading.Lock()
@@ -181,15 +183,26 @@ def sheet_names(e):
         raise Fail("Could not read this spreadsheet.")
 
 
-def read_sheet(e, name=None):
+def csv_rows(e):
+    """The rows of a CSV or TSV file. The separator is guessed (comma, semicolon, tab or bar) and short rows are fine."""
+    text = read_text(e["path"])
+    delimiter = "\t"
+    if e["ext"] == "csv":                                  # whichever of , ; tab | the first line has most of
+        first = next((l for l in text.splitlines() if l.strip()), "")
+        delimiter = max(",;\t|", key=first.count) if any(d in first for d in ",;\t|") else ","
+    return list(csv.reader(io.StringIO(text), delimiter=delimiter))
+
+
+def read_sheet(e, name=None, typed=False):
+    """A sheet as a table of text (what the page shows). typed=True keeps numbers and dates as they are, for exports."""
     try:
         if e["ext"] in ("csv", "tsv"):
-            df = pd.read_csv(io.StringIO(read_text(e["path"])), header=None, dtype=str, keep_default_na=False,
-                             sep="\t" if e["ext"] == "tsv" else None, engine="python")
+            rows = csv_rows(e)
+            width = max(map(len, rows), default=0)
+            guess = lambda v: (float(v) if "." in v else int(v)) if typed and NUMBER.match(v) else v
+            df = pd.DataFrame([[guess(v) for v in r] + [""] * (width - len(r)) for r in rows])
         else:
-            df = pd.read_excel(e["path"], sheet_name=name or 0, header=None, dtype=str, keep_default_na=False)
-    except pd.errors.EmptyDataError:
-        return pd.DataFrame()
+            df = pd.read_excel(e["path"], sheet_name=name or 0, header=None, keep_default_na=False, **({} if typed else {"dtype": str}))
     except Exception:
         raise Fail("Could not read this spreadsheet.")
     return df.fillna("")
@@ -287,7 +300,11 @@ def pdf_page(fid, n):
     doc = open_pdf(e["path"])
     try:
         if not 1 <= n <= doc.page_count: raise Fail("No such page.")
-        return send_bytes(page_png(doc, n, float(request.args.get("scale", 1.5))), "image/png")
+        try:
+            scale = min(8.0, max(0.1, float(request.args.get("scale", 1.5))))
+        except ValueError:
+            scale = 1.5
+        return send_bytes(page_png(doc, n, scale), "image/png")
     finally:
         doc.close()
 
@@ -318,7 +335,11 @@ def zip_pages(doc, fmt, base):
 def export_image(e, o, fmt):
     im = imaging.load(e["path"])
     if o.get("flip"): im = imaging.ImageOps.mirror(im)
-    if o.get("rot"): im = im.rotate(-float(o["rot"]), expand=True)
+    try:
+        turn = float(o.get("rot") or 0)
+    except (TypeError, ValueError):
+        raise Fail("The rotation is not a number.")
+    if turn: im = im.rotate(-turn, expand=True)
     imaging.check_size(*im.size)
     if fmt == "pdf":
         out = pymupdf.open()
@@ -358,7 +379,7 @@ def export_sheet(e, o, fmt):
     cur = o.get("sheet") if o.get("sheet") in names else names[0]
     if fmt in ("xlsx", "ods"):
         if e["ext"] == fmt: return e["path"].read_bytes(), "application/octet-stream"
-        frames = {n: read_sheet(e, n) for n in names}
+        frames = {n: read_sheet(e, n, typed=True) for n in names}
         return write_book(frames, "openpyxl" if fmt == "xlsx" else "odf"), "application/octet-stream"
     df = read_sheet(e, cur)
     if fmt == "csv": return df.to_csv(header=False, index=False).encode("utf-8"), "text/csv"
@@ -427,7 +448,7 @@ def combine_xlsx(entries, o):
             while name.lower() in used:
                 name = f"{stem[:28]}-{n}"; n += 1
             used.add(name.lower())
-            frames[name] = read_sheet(e, s)
+            frames[name] = read_sheet(e, s, typed=True)
     return write_book(frames, "openpyxl")
 
 

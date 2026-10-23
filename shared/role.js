@@ -1,4 +1,4 @@
-// "Who are you at the table, and which campaign are you playing?" Loaded by pages that depend on it (Tabletop, Dungeon Master HQ).
+// "Who are you at the table, and which campaign are you playing?" Loaded by pages that depend on it (Tabletop, including its Dungeon Master HQ tab).
 // Both answers are kept in cookies, so the next visit starts where you left off, and both can be changed at any time
 // with the "Change" button of the bar this script draws (Role.mount):
 //   * the role (player / dungeon master) in a signed cookie set by processing/roles.py, which is what actually limits
@@ -8,7 +8,7 @@
 // or the campaign changed; detail = {role, campaign: {id, name}}), and
 //   window.Role = { ready, get(), campaign(), campaigns(), passwordInfo(), ask(), refresh(), mount(el), beforeChange(fn) }
 //   <script src="/shared/role.js" data-ask="always">   ask every time the page opens
-//   <script src="/shared/role.js" data-ask="unset">    ask only when no role has been chosen yet (Tabletop, Dungeon Master HQ)
+//   <script src="/shared/role.js" data-ask="unset">    ask only when no role has been chosen yet (Tabletop)
 //   Role.beforeChange(fn)  fn() is awaited (to save unsaved work) before a campaign is switched.
 (function () {
   const root = document.documentElement, api = window.Options;

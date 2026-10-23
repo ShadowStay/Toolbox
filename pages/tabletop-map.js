@@ -1,4 +1,4 @@
-// Tabletop map (the "Map" tab of pages/tabletop.html; server side: processing/battlemap.py and roles.py).
+// Tabletop views and map (the tabs of pages/tabletop.html: Character sheet, Map and, for the dungeon master, Dungeon Master HQ; server side: processing/battlemap.py and roles.py).
 // One map shared by everybody. The server keeps the tokens, walls, doors and the fog of war, and only sends each
 // person what their role may see; this page draws it and polls every 2 seconds. Role (player / dungeon master) is
 // asked by shared/role.js (which also picks the campaign: every campaign has its own map); the DM-only controls carry
@@ -25,12 +25,14 @@
   let tool = "move", chain = null, gesture = null;
   let sel = { type: "", id: "" };
 
-  // ---------- switching between the sheet and the map ----------
+  // ---------- switching between the sheet, the map and the dungeon master's HQ ----------
+  // tabletop-dm.js listens for the "tabletopview" event to load the enemies when its tab opens.
+  const VIEWS = ["sheet", "map", "dm"];
   let timer = 0;
   function showView(name) {
+    if (!VIEWS.includes(name) || (name === "dm" && !isDM())) name = "sheet";       // players never get the HQ
     document.querySelectorAll("[data-view]").forEach((t) => t.setAttribute("aria-selected", String(t.dataset.view === name)));
-    $("#view-sheet").hidden = name !== "sheet";
-    $("#view-map").hidden = name !== "map";
+    VIEWS.forEach((v) => { $("#view-" + v).hidden = v !== name; });
     store.set("tabletop-view", name);
     clearInterval(timer);
     if (name === "map") {
@@ -38,8 +40,13 @@
       run(async () => { await loadChoices(); await refresh(); });
       timer = setInterval(() => { if (!document.hidden) run(refresh); }, 2000);
     }
+    document.dispatchEvent(new CustomEvent("tabletopview", { detail: { view: name } }));
   }
   document.querySelectorAll("[data-view]").forEach((t) => t.addEventListener("click", () => showView(t.dataset.view)));
+  document.addEventListener("click", (e) => {                 // links inside the page, like "Dungeon Master HQ" in the empty-map note
+    const a = e.target.closest("[data-goto]");
+    if (a) { e.preventDefault(); showView(a.dataset.goto); }
+  });
 
   // ---------- role ----------
   function applyRole() {
@@ -50,6 +57,7 @@
       : "Drag your character to move. Click a door you can see to open or close it. You only see what your characters can see.";
   }
   document.addEventListener("rolechange", () => {
+    if (!isDM() && !$("#view-dm").hidden) showView("sheet");     // no longer the dungeon master: leave the HQ
     if ($("#view-map").hidden) return;
     applyRole();
     select("", "");
@@ -492,5 +500,9 @@
   size.addEventListener("input", () => { applySize(); store.set("tabletop-token", size.value); });
 
   // The role is asked first (shared/role.js); then open on the map again if that is where the person was.
-  window.Role.ready.then(() => { applyRole(); if (store.get("tabletop-view") === "map") showView("map"); });
+  window.Role.ready.then(() => {
+  applyRole();
+  const want = location.hash === "#dm" ? "dm" : store.get("tabletop-view");        // #dm: the old Dungeon Master HQ address
+  if (want === "map" || want === "dm") showView(want);
+});
 })();

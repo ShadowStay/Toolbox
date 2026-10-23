@@ -11,10 +11,11 @@ A batch is all-or-nothing. Undo and redo are done by the browser sending the opp
 undoes their own actions and never somebody else's.
 
   GET  /api/board/state          {seq, objs}  the whole board (a browser loads it on joining or after an error)
-  POST /api/board/op             {from, op}   change the board; answered to everyone as event "bop" {seq, from, op}
-  POST /api/board/live           {from, kind, ...}  throwaway updates that are not stored: cursor, stroke being
+  POST /api/board/op             {from, key, op}   change the board (from/key: the id and private key chat.py gave this
+                                 connection); answered to everyone as event "bop" {seq, from, op}
+  POST /api/board/live           {from, key, kind, ...}  throwaway updates that are not stored: cursor, stroke being
                                  drawn, object being dragged. Sent to everyone else as event "blive"
-  POST /api/board/image?from=    raw PNG body -> {src}   used when a drawing is turned into an image
+  POST /api/board/image?from=&key=  raw PNG body -> {src}   used when a drawing is turned into an image
   GET  /api/board/image/<id>     the PNG
 
 State lives in memory, like the chat: it is kept while the server runs and starts empty after a restart.
@@ -25,9 +26,9 @@ import time
 import uuid
 
 from flask import Blueprint, Response, abort, jsonify, request
-from werkzeug.exceptions import HTTPException
 
-from chat import LOCK as ROOM_LOCK, USERS, deliver
+from chat import acting_as, deliver
+from errors import Fail, handle_errors
 
 bp = Blueprint("board", __name__, url_prefix="/api/board")
 
@@ -48,23 +49,7 @@ IMAGES = {}                     # id -> {"data": png bytes, "ts": upload time}
 STATE = {"seq": 0}
 
 
-class Fail(Exception):
-    """An error whose message is meant for the person using the page."""
-
-
-@bp.errorhandler(Fail)
-def _fail(e):
-    return jsonify(error=str(e)), 400
-
-
-@bp.errorhandler(HTTPException)
-def _http(e):
-    return jsonify(error=e.description), e.code
-
-
-@bp.errorhandler(Exception)
-def _boom(e):
-    return jsonify(error=f"The server could not do that: {e}"), 500
+handle_errors(bp, "The server could not do that.")
 
 
 # ---------- checking what browsers send ----------
@@ -160,10 +145,8 @@ def read():
     return d if isinstance(d, dict) else {}
 
 
-def who(uid):
-    with ROOM_LOCK:
-        known = isinstance(uid, str) and uid in USERS
-    if not known:
+def who(uid, key):
+    if not acting_as(uid, key):
         abort(404, "You are not connected to the room. Reconnecting…")
     return uid
 
@@ -178,7 +161,7 @@ def state():
 @bp.post("/op")
 def op():
     d = read()
-    uid = who(d.get("from"))
+    uid = who(d.get("from"), d.get("key"))
     with _lock:
         backup = dict(OBJECTS)                  # objects are never edited in place, so a shallow copy is enough
         try:
@@ -196,7 +179,7 @@ def op():
 @bp.post("/live")
 def live():
     d = read()
-    uid = who(d.get("from"))
+    uid = who(d.get("from"), d.get("key"))
     kind = d.get("kind")
     if kind == "cursor":
         msg = {"kind": "cursor"}                # no x means the pointer left the board
@@ -241,7 +224,7 @@ def _collect():
 
 @bp.post("/image")
 def image_upload():
-    who(request.args.get("from"))
+    who(request.args.get("from"), request.args.get("key"))
     if request.content_length is None or request.content_length > MAX_IMAGE:
         raise Fail("That image is too large (8 MB at most).")
     data = request.get_data()

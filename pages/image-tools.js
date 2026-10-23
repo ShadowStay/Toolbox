@@ -446,6 +446,7 @@
   dim("ly-w", "h", () => sel.h / sel.w);
   dim("ly-h", "w", () => sel.h / sel.w);
   $("#ly-rot").addEventListener("input", () => { if (sel) { sel.rot = (num("ly-rot") || 0) * DEG; redraw(); } });
+  $("#ex-quality").disabled = val("ex-format") === "png";
   $("#ab-bg").addEventListener("input", () => { art.bg = val("ab-bg"); redraw(); });
   $("#ab-transp").addEventListener("change", () => { art.transp = checked("ab-transp"); redraw(); });
 

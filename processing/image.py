@@ -5,6 +5,7 @@ Other modules use load(), encode() and FORMATS."""
 import io
 import json
 import math
+import re
 import zipfile
 
 import numpy as np
@@ -161,7 +162,8 @@ def render():
     if rows * cols < 2: raise Fail("Choose at least 2 pieces.")
     if rows * cols > 100: raise Fail("That would make more than 100 pieces.")
     w, h = canvas.size
-    ext, name, n = FORMATS[fmt][2], state.get("name") or "image", 0
+    ext, n = FORMATS[fmt][2], 0
+    name = re.sub(r'[\\/:*?"<>|\x00-\x1f]', "_", str(state.get("name") or "image")).strip(". ")[:100] or "image"
     buf = io.BytesIO()
     with zipfile.ZipFile(buf, "w", zipfile.ZIP_STORED) as z:
         for r in range(rows):

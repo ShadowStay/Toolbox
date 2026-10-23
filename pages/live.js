@@ -14,12 +14,12 @@
     get: (k) => { try { return localStorage.getItem(k) || ""; } catch { return ""; } },
     set: (k, v) => { try { localStorage.setItem(k, v); } catch { /* storage unavailable */ } },
   };
-  let es = null, me = "", myName = store.get("chat-name"), retry = null, ac = null, outbox = Promise.resolve();
+  let es = null, me = "", key = "", myName = store.get("chat-name"), retry = null, ac = null, outbox = Promise.resolve();
   let inVoice = false, mic = null, micTrack = null, screen = null, muted = false, deafened = false;
   let inputId = store.get("chat-input"), outputId = store.get("chat-output"), volume = 1;
 
   // What the board needs to know about the room.
-  window.Live = { me: () => me, name: () => myName, user: (id) => users.get(id) };
+  window.Live = { me: () => me, key: () => key, name: () => myName, user: (id) => users.get(id) };
   const fire = (name, detail) => document.dispatchEvent(new CustomEvent("live:" + name, { detail }));
 
   if (!window.isSecureContext) $("#secure-warn").hidden = false;
@@ -31,7 +31,7 @@
 
   // Messages to the server, kept in order so an offer never overtakes its ICE candidates.
   function send(type, data, to) {
-    const body = JSON.stringify({ from: me, to, type, data });
+    const body = JSON.stringify({ from: me, key, to, type, data });
     const p = outbox
       .then(() => fetch("/api/chat/send", { method: "POST", headers: { "Content-Type": "application/json" }, body }))
       .catch(() => null);
@@ -349,11 +349,11 @@
     mic = micTrack = null;
     meters.clear();
     users.clear();
-    me = "";
+    me = key = "";
   }
   function disconnect() {
     if (es) { es.close(); es = null; }
-    if (me) navigator.sendBeacon("/api/chat/leave", new Blob([JSON.stringify({ from: me })], { type: "application/json" }));
+    if (me) navigator.sendBeacon("/api/chat/leave", new Blob([JSON.stringify({ from: me, key })], { type: "application/json" }));
   }
   function connect() {
     clearTimeout(retry);
@@ -361,7 +361,7 @@
     const on = (type, fn) => es.addEventListener(type, (ev) => fn(JSON.parse(ev.data)));
 
     on("welcome", (d) => {
-      me = d.id;
+      me = d.id; key = d.key;
       users.clear();
       d.users.forEach((u) => users.set(u.id, u));
       logEl.replaceChildren();
@@ -408,6 +408,14 @@
   });
   $("#chat-form input").addEventListener("keydown", (e) => e.stopPropagation());
   window.addEventListener("pagehide", disconnect);
+  window.addEventListener("pageshow", (e) => {           // restored from the back/forward cache: pagehide closed the connection
+    if (!e.persisted || es || $("#app").hidden) return;
+    resetLocal();
+    render();
+    fire("disconnect");
+    say("Reconnecting…");
+    connect();
+  });
 
   // Start: reconnect straight away if we already know the name, otherwise ask for one.
   if (myName) { say("Connecting…"); connect(); }

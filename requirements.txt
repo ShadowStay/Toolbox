@@ -2,7 +2,7 @@ flask>=3
 # server-side processing ("On the server" option)
 pillow>=10
 numpy
-pymupdf
+pymupdf>=1.24.3           # `import pymupdf` needs this version or newer
 mammoth
 pandas
 openpyxl

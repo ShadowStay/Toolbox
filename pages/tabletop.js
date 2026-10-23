@@ -5,7 +5,6 @@
   const api = window.Options;
   const sheet = $("#sheet"), status = $("#status"), picker = $("#chars");
   const say = (text, error) => { status.textContent = text; status.classList.toggle("error", !!error); };
-  const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
   const store = {
     get: (k) => { try { return localStorage.getItem(k) || ""; } catch { return ""; } },
     set: (k, v) => { try { localStorage.setItem(k, v); } catch { /* storage unavailable */ } },
@@ -316,12 +315,7 @@
     const file = e.target.files[0];
     e.target.value = "";
     if (!file) return;
-    let bmp;
-    try { bmp = await createImageBitmap(file); } catch { throw new Error("That file could not be read as an image."); }
-    const S = 240, c = document.createElement("canvas"), k = Math.max(S / bmp.width, S / bmp.height);
-    c.width = c.height = S;
-    c.getContext("2d").drawImage(bmp, (S - bmp.width * k) / 2, (S - bmp.height * k) / 2, bmp.width * k, bmp.height * k);
-    portrait = c.toDataURL("image/jpeg", 0.85);
+    portrait = await window.SheetUtils.portrait(file);
     showPortrait();
     mark();
   }));
@@ -508,15 +502,10 @@
     async export() {
       await save();
       const d = collect();
-      const blob = new Blob([JSON.stringify({ format: "spells-character", version: 1, data: d }, null, 2)], { type: "application/json" });
-      const a = document.createElement("a");
-      a.href = URL.createObjectURL(blob);
-      a.download = ((d.name || "character").replace(/[\\/:*?"<>|]/g, "_")) + ".json";
-      a.click();
-      setTimeout(() => URL.revokeObjectURL(a.href), 3000);
+      window.SheetUtils.download(d.name || "character", { format: "spells-character", version: 1, data: d });
     },
   };
-  document.querySelector(".charbar").addEventListener("click", (e) => {
+  $("#view-sheet .charbar").addEventListener("click", (e) => {
     const b = e.target.closest("[data-act]");
     if (b) run(ACTIONS[b.dataset.act]);
   });
@@ -524,10 +513,7 @@
     const file = e.target.files[0];
     e.target.value = "";
     if (!file) return;
-    let doc;
-    try { doc = JSON.parse(await file.text()); } catch { throw new Error("That file is not valid JSON."); }
-    const data = doc && typeof doc.data === "object" ? doc.data : doc;
-    await create(data);
+    await create(await window.SheetUtils.readDoc(file));
     say("Imported.");
   }));
   $("#import-label").addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); $("#import").click(); } });
@@ -649,59 +635,22 @@
     if (e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom) dlg.close();
   });
 
-  // ---------- dice (visual card UI) ----------
+  // ---------- dice ----------
   const log = $("#rolls");
-  async function roll(expr) {
+  function roll(expr) {
     const m = /^\s*(\d{0,3})d(\d{1,4})\s*([+-]\s*\d+)?\s*$/i.exec(expr);
     if (!m) throw new Error("Use a roll like d100, 2d6+3 or d10-1.");
     const n = +m[1] || 1, sides = +m[2], mod = m[3] ? +m[3].replace(/\s/g, "") : 0;
     if (n > 100 || sides < 2) throw new Error("Roll 1 to 100 dice with at least 2 sides.");
-
-    // Clear previous rolls from the dice roller
-    $("#dice-roller").replaceChildren();
-
-    // Show the roller UI
-    $("#dice-roller").style.display = "";
-
-    // Generate random rolls and build cards
     const dice = Array.from({ length: n }, () => 1 + Math.floor(Math.random() * sides));
     const total = dice.reduce((a, b) => a + b, 0) + mod;
-
-    // Create each die card with animation
-    const container = $("#dice-roller");
-    for (const d of dice) {
-      const card = document.createElement("div");
-      card.className = "dice-result-card";
-      card.innerHTML = `
-        <span class="die-name">${sides} face</span>
-        <div class="die-visual die-shake" data-value="${d}" aria-label="${d} on a ${sides}-sided die">
-          ${d === 1 ? "⚀" : d === 2 ? "⚁" : d === 3 ? "⚂" : d === 4 ? "⚃" : d === 5 ? "⚄" : "⚅"}
-        </div>
-        <span class="result-value">${d}</span>
-        <span class="roll-total">+${mod > 0 ? mod : ""} ${total > 0 ? "(" + total + ")" : ""}</span>
-      `;
-      container.appendChild(card);
-    }
-
-    // After all cards are in, remove shake animation and reveal
-    setTimeout(() => {
-      for (const c of container.children) {
-        const v = parseInt(c.querySelector(".result-value").textContent, 10);
-        c.querySelector(".die-visual").classList.remove("die-shake");
-        c.classList.add("revealed");
-        if (mod > 0) c.querySelector(".roll-total").innerHTML = "(total: " + total + ")";
-      }
-    }, 600);
-
-    // Auto-scroll to new rolls and update log
-    container.scrollIntoView({ behavior: "smooth", block: "end" });
-    const exprText = `${n}d${sides}${mod > 0 ? "+" : ""}${mod}`;
-    const totalEl = document.createElement("strong");
-    totalEl.textContent = total + (mod < 0 ? ` (${total})` : "");
-    log.prepend(totalEl);
+    const li = document.createElement("li"), big = document.createElement("strong"), small = document.createElement("small");
+    big.textContent = total;
+    small.textContent = `${n}d${sides}${mod ? (mod > 0 ? "+" : "") + mod : ""}: [${dice.join(", ")}]${mod ? (mod > 0 ? " + " : " − ") + Math.abs(mod) : ""}`;
+    li.append(big, small);
+    log.prepend(li);
+    while (log.children.length > 50) log.lastChild.remove();
   }
-
-  // Helper to format modifier for display
   const modifier = () => {
     const v = parseInt($("#mod").value, 10) || 0;
     return v ? (v > 0 ? "+" : "") + v : "";
@@ -717,88 +666,63 @@
   $("#clear-rolls").addEventListener("click", () => log.replaceChildren());
 
   // ---------- start ----------
-  // Loads the characters of the current campaign and opens one you can open (the last one, if possible). When every
-  // character is locked, the first one asks for its password; when there are none, a new one is created.
+  // Loads the characters of the current campaign and opens one you can open (the last one, if possible). A player who has
+  // no remembered character in this browser and several to choose from gets the selection dialog; when every character is
+  // locked, the first one asks for its password; when there are none, a new one is created.
   // skip: a character id not to open (the one that was just locked).
   async function loadCharacters(skip) {
     cur = ""; dirty = false;
     await refreshList();
     const last = store.get("tabletop-last"), free = (c) => (!c.locked || c.open) && c.id !== skip;
-    const pick = list.find((c) => c.id === last && free(c)) || list.find(free);
+    const choices = list.filter(free);
+    if (!skip && !isDM() && choices.length > 1 && !choices.some((c) => c.id === last)) {
+      clearSheet();
+      if (await chooseCharacter(choices)) return;
+    }
+    const pick = choices.find((c) => c.id === last) || choices[0];
     if (pick) await open(pick.id);
     else if (list.length) { clearSheet(); await open(list.find((c) => c.id !== skip || list.length === 1).id) || clearSheet(); }
     else await create({ name: "New character" });
-    
-    // Show the selection dialog only when there are unlocked characters that weren't opened (e.g. all locked ones were skipped)
-    // OR when we just created a new character but it's not locked and no previous one was open.
-    const showSelection = list.length && 
-                          (!last || !list.find((c) => c.id === last)) &&  // no saved last opened, or that one doesn't exist anymore
-                          list.some((c) => !c.locked);  // at least one character is unlocked
-    
-    if (showSelection && !open) {
-      await openSelection();
-    }
   }
 
-  // ---------- Character selection dialog ----------
-  async function openSelection() {
-    await save();
-    const sel = $(`#char-selection`);
-    const list = $(`#selection-list`), actions = $(`#selection-actions`);
-    if (!list) return;
-    
-    // Clear previous selections
-    list.replaceChildren();
-    
-    // Use the list array that was loaded by refreshList() 
-    let hasUnlocked = false;
-    for (const c of list) {
-      if (c.locked && !c.open) continue;  // skip locked characters that aren't currently open
-      hasUnlocked = true;
-      const li = document.createElement("div");
-      li.className = "char-option";
-      li.dataset.id = c.id;
-      
-      let iconSrc = c.icon || "/shared/icons/person.svg";
-      if (c.racename) {
-        try {
-          iconSrc = `/shared/icons/${slugify(c.racename.toLowerCase())}.svg`;
-        } catch {}
-      }
-      if (!iconSrc.includes("http") && !(await get(`/shared/icons/${encodeURIComponent(iconSrc)}`)).ok) {
-        iconSrc = "/shared/icons/person.svg";
-      }
-      
-      const name = c.name || `Character ${c.id.slice(-4)}`;
-      const lvl = c.caste ? `${c.caste} (Lvl ${c.level})` : c.level ? `Level ${c.level}` : "New character";
-      
-      li.innerHTML = `<img class="char-icon" src="${iconSrc}" alt="" aria-hidden="true">
-                      <div style="flex:1;min-width:0;">
-                        <div class="char-name">${escapeHTML(name)}</div>
-                        <div class="char-level">${escapeHTML(lvl)}</div>
-                      </div>`;
-      
-      li.addEventListener("click", () => {
-        list.querySelectorAll(".char-option").forEach((x) => x.classList.remove("active"));
-        li.classList.add("active");
+  // ---------- character selection dialog ----------
+  // Cards for the characters you can open, and a button for a new one. True once a character is open; false when the
+  // dialog was dismissed (Escape), so the caller opens a default one.
+  function chooseCharacter(choices) {
+    const dlg = $("#char-selection"), box = $("#selection-list");
+    box.replaceChildren(...choices.map((c) => {
+      const card = document.createElement("button");
+      card.type = "button"; card.className = "char-option"; card.dataset.id = c.id;
+      const icon = document.createElement("span"), name = document.createElement("span");
+      icon.className = "char-icon"; icon.textContent = (c.name.replace(/[^\p{L}\p{N}]/gu, "").slice(0, 2) || "?").toUpperCase();
+      name.className = "char-name"; name.textContent = (c.locked ? "🔓 " : "") + c.name;
+      card.append(icon, name);
+      return card;
+    }));
+    return new Promise((resolve) => {
+      let done = false;
+      const finish = (ok) => {
+        if (done) return;
+        done = true;
+        dlg.removeEventListener("click", onClick);
+        dlg.removeEventListener("close", onClose);
+        if (dlg.open) dlg.close();
+        resolve(ok);
+      };
+      const onClose = () => finish(false);
+      const onClick = (e) => {
+        const card = e.target.closest(".char-option"), fresh = e.target.closest('[data-act="new-selection"]');
+        if (!card && !fresh) return;
         run(async () => {
-          try { await open(c.id); } catch (err) { say(err.message, true); }
+          if (fresh) await create({ name: "New character" });
+          else if (!(await open(card.dataset.id))) return;
+          finish(true);
         });
-      });
-      
-      list.append(li);
-    }
-    
-    if (!hasUnlocked) {
-      actions.style.display = "";
-      $(`#new-selection`).addEventListener("click", async () => {
-        await open();  // creates a new character and opens it
-      });
-    } else {
-      actions.style.display = "none";
-    }
-    
-    if (!sel.open) sel.showModal();
+      };
+      dlg.addEventListener("click", onClick);
+      dlg.addEventListener("close", onClose);
+      dlg.showModal();
+    });
   }
 
   // The bar with the role and the campaign (shared/role.js). Unsaved work is saved before another campaign opens, and

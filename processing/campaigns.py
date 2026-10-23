@@ -1,4 +1,4 @@
-"""Campaigns for the Tabletop and Dungeon Master HQ pages. Everything that belongs to one game (its characters, its
+"""Campaigns for the Tabletop page and its Dungeon Master HQ tab. Everything that belongs to one game (its characters, its
 enemies, the map and the saved maps) lives in its own folder, so several campaigns can run side by side:
 
   data/campaigns/<id>/campaign.json   {id, name, created}

@@ -1,5 +1,6 @@
 """Password gate. Without a valid session cookie every request is answered with the login page (or a 401 for
 /api/), except POST /login and the public home page with its assets (PUBLIC_PATHS). Only a scrypt hash of the password is stored (data/password.hash); set it with set_password.py."""
+import functools
 import hashlib
 import hmac
 import os
@@ -26,12 +27,22 @@ _fails = {}                       # ip -> [failure count, locked until (epoch se
 _lock = threading.Lock()
 
 
+@functools.lru_cache(maxsize=1)
 def _secret() -> str:
+    """The key that signs cookies. Written to a temp file and linked into place, so a second process starting at the same
+    moment can never read a half-written key. Read once, then kept in memory."""
     DATA.mkdir(exist_ok=True)
     if not KEY_FILE.exists():
-        fd = os.open(KEY_FILE, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+        tmp = KEY_FILE.with_name(f"secret.{os.getpid()}.tmp")
+        fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
         with os.fdopen(fd, "w") as f:
             f.write(os.urandom(32).hex())
+        try:
+            os.link(tmp, KEY_FILE)                 # fails if another process got there first: then theirs is used
+        except FileExistsError:
+            pass
+        finally:
+            tmp.unlink(missing_ok=True)
     return KEY_FILE.read_text().strip()
 
 
