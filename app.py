@@ -35,6 +35,7 @@ TOOLS = {
     "image-tools": ("❖", "Layer, crop, filter and convert images."),
     "omni-file-viewer": ("❂", "View, convert and combine images, PDFs, Word files and spreadsheets."),
     "cloud-storage": ("☁", "Keep files of any size and download them from anywhere. Up to 500 GB."),
+    "fortune-wheel": ("✺", "Type your options and spin the wheel to pick one."),
     "live": ("☄", "A shared room: chat, voice, screen sharing and a drawing board."),
     "tabletop": ("✠", "Keep character sheets, roll dice and move everyone around on the shared map. The dungeon master also gets enemies and map tools."),
 }

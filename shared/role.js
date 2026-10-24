@@ -6,7 +6,10 @@
 //   * the campaign in the cookie spells_campaign (processing/campaigns.py). Everything is stored per campaign.
 // Here: the dialog, document.documentElement.dataset.role ("player" | "dm"), a "rolechange" event (fired when the role
 // or the campaign changed; detail = {role, campaign: {id, name}}), and
-//   window.Role = { ready, get(), campaign(), campaigns(), passwordInfo(), ask(), refresh(), mount(el), beforeChange(fn) }
+//   window.Role = { ready, get(), campaign(), campaigns(), passwordInfo(), ask(), pickCharacter(), refresh(), mount(el), beforeChange(fn) }
+// Choosing "Player" opens a second step in the same dialog: which character do you play? The answer is announced with the
+// document event "characterpick" (detail {id} for an existing character, {fresh: true} for a new one); the page does the
+// rest. Role.pickCharacter() shows only that step (for a player who has not chosen yet in this session).
 //   <script src="/shared/role.js" data-ask="always">   ask every time the page opens
 //   <script src="/shared/role.js" data-ask="unset">    ask only when no role has been chosen yet (Tabletop)
 //   Role.beforeChange(fn)  fn() is awaited (to save unsaved work) before a campaign is switched.
@@ -33,11 +36,19 @@
     .role-choice small { opacity: .8; line-height: 1.35; }
     .role-pin { display: grid; gap: .5rem; margin-top: 1rem; }
     .role-pin input { font: inherit; padding: .6rem .7rem; color: inherit; background: #140b22; border: 1px solid #8a5bd877; border-radius: .4rem; }
-    .role-pin .row, .role-foot { display: flex; gap: .5rem; justify-content: flex-end; margin-top: .4rem; }
+    .role-pin .row, .role-foot, .role-charfoot { display: flex; gap: .5rem; justify-content: flex-end; margin-top: .4rem; }
     .role-err { min-height: 1.3rem; margin-top: .6rem !important; color: #ff9fb3 !important; }
     .role-bar { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem 1rem; margin-top: 1rem; color: #d9cbf2; }
     .role-bar strong { color: var(--moon, #f1e9ff); }
-    @media (max-width: 480px) { .role-choices { grid-template-columns: 1fr; } }`;
+    .role-chars { margin-top: 1rem; }
+    .role-charlist { display: flex; flex-wrap: wrap; gap: .6rem; max-height: 40vh; margin-top: .8rem; overflow: auto; }
+    .role-char { display: flex; align-items: center; gap: .7rem; min-width: 0; width: calc(50% - .3rem); padding: .7rem .8rem; font: inherit; color: inherit; text-align: left; cursor: pointer; background: #8a5bd822; border: 2px solid #8a5bd877; border-radius: .7rem; }
+    .role-char:hover, .role-char:focus-visible { border-color: var(--candle, #e9c776); outline: none; }
+    .role-char.last { border-color: var(--orchid, #c9a2ff); }
+    .role-char .ico { flex: none; display: grid; place-items: center; width: 2.4rem; height: 2.4rem; font-size: .8rem; font-weight: 600; background: var(--violet, #4b2a85); border-radius: 50%; }
+    .role-char .nm { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
+    .role-empty { margin-top: .8rem !important; }
+    @media (max-width: 480px) { .role-choices { grid-template-columns: 1fr; } .role-char { width: 100%; } }`;
   document.head.append(style);
 
   const campaignName = () => (campaigns.find((c) => c.id === campaignId) || {}).name || "";
@@ -84,13 +95,14 @@
   }
   async function flush() { for (const fn of flushers) await fn(); }
 
+  const INTRO = "Pick the campaign you are playing and your role. Both are remembered in this browser and you can change them any time.";
   function build() {
     dialog = document.createElement("dialog");
     dialog.id = "role-dialog";
     dialog.setAttribute("aria-labelledby", "role-title");
     dialog.innerHTML = `
       <h2 id="role-title">Who are you at the table?</h2>
-      <p>Pick the campaign you are playing and your role. Both are remembered in this browser and you can change them any time.</p>
+      <p id="role-intro">${INTRO}</p>
       <label class="field role-camp">Campaign <select id="role-camp"></select></label>
       <div class="role-choices">
         <button type="button" class="role-choice" data-role="player"><strong>Player</strong><small>Play your character. Fog of war applies.</small></button>
@@ -102,9 +114,66 @@
         <input id="role-pin-in2" type="password" autocomplete="off" placeholder="Repeat the password" aria-label="Repeat the password" hidden>
         <div class="row"><button type="button" class="btn small" data-back>Back</button><button type="submit" class="btn primary small" id="role-pin-go">Continue</button></div>
       </form>
+      <div class="role-chars" hidden>
+        <div class="role-charlist"></div>
+        <p class="role-empty" hidden>There is no character in this campaign yet.</p>
+        <div class="role-charfoot"><button type="button" class="btn small" data-skipchar>Choose later</button><button type="button" class="btn primary small" data-newchar>New character</button></div>
+      </div>
       <p class="role-err" role="alert"></p>
       <div class="role-foot"><button type="button" class="btn small" data-cancel>Cancel</button></div>`;
     document.body.append(dialog);
+  }
+
+  // Step 2 for players, inside the open dialog: the characters that can be opened (not locked, or unlocked here), as cards.
+  // Resolves {id}, {fresh: true} or null (Choose later). Escape does not close it; the foot buttons are hidden meanwhile.
+  async function characterStep() {
+    const q = (s) => dialog.querySelector(s);
+    const box = q(".role-chars"), list = q(".role-charlist"), err = q(".role-err");
+    let chars = [];
+    try { chars = (await api.json("/api/characters")).characters.filter((c) => c.open); } catch (e) { err.textContent = e.message; }
+    const last = (() => { try { return sessionStorage.getItem("tabletop-as") || ""; } catch { return ""; } })();
+    list.replaceChildren(...chars.map((c) => {
+      const b = document.createElement("button"), ico = document.createElement("span"), nm = document.createElement("span");
+      b.type = "button"; b.className = "role-char" + (c.id === last ? " last" : ""); b.dataset.id = c.id;
+      ico.className = "ico"; ico.textContent = (c.name.replace(/[^\p{L}\p{N}]/gu, "").slice(0, 2) || "?").toUpperCase();
+      nm.className = "nm"; nm.textContent = c.name;
+      b.append(ico, nm);
+      return b;
+    }));
+    q(".role-empty").hidden = chars.length > 0;
+    q("#role-title").textContent = "Who are you playing?";
+    q("#role-intro").textContent = "Choose your character for this session. Your rolls carry its name, and its weapons become dice presets.";
+    for (const s of [".role-camp", ".role-choices", ".role-pin", ".role-foot"]) q(s).hidden = true;
+    box.hidden = false;
+    return new Promise((resolve) => {
+      const onClick = (e) => {
+        const card = e.target.closest(".role-char");
+        const result = card ? { id: card.dataset.id } : e.target.closest("[data-newchar]") ? { fresh: true } : e.target.closest("[data-skipchar]") ? null : undefined;
+        if (result === undefined) return;
+        box.removeEventListener("click", onClick);
+        dialog.removeEventListener("cancel", onCancel);
+        box.hidden = true;
+        q("#role-title").textContent = "Who are you at the table?";
+        q("#role-intro").textContent = INTRO;
+        q(".role-foot").hidden = false;
+        resolve(result);
+      };
+      const onCancel = (e) => e.preventDefault();
+      box.addEventListener("click", onClick);
+      dialog.addEventListener("cancel", onCancel);
+      q(".role-char, [data-newchar]").focus();
+    });
+  }
+  const announce = (pick) => { if (pick) document.dispatchEvent(new CustomEvent("characterpick", { detail: pick })); };
+  // Only the character step, for a player who has not chosen a character in this session.
+  async function pickCharacter() {
+    if (!dialog) build();
+    dialog.querySelector(".role-err").textContent = "";
+    dialog.showModal();
+    const pick = await characterStep();
+    dialog.close();
+    announce(pick);
+    return pick;
   }
 
   // Shows the dialog; resolves with the chosen role (or the old one when it was cancelled).
@@ -114,6 +183,8 @@
     const pinForm = q(".role-pin"), choices = q(".role-choices"), camp = q(".role-camp"), cancel = q("[data-cancel]"), err = q(".role-err");
     const select = q("#role-camp");
     pinForm.hidden = true; choices.hidden = false; camp.hidden = false;
+    dialog.querySelector(".role-chars").hidden = true;
+    q(".role-foot").hidden = false;
     err.textContent = "";
     cancel.hidden = !!required;
     try { await loadCampaigns(); } catch (e) { err.textContent = e.message; }
@@ -135,9 +206,11 @@
         return { switching };
       }
       const done = async (role, switching) => {
+        const pick = role === "player" ? await characterStep() : null;     // a player says who they play, in the same dialog
         dialog.close(); cleanup();
         await loadCampaigns().catch(() => {});
         if (role !== current || switching) setRole(role); else paintBars();
+        announce(pick);
         resolve(current);
       };
       const showPin = () => {
@@ -192,6 +265,7 @@
     campaigns: () => campaigns.slice(),
     passwordInfo: () => ({ ...pw }),
     ask: () => ask(false),
+    pickCharacter,
     refresh, mount,
     beforeChange: (fn) => flushers.push(fn),
   };

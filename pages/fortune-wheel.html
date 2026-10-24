@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Fortune Wheel</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Uncial+Antiqua&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/shared/site.css">
+</head>
+<body>
+  <aside id="site-nav" aria-label="Main navigation"></aside>
+
+  <main class="page wide">
+    <h1 class="tool-title">Fortune Wheel</h1>
+    <p class="tool-intro">Type your options, one per line, and spin. Everything happens in your browser and your list is remembered on this device.</p>
+
+    <div class="wheel-layout">
+      <section class="wheel-stage" aria-label="Wheel">
+        <div class="wheel-box">
+          <div class="pointer" aria-hidden="true"></div>
+          <canvas id="wheel" width="800" height="800" role="img" aria-label="The wheel"></canvas>
+          <button class="hub" id="hub" type="button" aria-label="Spin the wheel">SPIN</button>
+        </div>
+        <p class="result" id="result" role="status" aria-live="polite">Add at least two entries, then spin.</p>
+        <div class="actions result-actions">
+          <button class="btn primary" id="spin" type="button">Spin the wheel</button>
+          <button class="btn" id="remove-winner" type="button" disabled>Remove the winner</button>
+        </div>
+      </section>
+
+      <section class="wheel-side">
+        <div class="stage-box">
+          <label class="field" for="entries">Entries <span class="hint inline" id="count"></span></label>
+          <textarea id="entries" rows="10" spellcheck="false" autocomplete="off" placeholder="One entry per line"></textarea>
+          <div class="options">
+            <label class="check"><input type="checkbox" id="auto-remove"> Remove the winner before the next spin</label>
+          </div>
+          <div class="actions">
+            <button class="btn small" id="shuffle" type="button">Shuffle order</button>
+            <button class="btn small" id="sort" type="button">Sort A→Z</button>
+            <button class="btn small" id="example" type="button">Example list</button>
+            <button class="btn small" id="clear" type="button">Clear</button>
+          </div>
+        </div>
+
+        <div class="stage-box history-box">
+          <div class="history-head">
+            <strong>Past results</strong>
+            <button class="btn small" id="clear-history" type="button">Clear</button>
+          </div>
+          <ol id="history" class="history" aria-label="Past results"></ol>
+          <p class="hint nomargin" id="history-empty">Nothing yet.</p>
+        </div>
+      </section>
+    </div>
+  </main>
+
+  <script src="/shared/site.js"></script>
+</body>
+</html>

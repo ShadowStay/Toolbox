@@ -2,11 +2,12 @@
 the last rolls of each campaign in memory; every browser on the page asks for the new ones every couple of seconds.
 The log is gone when the server restarts.
 
-  POST /api/rolls   {expr, name} -> the roll   expr like "d100", "2d6+3" or "d10-1"; name = who rolled (a character's name)
+  POST /api/rolls   {expr, name, label?} -> the roll   expr like "d100", "2d6+3", "d10-1" or, as on the sheet, "1k10+2"
+                                (k is the same as d); name = who rolled (a character's name); label = what was rolled (a weapon)
   GET  /api/rolls?after=<id> -> {rolls: [newer than id, oldest first], last, reset}
                                 reset is true when `after` is newer than anything here (the server restarted): the
                                 rolls sent are then the whole log, and the page should drop what it showed.
-A roll is {id, ts, name, expr, dice: [..], mod, total, role}."""
+A roll is {id, ts, name, label, expr, dice: [..], mod, total, role}."""
 import random
 import re
 import threading
@@ -19,7 +20,7 @@ from .core import Fail, bp
 from .roles import current_role
 
 KEEP = 100
-EXPR = re.compile(r"^\s*(\d{0,3})d(\d{1,4})\s*([+-]\s*\d{1,6})?\s*$", re.I)
+EXPR = re.compile(r"^\s*(\d{0,3})\s*[dk]\s*(\d{1,4})\s*([+-]\s*\d{1,6})?\s*$", re.I)
 _dice = random.SystemRandom()
 _lock = threading.Lock()
 _logs = {}                       # campaign id -> {"last": id of the newest roll, "rolls": [...]}
@@ -47,17 +48,18 @@ def rolls_add():
     d = request.get_json(silent=True) or {}
     m = EXPR.match(str(d.get("expr", "")))
     if not m:
-        raise Fail("Use a roll like d100, 2d6+3 or d10-1.")
+        raise Fail("Use a roll like d100, 2d6+3, d10-1 or 1k10+2.")
     n, sides = int(m.group(1) or 1), int(m.group(2))
     if not 1 <= n <= 100 or sides < 2:
         raise Fail("Roll 1 to 100 dice with at least 2 sides.")
     mod = int(m.group(3).replace(" ", "")) if m.group(3) else 0
     dice = [_dice.randint(1, sides) for _ in range(n)]
-    name = " ".join(re.sub(r"[\x00-\x1f\x7f]", "", str(d.get("name") or "")).split())[:40]
+    clean = lambda v: " ".join(re.sub(r"[\x00-\x1f\x7f]", "", str(v or "")).split())[:40]
+    name, label = clean(d.get("name")), clean(d.get("label"))
     with _lock:
         log = _log()
         log["last"] += 1
-        roll = {"id": log["last"], "ts": int(time.time() * 1000), "name": name or "Someone",
+        roll = {"id": log["last"], "ts": int(time.time() * 1000), "name": name or "Someone", "label": label,
                 "expr": f"{n}d{sides}{mod:+d}" if mod else f"{n}d{sides}", "dice": dice, "mod": mod,
                 "total": sum(dice) + mod, "role": current_role()}
         log["rolls"].append(roll)

@@ -457,6 +457,7 @@
     } catch (err) { dirty = true; throw err; }
     const entry = list.find((c) => c.id === cur);
     if (entry) { entry.name = data.name || "Unnamed"; renderList(); }
+    if (window.Dice.as() && window.Dice.as().id === cur) window.Dice.sync();      // its name and weapons feed the dice panel
     say("Saved.");
   }
   // Opens a character (asking for its password first when it has one). False when that was cancelled.
@@ -469,7 +470,6 @@
     fill(d.data);
     setActive(true);
     store.set("tabletop-last", id);
-    window.Dice.suggest(id);
     renderList();
     say("");
     return true;
@@ -643,64 +643,28 @@
   window.Dice.mount($("#dice-sheet"));
 
   // ---------- start ----------
-  // Loads the characters of the current campaign and opens one you can open (the last one, if possible). A player who has
-  // no remembered character in this browser and several to choose from gets the selection dialog; when every character is
-  // locked, the first one asks for its password; when there are none, a new one is created.
+  // Loads the characters of the current campaign and opens one you can open (the last one, if possible); when every
+  // character is locked, the first one asks for its password; when there are none, a new one is created.
+  // Choosing which character you play happens in the dialog that asks whether you are a player or the dungeon master
+  // (shared/role.js): its answer arrives as the "characterpick" event below.
   // skip: a character id not to open (the one that was just locked).
-  async function loadCharacters(skip) {
+  let loading = Promise.resolve();                            // the loading in progress, so a pick waits for it
+  const loadCharacters = (skip) => (loading = loadCharactersNow(skip));
+  async function loadCharactersNow(skip) {
     cur = ""; dirty = false;
     await refreshList();
     const last = store.get("tabletop-last"), free = (c) => (!c.locked || c.open) && c.id !== skip;
-    const choices = list.filter(free);
-    if (!skip && !isDM() && choices.length > 1 && !choices.some((c) => c.id === last)) {
-      clearSheet();
-      if (await chooseCharacter(choices)) return;
-    }
-    const pick = choices.find((c) => c.id === last) || choices[0];
+    const pick = list.find((c) => c.id === last && free(c)) || list.find(free);
     if (pick) await open(pick.id);
     else if (list.length) { clearSheet(); await open(list.find((c) => c.id !== skip || list.length === 1).id) || clearSheet(); }
     else await create({ name: "New character" });
   }
-
-  // ---------- character selection dialog ----------
-  // Cards for the characters you can open, and a button for a new one. True once a character is open; false when the
-  // dialog was dismissed (Escape), so the caller opens a default one.
-  function chooseCharacter(choices) {
-    const dlg = $("#char-selection"), box = $("#selection-list");
-    box.replaceChildren(...choices.map((c) => {
-      const card = document.createElement("button");
-      card.type = "button"; card.className = "char-option"; card.dataset.id = c.id;
-      const icon = document.createElement("span"), name = document.createElement("span");
-      icon.className = "char-icon"; icon.textContent = (c.name.replace(/[^\p{L}\p{N}]/gu, "").slice(0, 2) || "?").toUpperCase();
-      name.className = "char-name"; name.textContent = (c.locked ? "🔓 " : "") + c.name;
-      card.append(icon, name);
-      return card;
-    }));
-    return new Promise((resolve) => {
-      let done = false;
-      const finish = (ok) => {
-        if (done) return;
-        done = true;
-        dlg.removeEventListener("click", onClick);
-        dlg.removeEventListener("close", onClose);
-        if (dlg.open) dlg.close();
-        resolve(ok);
-      };
-      const onClose = () => finish(false);
-      const onClick = (e) => {
-        const card = e.target.closest(".char-option"), fresh = e.target.closest('[data-act="new-selection"]');
-        if (!card && !fresh) return;
-        run(async () => {
-          if (fresh) await create({ name: "New character" });
-          else if (!(await open(card.dataset.id))) return;
-          finish(true);
-        });
-      };
-      dlg.addEventListener("click", onClick);
-      dlg.addEventListener("close", onClose);
-      dlg.showModal();
-    });
-  }
+  document.addEventListener("characterpick", (e) => run(async () => {
+    await loading;
+    if (e.detail.fresh) await create({ name: "New character" });
+    else if (!(await open(e.detail.id))) return;
+    await window.Dice.choose(cur);                            // you play the character that is open now
+  }));
 
   // The bar with the role and the campaign (shared/role.js). Unsaved work is saved before another campaign opens, and
   // the lists are loaded again whenever the role or the campaign changes.
@@ -716,5 +680,7 @@
     await window.Role.ready;
     live = true;
     await loadCharacters();
+    // A player who has not said who they play in this session (a new tab) is asked now.
+    if (window.Role.get() === "player" && !(await window.Dice.hasChoice())) window.Role.pickCharacter();
   });
 })();

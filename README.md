@@ -22,7 +22,7 @@ shared/
   cloud-picker.js      "Open from cloud storage" button for pages with a file input
 pages/
   index.*              home page (public, SEO)
-  text-tools.*  image-tools.*  omni-file-viewer.*  calculator.*  cloud-storage.*
+  text-tools.*  image-tools.*  omni-file-viewer.*  calculator.*  cloud-storage.*  fortune-wheel.*
   live.*  live-board.js        shared room with voice, screen sharing and a drawing board
   tabletop.*           character sheet and dice
   tabletop-map.*       the Map tab, and the switching between the tabs
