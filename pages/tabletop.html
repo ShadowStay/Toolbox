@@ -28,9 +28,9 @@
     <div id="rolebar" aria-live="polite"></div>
 
     <div class="tabs viewtabs" role="tablist" aria-label="Tabletop views">
-      <button class="tab dmtab dm-only" role="tab" data-view="dm" aria-selected="false">☠ Dungeon Master HQ</button>
       <button class="tab" role="tab" data-view="sheet" aria-selected="true">Character sheet</button>
       <button class="tab" role="tab" data-view="map" aria-selected="false">Map</button>
+      <button class="tab dmtab dm-only" role="tab" data-view="dm" aria-selected="false">☠ Dungeon Master HQ</button>
       <button class="btn small tabset" type="button" id="tt-settings-open" title="Tabletop settings">⚙ Settings</button>
     </div>
 
@@ -62,21 +62,7 @@
         <div class="sheet" id="sheet"></div>
       </div>
 
-      <aside class="dice" aria-label="Dice roller">
-        <h2>Dice</h2>
-        <label class="field">Modifier <input type="text" id="mod" value="0" inputmode="numeric" autocomplete="off"></label>
-        <div class="actions" id="quick">
-          <button class="btn" type="button" data-die="d6">d6</button>
-          <button class="btn" type="button" data-die="d10">d10</button>
-          <button class="btn primary" type="button" data-die="d100">d100</button>
-        </div>
-        <form id="custom" class="custom">
-          <input type="text" id="expr" placeholder="2d6+3" aria-label="Dice expression" autocomplete="off" spellcheck="false">
-          <button class="btn" type="submit">Roll</button>
-        </form>
-        <ol id="rolls" class="rolls" aria-live="polite"></ol>
-        <button class="btn small" type="button" id="clear-rolls">Clear log</button>
-      </aside>
+      <aside class="dice" id="dice-sheet" aria-label="Dice roller"></aside>
     </div>
     </div>
 
@@ -119,7 +105,6 @@
 
     <!-- Dungeon Master HQ (dungeon master only) -->
     <section id="view-dm" class="dm-only" hidden aria-label="Dungeon Master HQ">
-      <p class="hint">Keep your enemies on the server and track their HP. Put them on the Map tab when they enter the fight; every enemy you add gets its own HP there. Enemies belong to the campaign you are playing.</p>
         <div class="charbar" id="dm-bar">
           <label class="field">Enemy <select id="enemies"></select></label>
           <div class="actions">
@@ -134,7 +119,7 @@
         </div>
         <p class="status" id="dm-status" role="status" aria-live="polite"></p>
 
-        <div class="sheet dmsheet" id="dm-sheet">
+        <div class="sheet viewpanel" id="dm-sheet">
           <div class="dm-grid">
             <section class="card ident">
               <label class="f nm"><span>Az ellenfél neve</span><input type="text" data-k="name" autocomplete="off" spellcheck="false"></label>
@@ -252,7 +237,7 @@
 
       <p class="hint mapnote" id="map-help"></p>
       <p class="status" id="map-status" role="status" aria-live="polite"></p>
-      <div class="mapwrap">
+      <div class="mapwrap viewpanel">
       <div class="mapframe">
         <div class="mapboard" id="map" aria-label="Map board">
           <svg class="geo" id="geo" viewBox="0 0 16 10" preserveAspectRatio="none" aria-hidden="true">
@@ -270,6 +255,7 @@
           <h2>Enemies</h2>
           <ul class="sidelist" id="side-enemies"></ul>
         </div>
+        <div class="dice" id="dice-map" aria-label="Dice roller"></div>
       </aside>
       </div>
       <p class="empty-note" id="map-empty" hidden>Nobody is on the map yet. Add a character above<span class="dm-only"> or an enemy from <a href="#dm" data-goto="dm">Dungeon Master HQ</a></span>.</p>
@@ -291,6 +277,7 @@
   <script src="/shared/site.js"></script>
   <script src="/shared/role.js" data-ask="unset"></script>
   <script src="/shared/sheet-utils.js"></script>
+  <script src="/tabletop-dice.js"></script>
   <script src="/tabletop-map.js"></script>
   <script src="/tabletop-dm.js"></script>
 </body>

@@ -118,16 +118,20 @@ label.btn { cursor: pointer; }
 .coins { display: grid; grid-template-columns: repeat(auto-fit, minmax(7rem, 1fr)); gap: .6rem; }
 
 /* ---------- dice ---------- */
-.dice { position: sticky; top: 1rem; display: grid; gap: .8rem; padding: 1rem; background: #22123bcc; border: 1px solid #8a5bd855; border-radius: .6rem; }
+.dice { position: sticky; top: 1rem; display: grid; gap: .8rem; min-width: 0; max-height: calc(100vh - 2rem); overflow: auto; padding: 1rem; background: #22123bcc; border: 1px solid #8a5bd855; border-radius: .6rem; }
+.dice > * { min-width: 0; }                                  /* nothing inside may be wider than the panel */
 .dice h2 { margin: 0; font-size: var(--fs-t, 1rem); }
-.dice input[type="text"] { width: 100%; }
+.dice input[type="text"], .dice select { width: 100%; min-width: 0; text-overflow: ellipsis; }
+.dice .actions { flex-wrap: wrap; }
 .custom { display: flex; gap: .4rem; }
 .custom input { flex: 1; min-width: 0; }
-.rolls { list-style: none; margin: 0; padding: 0; display: grid; gap: .4rem; max-height: 22rem; overflow: auto; }
+.rolls { list-style: none; margin: 0; padding: 0; display: grid; gap: .4rem; max-height: min(22rem, 45vh); overflow: auto; }
 .rolls:empty::before { content: "Rolls appear here."; font-size: .85rem; color: #c9a2ff99; }
 .rolls li { padding: .4rem .55rem; font-size: .85rem; background: #140b22; border-left: 3px solid var(--amethyst); border-radius: .3rem; overflow-wrap: anywhere; }
 .rolls strong { display: block; font-size: 1rem; color: var(--candle); }
-.rolls small { color: #c9a2ffcc; }
+.rolls small { display: block; color: #c9a2ffcc; }
+.rolls small.who { font-weight: 600; color: var(--orchid); }
+.rolls li.mine { border-left-color: var(--candle); }
 
 @media (max-width: 1200px) {
   .table { grid-template-columns: 1fr; }
@@ -189,18 +193,18 @@ label.btn { cursor: pointer; }
 #tt-settings .opt-actions { display: flex; justify-content: flex-end; }
 #tt-settings .opt-done { padding: .5rem 1.3rem; font: inherit; font-weight: 600; color: #fff; cursor: pointer; background: var(--amethyst); border: 1px solid var(--orchid); border-radius: .4rem; }
 
-/* The Dungeon Master HQ tab sits on its own at the left end of the tab row, gold-tinted, with the other tabs pushed to
-   the right. Players never see it, so their tabs stay where they were. */
-.viewtabs .dmtab { margin-right: auto; color: var(--candle); font-weight: 600; }
-html[data-role="dm"] .viewtabs [data-view="sheet"] { margin-left: auto; }
+/* Character sheet and Map are on the left of the tab row; the Dungeon Master HQ tab is on the right, gold-tinted, next to
+   Settings. Players never see it, so their Settings button stays at the right end by itself. */
+.viewtabs .dmtab { margin-left: auto; color: var(--candle); font-weight: 600; }
 html[data-role="dm"] .viewtabs .tabset { margin-left: .75rem; }
-#view-dm { margin-top: 1rem; }
-#view-dm > .hint { margin: 0 0 .5rem; }
+
+/* The three views look alike: a row of controls, the status line, then one panel. */
+#view-sheet .charbar, #view-dm .charbar { margin-top: 1rem; }
+.viewpanel { margin-top: 0; padding: 1.25rem; background: #22123bcc; border: 1px solid #8a5bd855; border-radius: .6rem; }
 
 /* Dungeon Master HQ tab: an enemy sheet. The boxes, cards and portrait come from the rules above; this lays them out.
    Layout: identity on the left, Életerő (HP) in the middle, Harci értékek on the right, the attacks (with a description
    for each) underneath the HP and the Harci értékek, and the three note boxes in one row at the bottom. */
-.dmsheet { border-top: 1px solid #8a5bd855; border-radius: .6rem; margin-top: 1rem; }
 .dm-grid {
   display: grid; gap: var(--gap); align-items: start;
   grid-template-columns: minmax(14rem, .9fr) minmax(16rem, 1fr) minmax(16rem, 1fr);

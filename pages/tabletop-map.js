@@ -64,6 +64,10 @@
     run(async () => { await loadChoices(); await refresh(); });
   });
 
+  // ---------- dice and "playing as" (pages/tabletop-dice.js) ----------
+  window.Dice.mount($("#dice-map"));
+  document.addEventListener("tabletopas", () => { if (!$("#view-map").hidden) run(refresh); });   // the marked token follows the choice
+
   // ---------- who can be added: players see characters only; the dungeon master also sees enemies ----------
   async function loadChoices() {
     const dm = isDM();
@@ -119,6 +123,7 @@
   const share = (cur, max) => (max > 0 && cur != null ? clamp((cur / max) * 100, 0, 100) : null);   // percent left, or null = unknown
 
   function paint(el, t) {
+    if (t.kind === "enemy" && !isDM()) t = { ...t, hp: null, max: null, fp: null, fpmax: null };   // only the dungeon master sees enemy health
     const ep = share(t.hp, t.max), fp = share(t.fp, t.fpmax);
     ["base", "gl", "gr"].forEach((c) => fillLayer(el.querySelector(c === "base" ? ".layer.base" : ".layer." + c), t));
     // Grey from the top down over the missing part; the tint covers what is left. Left half = Ép, right half = Fp.
@@ -143,6 +148,7 @@
     el.title = bits.join(" · ");
     el.setAttribute("aria-label", el.title);
     el.classList.toggle("fixed", !canMove(t));
+    el.classList.toggle("mine", t.kind === "character" && !!window.Dice.as() && t.ref === window.Dice.as().id);   // the character you play
     if (!busy.has(t.id)) { el.style.left = t.x * 100 + "%"; el.style.top = t.y * 100 + "%"; }
     el.classList.toggle("sel", sel.type === "token" && sel.id === t.id);
   }

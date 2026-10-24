@@ -112,13 +112,16 @@
     refreshWeapons();
   }
 
-  // Under each of KÉ/TÉ/VÉ/CÉ: every named weapon that has a value for it, as the total ("Fegyver nélkül + weapon").
-  // Only the total is shown; click the title of the stat to see "Fegyver nélkül + weapon = total".
+  // Under each of KÉ/TÉ/VÉ/CÉ: every named weapon that has a value for it, as the total ("Fegyver nélkül + weapon + Módosítók").
+  // Módosítók is a number typed in the stat's own box (it can be negative): it is added to every weapon of that stat.
+  // Only the total is shown; click the title of the stat to see "Fegyver nélkül + weapon + Módosítók = total".
+  const r2 = (n) => Math.round(n * 100) / 100;
+  const signed = (n) => `${n < 0 ? "−" : "+"} ${Math.abs(n)}`;
   const STATS = ["ke", "te", "ve", "ce"], NAME = Object.fromEntries(ATTRS);
   function refreshWeapons() {
     const named = Array.from({ length: 10 }, (_, i) => [i, fld(`w.${i}.n`).value.trim()]).filter(([, n]) => n);
     for (const stat of STATS) {
-      const base = parseFloat(fld(stat + ".wpn").value) || 0;
+      const base = parseFloat(fld(stat + ".wpn").value) || 0, mod = toNum(stat + ".mod");
       sheet.querySelector(`[data-wl="${stat}"]`).replaceChildren(...named.flatMap(([i, name]) => {
         const w = parseFloat(fld(`w.${i}.${stat}`).value);
         if (isNaN(w)) return [];
@@ -128,8 +131,9 @@
         a.textContent = name;
         a.title = "Click to show the calculation";
         a.setAttribute("aria-expanded", String(open));
-        b.title = `Fegyver nélkül ${base} ${w < 0 ? "−" : "+"} ${name} ${Math.abs(w)}`;
-        b.textContent = open ? `${base} ${w < 0 ? "−" : "+"} ${Math.abs(w)} = ${base + w}` : String(base + w);
+        const total = r2(base + w + mod);
+        b.title = `Fegyver nélkül ${base} ${signed(w)} (${name})${mod ? ` ${signed(mod)} (Módosítók)` : ""} = ${total}`;
+        b.textContent = open ? `${base} ${signed(w)}${mod ? ` ${signed(mod)}` : ""} = ${total}` : String(total);
         li.append(a, b);
         return [li];
       }));
@@ -169,6 +173,8 @@
     }
     const lines = [`${parts.join(" + ")} = ${total}`];
     if (bonus) lines.push("A stat adds how far it is above 10 (race modifier included).");
+    const mod = toNum(stat + ".mod");
+    if (mod) lines.push(`Módosítók ${mod > 0 ? "+" : "−"}${Math.abs(mod)} is added to every weapon below.`);
     const typed = fld(stat + ".wpn").value.trim();
     if (typed && parseFloat(typed) !== total) lines.push(`The Fegyver nélkül box shows ${typed}: typed by hand, or not recalculated yet (press “Apply class & calculate”).`);
     return lines;
@@ -193,6 +199,8 @@
       tot.hidden = !(v && m);
       tot.textContent = toNum("attr." + k) + m;
       tot.title = `${v} ${m > 0 ? "+" : "−"} ${Math.abs(m)} (faj)`;
+      const rm = sheet.querySelector(`[data-rm="${k}"]`);          // the race modifier itself shows only while the stat is open
+      rm.textContent = open && m ? (m > 0 ? "+" : "−") + Math.abs(m) : "";
       small.hidden = !open;
       small.textContent = !v ? "–" : m ? `${v} ${m > 0 ? "+" : "−"} ${Math.abs(m)} (faj) = ${toNum("attr." + k) + m}` : `${v}, no race modifier`;
     }
@@ -461,6 +469,7 @@
     fill(d.data);
     setActive(true);
     store.set("tabletop-last", id);
+    window.Dice.suggest(id);
     renderList();
     say("");
     return true;
@@ -573,13 +582,7 @@
     const r = races.find((x) => x.racename === fld("race").value);
     return r ? parseFloat(r.modifiers[RACE_KEY[s]]) || 0 : 0;
   };
-  function refreshRace() {                                   // shows the race modifier next to each stat
-    sheet.querySelectorAll("[data-rm]").forEach((e) => {
-      const m = raceMod(e.dataset.rm);
-      e.textContent = m ? (m > 0 ? "+" : "−") + Math.abs(m) : "";
-    });
-    refreshCalc();
-  }
+  const refreshRace = () => refreshCalc();                   // the race modifier is only shown while a stat is open (refreshCalc)
   function fillSelect(key, names) {
     const sel = fld(key), keep = sel.value;
     sel.replaceChildren(new Option("", ""), ...names.map((n) => new Option(n, n)));
@@ -636,34 +639,8 @@
   });
 
   // ---------- dice ----------
-  const log = $("#rolls");
-  function roll(expr) {
-    const m = /^\s*(\d{0,3})d(\d{1,4})\s*([+-]\s*\d+)?\s*$/i.exec(expr);
-    if (!m) throw new Error("Use a roll like d100, 2d6+3 or d10-1.");
-    const n = +m[1] || 1, sides = +m[2], mod = m[3] ? +m[3].replace(/\s/g, "") : 0;
-    if (n > 100 || sides < 2) throw new Error("Roll 1 to 100 dice with at least 2 sides.");
-    const dice = Array.from({ length: n }, () => 1 + Math.floor(Math.random() * sides));
-    const total = dice.reduce((a, b) => a + b, 0) + mod;
-    const li = document.createElement("li"), big = document.createElement("strong"), small = document.createElement("small");
-    big.textContent = total;
-    small.textContent = `${n}d${sides}${mod ? (mod > 0 ? "+" : "") + mod : ""}: [${dice.join(", ")}]${mod ? (mod > 0 ? " + " : " − ") + Math.abs(mod) : ""}`;
-    li.append(big, small);
-    log.prepend(li);
-    while (log.children.length > 50) log.lastChild.remove();
-  }
-  const modifier = () => {
-    const v = parseInt($("#mod").value, 10) || 0;
-    return v ? (v > 0 ? "+" : "") + v : "";
-  };
-  $("#quick").addEventListener("click", (e) => {
-    const b = e.target.closest("[data-die]");
-    if (b) run(() => roll(b.dataset.die + modifier()));
-  });
-  $("#custom").addEventListener("submit", (e) => {
-    e.preventDefault();
-    run(() => { roll($("#expr").value); say(""); });
-  });
-  $("#clear-rolls").addEventListener("click", () => log.replaceChildren());
+  // The roller and the log are shared with the Map tab and with everybody else (pages/tabletop-dice.js).
+  window.Dice.mount($("#dice-sheet"));
 
   // ---------- start ----------
   // Loads the characters of the current campaign and opens one you can open (the last one, if possible). A player who has

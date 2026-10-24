@@ -325,6 +325,7 @@ def token_view(t, role, numbers, shared):
             out["name"] = f'{s["name"]} {numbers[t["id"]]}'
         out["editable"] = role == "dm"
     else:
+        out["ref"] = t["ref"]                                  # a character's id is no secret; it lets the page mark yours
         out["editable"] = role == "dm" or not locked or t["ref"] in characters.unlocked_ids()
     return out
 

@@ -3,12 +3,12 @@
 html:not([data-role="dm"]) .dm-only { display: none !important; }
 
 .viewtabs { margin-top: 1.5rem; }
-#view-sheet .charbar { margin-top: 1rem; }
 
-.rolebar { display: flex; flex-wrap: wrap; align-items: center; gap: .6rem 1rem; margin-top: 1rem; color: #d9cbf2; }
+.rolebar { display: flex; flex-wrap: wrap; align-items: center; gap: .6rem 1rem; color: #d9cbf2; }
+.rolebar:has(.pill:not([hidden])) { margin-top: 1rem; }
 .pill { padding: .1rem .6rem; font-size: .8rem; font-weight: 600; color: #fff; background: #8f2a45; border-radius: 1rem; }
 
-.mapbar, .dmbar { display: flex; flex-wrap: wrap; align-items: end; gap: .75rem 1.5rem; margin-top: 1rem; }
+.mapbar, .dmbar { display: flex; flex-wrap: wrap; align-items: end; gap: 1rem 1.5rem; margin-top: 1rem; }
 .dmbar { padding: .8rem 1rem; background: #22123bcc; border: 1px solid #8a5bd855; border-radius: .6rem; }
 .toolgroup { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; }
 .mapbar .field { min-width: 15rem; }
@@ -25,6 +25,9 @@ html:not([data-role="dm"]) .dm-only { display: none !important; }
 .mapside { display: grid; gap: .6rem; padding: .9rem; background: #22123bcc; border: 1px solid #8a5bd855; border-radius: .6rem; }
 .mapside h2 { margin: 0; font-size: 1rem; font-weight: 600; color: var(--candle); }
 .mapside .dm-only { display: grid; gap: .6rem; }
+.mapside { min-width: 0; }
+.mapside .dice { position: static; max-height: none; overflow: visible; padding: .8rem 0 0; background: none; border: 0; border-top: 1px solid #8a5bd855; }
+.mapside .rolls { max-height: min(16rem, 40vh); }
 .sidelist { list-style: none; margin: 0; padding: 0; display: grid; gap: .5rem; }
 .sidelist:empty::before { content: "Nobody yet."; font-size: .85rem; color: #c9a2ff99; }
 .srow { display: grid; gap: .35rem; padding: .5rem .6rem; background: #140b22; border: 1px solid #8a5bd855; border-left: 4px solid #e9c776; border-radius: .45rem; }
@@ -95,6 +98,7 @@ html:not([data-role="dm"]) .dm-only { display: none !important; }
 }
 .token.drag { cursor: grabbing; z-index: 5; }
 .token.drag .disc { transform: scale(1.08); box-shadow: 0 8px 22px #000a, 0 0 0 3px var(--ring); }
+.token.mine .disc { box-shadow: 0 0 0 3px #7be3a6, 0 0 14px #7be3a699; }   /* the character you play */
 .token.sel .disc { box-shadow: 0 0 0 3px var(--candle), 0 0 18px #e9c776aa; }
 .token:focus-visible .disc { box-shadow: 0 0 0 3px var(--candle); }
 .token.character { --ring: #e9c776; }
