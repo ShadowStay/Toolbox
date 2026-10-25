@@ -203,6 +203,11 @@
         <div class="actions">
           <button class="btn primary" type="button" id="map-add-go">Add</button>
           <button class="btn" type="button" id="map-remove" disabled>Remove selected</button>
+          <button class="btn" type="button" data-tool="measure" aria-pressed="false" title="Measure a distance: click or drag from one spot to another">📏 Measure</button>
+        </div>
+        <div class="measure-opts" id="measure-opts" hidden>
+          <label class="field">1 tile = <input type="text" id="measure-scale" inputmode="decimal" autocomplete="off" placeholder="optional, e.g. 1.5"></label>
+          <label class="field">Unit <input type="text" id="measure-unit" maxlength="6" autocomplete="off" value="m"></label>
         </div>
         <label class="field size">Token size <input type="range" id="map-size" min="44" max="140" value="76"></label>
       </div>
@@ -235,7 +240,10 @@
           <svg class="geo" id="geo" viewBox="0 0 16 10" preserveAspectRatio="none" aria-hidden="true">
             <g id="g-geo"></g>
             <line class="pv" id="pv" hidden></line>
+            <line class="measure" id="m-line" hidden></line>
           </svg>
+          <div class="mdot" id="m-a" hidden></div><div class="mdot" id="m-b" hidden></div>
+          <div class="mlabel" id="m-label" hidden></div>
           <img class="fog" id="fog" alt="" hidden>
           <div class="mapcover" id="mapcover" hidden><div><strong>The dungeon master is setting up the map.</strong><br>It will appear here when it is ready.</div></div>
         </div>

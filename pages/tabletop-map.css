@@ -40,6 +40,7 @@ html:not([data-role="dm"]) .dm-only { display: none !important; }
 .sg i { font-style: normal; opacity: .6; }
 .sg input { width: 100%; min-width: 0; padding: .2rem .3rem; font: inherit; font-size: .88rem; text-align: center; color: var(--moon); background: #22123b; border: 1px solid #8a5bd877; border-radius: .3rem; }
 .sg input:disabled { opacity: .5; }
+.sg input[readonly] { opacity: .65; cursor: not-allowed; }
 .srow .btn { justify-self: start; }
 @media (max-width: 1200px) { .mapwrap { grid-template-columns: 1fr; } }
 
@@ -70,7 +71,14 @@ html:not([data-role="dm"]) .dm-only { display: none !important; }
   border: 1px solid #8a5bd877; border-radius: .6rem; box-shadow: inset 0 0 40px #0008;
   touch-action: none; user-select: none;
 }
-.mapboard.drawing { cursor: crosshair; }
+.mapboard.drawing { cursor: crosshair; touch-action: none; }
+.measure-opts { display: flex; flex-wrap: wrap; gap: .75rem; }
+.measure-opts input { width: 9rem; }
+.measure-opts #measure-unit { width: 4rem; }
+/* The measuring line, its two ends and the distance label (never shared: everybody measures for themselves) */
+.geo .measure { stroke: #7be3a6; stroke-width: 3px; stroke-dasharray: 8 6; }
+.mdot { position: absolute; z-index: 5; width: 14px; height: 14px; margin: -7px 0 0 -7px; pointer-events: none; background: #7be3a6; border: 2px solid #140b22; border-radius: 50%; box-shadow: 0 0 8px #7be3a6; }
+.mlabel { position: absolute; z-index: 5; padding: .2rem .55rem; font-size: .85rem; font-weight: 600; line-height: 1.3; white-space: nowrap; pointer-events: none; transform: translate(-50%, -135%); color: var(--moon); background: #140b22ee; border: 1px solid #7be3a6; border-radius: .4rem; }
 
 /* walls and doors (drawn in squares; strokes stay a fixed number of pixels) */
 .geo { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; overflow: visible; }

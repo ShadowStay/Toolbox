@@ -165,7 +165,8 @@
     const li = document.createElement("li");
     li.className = "srow " + t.kind + (sel.type === "token" && sel.id === t.id ? " sel" : "");
     li.dataset.id = t.id;
-    const box = (f, v, label) => `<input type="text" inputmode="decimal" autocomplete="off" data-f="${f}" value="${esc(showNum(v))}" aria-label="${esc(t.name)}: ${label}"${t.editable ? "" : " disabled"}>`;
+    const maxBox = (f) => f === "max" || f === "fpmax";            // only the dungeon master changes maximums
+    const box = (f, v, label) => `<input type="text" inputmode="decimal" autocomplete="off" data-f="${f}" value="${esc(showNum(v))}" aria-label="${esc(t.name)}: ${label}"${t.editable ? "" : " disabled"}${maxBox(f) && !isDM() ? ' readonly title="Only the dungeon master can change the maximum"' : ""}>`;
     li.innerHTML =
       `<button type="button" class="sel-btn" data-select title="Show on the map">${esc(t.name)}</button>` +
       `<div class="sgs"><div class="sg"><span>Ép</span>${box("hp", t.hp, "Ép now")}<i>/</i>${box("max", t.max, "Max. Ép")}</div>` +
@@ -277,7 +278,7 @@
   // ---------- dragging tokens ----------
   let drag = null;
   board.addEventListener("pointerdown", (e) => {
-    if (e.button !== 0) return;
+    if (e.button !== 0 || tool === "measure") return;           // the measuring tool uses clicks on tokens itself
     const el = e.target.closest(".token");
     if (!el) { if (!e.target.closest(".hit")) select("", ""); return; }
     const id = el.dataset.id, r = board.getBoundingClientRect(), t = data.tokens.find((x) => x.id === id);
@@ -315,13 +316,18 @@
   board.addEventListener("pointercancel", drop);
 
   // ---------- drawing walls and doors (dungeon master) ----------
+  const drawing = () => tool === "wall" || tool === "door";      // the tools only the dungeon master can use
   function setTool(next) {
     tool = next;
     endChain();
+    clearMeasure();
+    $("#measure-opts").hidden = tool !== "measure";
+    if (tool === "measure") say("Measure: click or drag from one spot to another. It snaps to tile centres and tokens. Esc clears the line.");
+    else if (next === "move") say("");
     board.classList.toggle("drawing", tool !== "move");
     document.querySelectorAll("[data-tool]").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.tool === tool)));
   }
-  document.querySelectorAll("[data-tool]").forEach((b) => b.addEventListener("click", () => setTool(b.dataset.tool)));
+  document.querySelectorAll("[data-tool]").forEach((b) => b.addEventListener("click", () => setTool(b.dataset.tool === "measure" && tool === "measure" ? "move" : b.dataset.tool)));
 
   const snap = (v) => Math.round(v * 2) / 2;
   const cellAt = (e) => {
@@ -346,7 +352,7 @@
   const afterCommit = (p) => { if (tool === "wall") { chain = { x: p.x, y: p.y }; $("#chain-end").hidden = false; showPreview(p); } else endChain(); };
 
   board.addEventListener("pointerdown", (e) => {
-    if (tool === "move" || !isDM() || e.button !== 0) return;
+    if (!drawing() || !isDM() || e.button !== 0) return;
     const p = cellAt(e);
     if (!chain) { chain = p; gesture = { x: p.x, y: p.y }; $("#chain-end").hidden = tool !== "wall"; showPreview(p); return; }
     const from = chain;
@@ -355,13 +361,78 @@
   });
   board.addEventListener("pointermove", (e) => { if (chain && tool !== "move") showPreview(cellAt(e)); });
   board.addEventListener("pointerup", (e) => {              // dragging from one point to another works too
-    if (!gesture || tool === "move") return;
+    if (!gesture || !drawing()) return;
     const p = cellAt(e), from = gesture;
     gesture = null;
     if (Math.hypot(p.x - from.x, p.y - from.y) >= 0.4) { afterCommit(p); run(() => commit(from, p)); }
   });
-  board.addEventListener("dblclick", () => { if (tool !== "move") endChain(); });
-  board.addEventListener("contextmenu", (e) => { if (tool !== "move") { e.preventDefault(); endChain(); } });
+  board.addEventListener("dblclick", () => { if (drawing()) endChain(); });
+  board.addEventListener("contextmenu", (e) => { if (tool !== "move") { e.preventDefault(); endChain(); clearMeasure(); } });
+
+  // ---------- measuring distances (everybody) ----------
+  // Click or drag from one spot to another. Each end snaps to the centre of a tile, or to the centre of a token when the
+  // pointer is on one. The distance is the straight line between the two, in tiles (and in metres, or another unit, when
+  // "1 tile =" is filled in). A click starts the line and the next click ends it; a drag works too. Nothing is sent to
+  // the server: everybody measures for themselves.
+  let ms = null;                                              // {a, b, fixed, drag}: the points are {x, y, name?} in tile units
+  const spot = (e) => {
+    const r = board.getBoundingClientRect();
+    const x = clamp(((e.clientX - r.left) / r.width) * CW, 0, CW), y = clamp(((e.clientY - r.top) / r.height) * CH, 0, CH);
+    const reach = Math.max(0.5, (+$("#map-size").value / 2) / (r.width / CW));         // a token's radius, in tiles
+    let best = null, near = reach;
+    for (const t of data.tokens) {
+      const d = Math.hypot(t.x * CW - x, t.y * CH - y);
+      if (d <= near) { best = t; near = d; }
+    }
+    return best ? { x: best.x * CW, y: best.y * CH, name: best.name }
+                : { x: clamp(Math.floor(x) + 0.5, 0.5, CW - 0.5), y: clamp(Math.floor(y) + 0.5, 0.5, CH - 0.5) };
+  };
+  function clearMeasure() {
+    ms = null;
+    for (const id of ["m-line", "m-a", "m-b", "m-label"]) { const el = document.getElementById(id); if (el) el.hidden = true; }
+  }
+  function drawMeasure() {
+    if (!ms) return clearMeasure();
+    const { a, b } = ms, tiles = Math.hypot(b.x - a.x, b.y - a.y), line = $("#m-line");
+    line.setAttribute("x1", a.x); line.setAttribute("y1", a.y); line.setAttribute("x2", b.x); line.setAttribute("y2", b.y);
+    for (const [id, p] of [["m-a", a], ["m-b", b]]) {
+      const dot = $("#" + id);
+      dot.style.left = (p.x / CW) * 100 + "%"; dot.style.top = (p.y / CH) * 100 + "%"; dot.hidden = false;
+    }
+    const scale = parseFloat($("#measure-scale").value.replace(",", ".")), unit = $("#measure-unit").value.trim();
+    let text = `${num1(tiles)} ${num1(tiles) === 1 ? "tile" : "tiles"}`;
+    if (scale > 0) text += ` · ${+(tiles * scale).toFixed(1)} ${unit}`;
+    if (a.name && b.name) text = `${a.name} → ${b.name}: ${text}`;
+    const label = $("#m-label");
+    label.textContent = text;
+    label.style.left = ((a.x + b.x) / 2 / CW) * 100 + "%"; label.style.top = ((a.y + b.y) / 2 / CH) * 100 + "%";
+    line.hidden = label.hidden = false;
+  }
+  board.addEventListener("pointerdown", (e) => {
+    if (tool !== "measure" || e.button !== 0) return;
+    const p = spot(e);
+    if (!ms || ms.fixed) ms = { a: p, b: p, fixed: false, drag: true };
+    else { ms.b = p; ms.fixed = true; }                       // the second click ends the line
+    board.setPointerCapture(e.pointerId);
+    drawMeasure();
+    e.preventDefault();
+  });
+  board.addEventListener("pointermove", (e) => {
+    if (tool !== "measure" || !ms || ms.fixed) return;
+    ms.b = spot(e);
+    drawMeasure();
+  });
+  board.addEventListener("pointerup", () => {
+    if (tool !== "measure" || !ms || ms.fixed || !ms.drag) return;
+    ms.drag = false;
+    if (Math.hypot(ms.b.x - ms.a.x, ms.b.y - ms.a.y) > 0.25) ms.fixed = true;      // dragged: done. Only clicked: the next click is the end
+  });
+  ["measure-scale", "measure-unit"].forEach((id) => {
+    const k = "tabletop-" + id, box = $("#" + id);
+    if (store.get(k)) box.value = store.get(k);
+    box.addEventListener("input", () => { store.set(k, box.value); drawMeasure(); });
+  });
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape" && tool === "measure") clearMeasure(); });
 
   // ---------- doors ----------
   async function toggleDoor(id) {

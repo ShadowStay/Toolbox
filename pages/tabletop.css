@@ -53,6 +53,7 @@ label.btn { cursor: pointer; }
 .f input:focus-visible, .f select:focus-visible, .f textarea:focus-visible, .tbl input:focus-visible, .attrs input:focus-visible { outline: 2px solid var(--candle); outline-offset: 1px; }
 .pair { display: grid; grid-template-columns: 1fr 1fr; gap: .55rem; }
 .pair > * { min-width: 0; }
+#sheet input[readonly] { opacity: .65; cursor: not-allowed; }
 .trio { display: grid; grid-template-columns: repeat(3, 1fr); gap: .55rem; }
 .trio > * { min-width: 0; }
 

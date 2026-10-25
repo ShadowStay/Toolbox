@@ -2,7 +2,7 @@
 // sidebar (Dice.mount); both share one log. Rolls are made by the server (processing/rolls.py) and every browser on the
 // page polls for new ones, so everybody sees everybody's rolls. The log is kept per campaign and lasts until the server
 // restarts.
-// "Playing as" is the character you play in this browser session (sessionStorage: it is forgotten when the tab closes).
+// The dice character is the character you play in this browser session (sessionStorage: it is forgotten when the tab closes).
 // Rolls carry its name, and the map marks its token. Document event "tabletopas" fires when it changes.
 // That character's sheet feeds the buttons:
 //   * k100 + fegyver nélküli TÉ (the TÉ "Fegyver nélkül" box, plus the Modifier box of the panel);
@@ -26,23 +26,22 @@
   const rollerName = () => (current() ? current().name : isDM() ? "Dungeon Master" : "Player");
 
   // ---------- playing as ----------
-  function fillSelects() {
-    for (const p of panels) {
-      p.select.replaceChildren(new Option(isDM() ? "Dungeon Master (no character)" : "No character chosen", ""), ...choices.map((c) => new Option(c.name, c.id)));
-      p.select.value = current() ? asId : "";
-    }
+  // There is no selector in the dice panel: the character is the one chosen with the character picker of the sheet, or in
+  // the player/dungeon master dialog. The panel only says who is rolling.
+  function paintAs() {
+    for (const p of panels) p.as.textContent = current() ? `Rolling as ${current().name}` : isDM() ? "Rolling as Dungeon Master" : "Rolling as Player: choose a character at the top of the sheet";
   }
   async function loadChoices() {
     try { choices = (await api.json("/api/characters")).characters.filter((c) => c.open); } catch { choices = []; }
     if (asId && !current()) { asId = ""; session.set(""); changed(); }       // that character is gone or locked now
-    fillSelects();
+    paintAs();
     await loadWeapons();
   }
   function changed() { document.dispatchEvent(new CustomEvent("tabletopas", { detail: { id: asId } })); }
   function setAs(id) {
     asId = choices.some((c) => c.id === id) ? id : "";
     session.set(asId);
-    fillSelects();
+    paintAs();
     changed();
     loadWeapons();
   }
@@ -94,7 +93,7 @@
       p.weapons.hidden = !te.length && !dmg.length;
       p.weapons.replaceChildren(
         ...(te.length ? [group("TÉ with a weapon", te.map((w) => button(`${short(w.name)} ${k100(w.te)}`, d100(w.te), w.name + " TÉ", `${w.name}: fegyver nélkül + weapon TÉ + módosítók = ${w.te}`)))] : []),
-        ...(dmg.length ? [group("Sebzés", dmg.map((w) => button(short(w.name), w.expr, w.name, `${w.name}: ${w.dmg}`)))] : []));
+        ...(dmg.length ? [group("Sebzés", dmg.map((w) => button(`${short(w.name)} ${w.expr.replace("d", "k")}`, w.expr, w.name, `${w.name}: ${w.dmg}`)))] : []));
       paintQuick(p);
     }
   }
@@ -152,7 +151,7 @@
   function mount(root) {
     root.innerHTML = `
       <h2>Dice</h2>
-      <label class="field">Playing as <select data-as></select></label>
+      <p class="hint nomargin" data-as></p>
       <label class="field">Modifier <input type="text" data-mod value="0" inputmode="numeric" autocomplete="off"></label>
       <div class="actions">
         <button class="btn" type="button" data-die="d6">k6</button>
@@ -168,7 +167,7 @@
       <ol class="rolls" aria-live="polite" aria-label="Rolls of everybody at the table"></ol>`;
     const q = (s) => root.querySelector(s);
     const sayEl = q("[data-say]");
-    const p = { root, select: q("[data-as]"), log: q(".rolls"), weapons: q("[data-weapons]"), say: (t, error) => { sayEl.textContent = t; sayEl.classList.toggle("error", !!error); } };
+    const p = { root, as: q("[data-as]"), log: q(".rolls"), weapons: q("[data-weapons]"), say: (t, error) => { sayEl.textContent = t; sayEl.classList.toggle("error", !!error); } };
     panels.push(p);
     p.mod = () => parseInt(q("[data-mod]").value, 10) || 0;
     q("[data-mod]").addEventListener("input", () => paintQuick(p));
@@ -180,9 +179,7 @@
       } else if (w) roll(p, w.dataset.expr, w.dataset.label);       // weapon rolls are complete as they stand: the Modifier box is not added
     });
     q(".custom").addEventListener("submit", (e) => { e.preventDefault(); roll(p, q("[data-custom]").value); });
-    p.select.addEventListener("change", () => setAs(p.select.value));
-    p.select.addEventListener("focus", loadChoices);       // the list of characters may have changed meanwhile
-    fillSelects();
+    paintAs();
     paintWeapons();
     paintLogs();
   }

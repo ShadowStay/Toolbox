@@ -46,7 +46,7 @@
         ${card("Ψ pajzsok", `<div class="pz">${pz("pz.a", "Asztrál")}${pz("pz.m", "Mentál")}</div>`)}
         ${card("Mana-pontok", pair(f("mana.per", "Mp/Szint"), f("mana.max", "Max. Mp")) + f("mana.cur", "Akt. Mp") + area("mana.other", "Egyéb módosítók", 4))}
       </div>
-      ${card("Életerő", pair(f("hp.maxep", "Max. Ép"), f("hp.maxfp", "Max. Fp")) + pair(f("hp.curep", "Akt. Ép"), f("hp.curfp", "Akt. Fp")) + pair(f("hp.fpl", "Fp/Szint"), blank) + '<input type="hidden" data-k="hp.epbase"><input type="hidden" data-k="hp.fpbase">', "a-hp")}
+      ${card("Életerő", pair(f("hp.curep", "Akt. Ép"), f("hp.maxep", "Max. Ép")) + pair(f("hp.curfp", "Akt. Fp"), f("hp.maxfp", "Max. Fp")) + pair(f("hp.fpl", "Fp/Szint"), blank) + '<input type="hidden" data-k="hp.epbase"><input type="hidden" data-k="hp.fpbase">', "a-hp")}
       ${card("", `
         <label class="f nm"><span>A Karakter neve</span><input type="text" data-k="name" autocomplete="off" spellcheck="false"></label>
         ${fs("caste", "Kaszt")}${fs("race", "Faj")}
@@ -359,6 +359,14 @@
   const entry = (id) => list.find((c) => c.id === id);
   const needsPassword = (c) => !!c && c.locked && !c.open;
   const isDM = () => window.Role.get() === "dm";
+  // Players change their current Ép and Fp; the maximums are the dungeon master's to edit (the class calculation still fills them in).
+  function lockMax() {
+    for (const k of ["hp.maxep", "hp.maxfp"]) {
+      const box = fld(k);
+      box.readOnly = !isDM();
+      box.title = box.readOnly ? "Only the dungeon master can change the maximum" : "";
+    }
+  }
   function syncLockButtons() {
     const c = entry(cur);
     document.querySelector('[data-act="password"]').hidden = !c;
@@ -474,16 +482,19 @@
     say("");
     return true;
   }
-  async function create(data) {
+  // explicit: the person asked for this character (New, Duplicate, Import...): it becomes the character they roll as.
+  async function create(data, explicit = true) {
     await save();
     const { id } = await api.json("/api/characters", { data });
     cur = "";
     await refreshList();
     await open(id);
+    if (explicit) await window.Dice.choose(cur);
   }
 
   sheet.addEventListener("input", () => { refreshWeapons(); refreshRace(); mark(); });
-  picker.addEventListener("change", () => run(() => open(picker.value)));
+  // Picking a character here is the global choice: the dice panels roll as it. (Opening the last one when the page loads is not a choice.)
+  picker.addEventListener("change", () => run(async () => { if (await open(picker.value)) await window.Dice.choose(cur); }));
   addEventListener("pagehide", () => {
     if (cur && dirty) fetch("/api/characters/" + cur, { method: "POST", credentials: "same-origin", keepalive: true, headers: { "Content-Type": "application/json" }, body: JSON.stringify({ data: collect() }) }).catch(() => {});
   });
@@ -497,7 +508,7 @@
       await api.json(`/api/characters/${cur}/delete`, {});
       dirty = false; cur = "";
       await refreshList();
-      if (list.length) await open(list[0].id); else await create({ name: "New character" });
+      if (list.length) await open(list[0].id); else await create({ name: "New character" }, false);
       say(`Deleted ${name}.`);
     },
     password: () => openLockDialog(),
@@ -657,11 +668,11 @@
     const pick = list.find((c) => c.id === last && free(c)) || list.find(free);
     if (pick) await open(pick.id);
     else if (list.length) { clearSheet(); await open(list.find((c) => c.id !== skip || list.length === 1).id) || clearSheet(); }
-    else await create({ name: "New character" });
+    else await create({ name: "New character" }, false);
   }
   document.addEventListener("characterpick", (e) => run(async () => {
     await loading;
-    if (e.detail.fresh) await create({ name: "New character" });
+    if (e.detail.fresh) await create({ name: "New character" });          // (create also makes it your dice character)
     else if (!(await open(e.detail.id))) return;
     await window.Dice.choose(cur);                            // you play the character that is open now
   }));
@@ -671,7 +682,7 @@
   window.Role.mount($("#rolebar"));
   window.Role.beforeChange(() => save());
   let live = false;
-  document.addEventListener("rolechange", () => { if (live) run(() => loadCharacters()); });
+  document.addEventListener("rolechange", () => { lockMax(); if (live) run(() => loadCharacters()); });
 
   run(async () => {
     await loadClasses().catch((err) => say(err.message, true));
@@ -679,6 +690,7 @@
     await loadWeapons().catch((err) => say(err.message, true));
     await window.Role.ready;
     live = true;
+    lockMax();
     await loadCharacters();
     // A player who has not said who they play in this session (a new tab) is asked now.
     if (window.Role.get() === "player" && !(await window.Dice.hasChoice())) window.Role.pickCharacter();

@@ -458,6 +458,9 @@ def stat_value(v):
 def map_stats(tid):
     d = request.get_json(silent=True) or {}
     patch = {k: stat_value(d[k]) for k in STATS if k in d}
+    if dm_or_player() == "player":
+        if patch.keys() & {"max", "fpmax"}:
+            raise Fail("Only the dungeon master can change the maximum Ép and Fp.")
     if not patch:
         raise Fail("Nothing to change.")
     with _lock:
