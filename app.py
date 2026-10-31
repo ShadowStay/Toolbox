@@ -31,16 +31,17 @@ ASSET = re.compile(r"^[A-Za-z0-9_-]+\.(?:js|css)$")
 
 # What the home page says about each page: glyph and a one-line description. Unlisted pages get FALLBACK.
 TOOLS = {
-    "text-tools": ("✎", "Find, replace, clean, convert and compare text."),
-    "image-tools": ("❖", "Layer, crop, filter and convert images."),
-    "omni-file-viewer": ("❂", "View, convert and combine images, PDFs, Word files and spreadsheets."),
-    "cloud-storage": ("☁", "Keep files of any size and download them from anywhere. Up to 500 GB."),
-    "fortune-wheel": ("✺", "Type your options and spin the wheel to pick one."),
-    "live": ("☄", "A shared room: chat, voice, screen sharing and a drawing board."),
-    "tabletop": ("✠", "Keep character sheets, roll dice and move everyone around on the shared map. The dungeon master also gets enemies and map tools."),
+    "text-tools": ("✎", "Regex find and replace, case conversion, line operations, extraction, encoding, text diff."),
+    "image-tools": ("❖", "Layered image editor: transform, crop, filters, grid arrangement, tile split, format conversion."),
+    "omni-file-viewer": ("❂", "Viewer, converter and merger for images, PDF, DOCX, spreadsheets, text, audio and video."),
+    "calculator": ("∑", "Expressions, unit conversion, equations and linear systems."),
+    "cloud-storage": ("☁", "Shared file storage, 500 GB, resumable uploads."),
+    "fortune-wheel": ("✺", "Random pick from a list of entries."),
+    "live": ("☄", "Chat room with voice, screen sharing and a drawing board."),
+    "tabletop": ("✠", "Character sheets, dice log, battle map with fog of war, combat tracker."),
 }
 LABELS = {}                                             # names that title-casing the file name would get wrong
-FALLBACK = ("✦", "A spell worth casting.")
+FALLBACK = ("✦", "")
 
 
 def origin() -> str:
@@ -61,7 +62,8 @@ def label_for(name: str) -> str:
 
 
 def entry(category, name):
-    return {"name": name, "label": label_for(name), "path": f"/{category}/{name}" if category else f"/{name}"}
+    return {"name": name, "label": label_for(name), "glyph": TOOLS.get(name, FALLBACK)[0],      # the glyph is the icon in the retracted sidebar
+            "path": f"/{category}/{name}" if category else f"/{name}"}
 
 
 def nav_groups():
@@ -125,8 +127,9 @@ def serve_page(category, name):
         html = inject(html, "</body>", f'  <script src="{prefix}{name}.js"></script>\n')
     motion = option("motion", ("on", "off"), "off")
     process = option("process", ("browser", "server"), "browser")
+    nav = option("nav", ("open", "closed"), "closed")        # the sidebar: retracted to a narrow strip unless it was opened
     auth = "yes" if is_authed() else "no"                 # so a signed-in visitor never sees the "Sign in" button flash
-    html = re.sub(r"<html\b", f'<html data-motion="{motion}" data-process="{process}" data-auth="{auth}"', html, count=1, flags=re.I)
+    html = re.sub(r"<html\b", f'<html data-motion="{motion}" data-process="{process}" data-nav="{nav}" data-auth="{auth}"', html, count=1, flags=re.I)
     if not category and name == "index":
         html = html.replace("<!--SPELLBOOK-->", spellbook()).replace("{{ORIGIN}}", origin())
     return Response(html, mimetype="text/html", headers={"Vary": "Cookie"})

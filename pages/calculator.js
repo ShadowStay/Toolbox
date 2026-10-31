@@ -223,7 +223,8 @@
   const IDENT = /^[A-Za-z_°µΩ\u0370-\u03ff][A-Za-z_0-9°µΩ\u0370-\u03ff]*/;
   const OPS = [":=", "<=", ">=", "!=", "==", "+", "-", "*", "/", "^", "(", ")", ",", ";", "=", "!", "%", "<", ">"];
   function tokenize(src) {
-    const s = src.replace(/\*\*/g, "^").replace(/[×·∙]/g, "*").replace(/÷/g, "/").replace(/[−–—]/g, "-")
+    const s = src.replace(/(\d)[ \t\u00a0\u202f]+(?=\d)/g, "$1")           // spaces inside a number are ignored: 2 600 000 = 2600000
+      .replace(/\*\*/g, "^").replace(/[×·∙]/g, "*").replace(/÷/g, "/").replace(/[−–—]/g, "-")
       .replace(/²/g, "^2").replace(/³/g, "^3").replace(/√/g, " sqrt ").replace(/π/g, " pi ").replace(/τ/g, " tau ")
       .replace(/φ/g, " phi ").replace(/∞/g, " inf ");
     const out = [];
@@ -1066,16 +1067,6 @@
   angleSel.value = angleMode; digitsSel.value = String(digits);
   angleSel.addEventListener("change", () => { angleMode = angleSel.value; store.set("calc-angle", angleMode); preview(); });
   digitsSel.addEventListener("change", () => { digits = +digitsSel.value; store.set("calc-digits", String(digits)); preview(); renderVars(); });
-
-  // ---------- examples
-  const EXAMPLES = ["x + 10 = 200", "3x - 7 = 11", "x^2 - 5x + 6 = 0", "x^3 = 8", "2^x = 64", "x + y = 10, x - y = 2", "15% of 80", "120 + 20%",
-    "5 km to miles", "90 km/h to m/s", "72 °F to °C", "2 h + 30 min", "3 GB to MiB", "sin(30°)", "sqrt(2) * pi", "5! / (3! * 2!)", "a := 12"];
-  $("#chips").replaceChildren(...EXAMPLES.map((ex) => {
-    const b = document.createElement("button");
-    b.type = "button"; b.className = "chip"; b.textContent = ex;
-    b.addEventListener("click", () => { input.value = ex; input.focus(); preview(); });
-    return b;
-  }));
 
   for (const v of savedVars) { try { evaluate(v.src, { commit: true, deep: false }); } catch { /* ignore a bad saved variable */ } }
   savedVars = savedVars.filter((v) => userVars.has(v.name));

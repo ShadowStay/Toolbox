@@ -14,11 +14,13 @@
 
   <main class="page wide">
     <h1 class="tool-title">Image Tools</h1>
-    <p class="tool-intro">Every image is a layer you can drag, resize, rotate and crop right on the artboard. <span class="where"></span></p>
+    <details class="tool-about">
+      <summary>About</summary>
+      <p>Layer editor on an artboard: move, resize, rotate, crop, flip, duplicate and reorder layers; per-layer filters (brightness, contrast, saturation, hue, blur, grayscale, sepia, invert); arrange layers side by side, stacked or in a grid; cut the artboard into tiles. Shift on a corner resizes freely, Shift while rotating snaps to 15°, arrow keys nudge, Delete removes. Input: PNG, JPEG, WebP, GIF, BMP (TIFF and HEIC when processing on the server). Output: PNG, JPEG, WebP, AVIF, up to 16384 px per side and 50 megapixels. <span class="where"></span></p>
+    </details>
 
     <label class="drop">
       <strong>Add images: choose, drop or paste</strong>
-      <span class="hint">PNG, JPEG, WebP, GIF, BMP. Add several to combine them.</span>
       <input type="file" id="files" accept="image/*" multiple>
     </label>
     <ul class="tray" id="tray" aria-label="Layers (left is bottom)"></ul>
@@ -31,7 +33,6 @@
     </div>
 
     <section class="panel" data-panel="layer" role="tabpanel">
-      <p class="hint nomargin">Click an image to select it. Drag to move, drag a handle to resize (Shift on a corner = free), drag the round handle to rotate (Shift = 15° steps). Arrow keys nudge, Delete removes.</p>
       <div class="fields spaced">
         <label class="field">Width (px) <input type="number" id="ly-w" min="1"></label>
         <label class="field">Height (px) <input type="number" id="ly-h" min="1"></label>
@@ -52,7 +53,6 @@
     </section>
 
     <section class="panel" data-panel="filters" role="tabpanel" hidden>
-      <p class="hint nomargin">Filters apply to the selected layer.</p>
       <div id="filters"></div>
       <div class="actions"><button class="btn" data-action="resetFilters">Reset sliders</button></div>
     </section>
@@ -110,7 +110,7 @@
     </section>
 
     <p class="status" id="status" role="status" aria-live="polite"></p>
-    <p class="empty-note" id="empty">No image yet. Add one above.</p>
+    <p class="empty-note" id="empty">No image loaded.</p>
 
     <div class="stage-box" id="stage-box" hidden>
       <div class="stage-bar">

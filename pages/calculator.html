@@ -14,11 +14,10 @@
 
   <main class="page wide">
     <h1 class="tool-title">Calculator</h1>
-    <p class="tool-intro">Type a calculation, a unit conversion or an equation and the answer appears as you type. Press Enter to keep it in the history. Everything is worked out in your browser.</p>
 
     <div class="calc">
       <label class="sr" for="expr">Calculation</label>
-      <input type="text" id="expr" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Try: x + 10 = 200" autofocus>
+      <input type="text" id="expr" autocomplete="off" autocapitalize="off" spellcheck="false" autofocus>
       <div class="live" id="live" role="status" aria-live="polite"></div>
       <div class="calc-bar">
         <label class="inline">Angles
@@ -31,18 +30,17 @@
       </div>
     </div>
 
-    <div class="chips" id="chips" aria-label="Examples"></div>
-
     <div class="vars" id="vars" hidden></div>
 
     <section class="history-box" aria-labelledby="hist-title">
       <h2 class="ctitle" id="hist-title">History</h2>
       <ol class="history" id="history"></ol>
-      <p class="empty-note" id="empty">Nothing yet. Type something above.</p>
+      <p class="empty-note" id="empty">No history.</p>
     </section>
 
     <details class="help">
-      <summary>What can I type?</summary>
+      <summary>About and syntax</summary>
+      <p>Evaluates expressions, unit conversions and equations in the browser while you type. Enter stores the result in the history. History and variables are kept in this browser. Spaces inside a number are ignored (<code>2 600 000</code> is 2600000).</p>
       <table>
         <tbody>
           <tr><th>Arithmetic</th><td><code>2 + 3 * 4</code>, <code>2^10</code>, <code>(1 + 2) / 3</code>, <code>7 mod 3</code>, <code>5!</code>, <code>2x</code> means 2 times x</td></tr>

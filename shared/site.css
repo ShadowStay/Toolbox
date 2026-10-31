@@ -9,10 +9,12 @@
   --orchid:   #c9a2ff;  /* glow / links */
   --moon:     #f1e9ff;  /* text */
   --candle:   #e9c776;  /* small gold highlight */
-  --nav-w: 15rem;
+  --nav-w: 15rem;       /* the sidebar when it is open */
+  --rail-w: 3.75rem;    /* ... and retracted to a strip of icons */
 }
 
 * { box-sizing: border-box; }
+html[data-nav="closed"] { --nav-w: var(--rail-w); }       /* the page makes room for the strip only; the full sidebar pops out over it */
 
 html { scroll-behavior: smooth; }
 
@@ -42,26 +44,62 @@ a { color: var(--orchid); }
 :focus-visible { outline: 2px solid var(--candle); outline-offset: 3px; }
 
 /* ---------- Navigation ---------- */
+/* #site-nav is the column the page reserves; .nav-panel is what you see. Retracted, the panel is as wide as the column. Popped
+   out (.peek), it is wider and lies over the page, so nothing on the page moves. */
 #site-nav {
   position: sticky;
   top: 0;
+  z-index: 40;
   height: 100vh;
-  display: flex;
-  flex-direction: column;
-  padding: 1.75rem 1.25rem;
   background: linear-gradient(180deg, #2a1650f0, #170c2af0);
   border-right: 1px solid #8a5bd855;
   box-shadow: 8px 0 30px #0006;
 }
+.nav-panel {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: var(--nav-w);
+  display: flex;
+  flex-direction: column;
+  padding: 1.75rem 1.25rem;
+  overflow: hidden auto;
+  background: linear-gradient(180deg, #2a1650f0, #170c2af0);
+  border-right: 1px solid #8a5bd855;
+  transition: width .2s ease, padding .2s ease, box-shadow .2s ease;
+}
+.nav-panel.peek { width: 15rem; box-shadow: 14px 0 40px #000b; }
 
+.nav-head { display: flex; align-items: center; justify-content: space-between; gap: .6rem; margin-bottom: 2.25rem; }
 .brand {
   display: flex;
   align-items: center;
   gap: .7rem;
-  margin-bottom: 2.25rem;
+  min-width: 0;
   text-decoration: none;
   color: var(--moon);
 }
+.brand-text { white-space: nowrap; }
+.nav-toggle, .nav-expand {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 2rem;
+  height: 2rem;
+  padding: 0;
+  font: inherit;
+  font-size: 1.1rem;
+  line-height: 1;
+  color: var(--orchid);
+  cursor: pointer;
+  background: none;
+  border: 1px solid #8a5bd855;
+  border-radius: .4rem;
+  transition: background .2s, color .2s;
+}
+.nav-toggle:hover, .nav-expand:hover { background: #8a5bd833; color: #fff; }
+.nav-expand { display: none; margin: -1.25rem auto 1rem; }
 .sigil {
   display: grid;
   place-items: center;
@@ -86,6 +124,8 @@ a { color: var(--orchid); }
   color: var(--moon);
   transition: background .2s, color .2s;
 }
+#site-nav li a .ico { flex: none; width: 1.3rem; text-align: center; color: var(--candle); }
+#site-nav li a .lbl { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 #site-nav li a:hover { background: #8a5bd833; color: #fff; }
 #site-nav li a[aria-current="page"] {
   background: linear-gradient(90deg, #8a5bd855, transparent);
@@ -130,17 +170,21 @@ h1 {
 /* ---------- Small screens ---------- */
 @media (max-width: 760px) {
   body { grid-template-columns: 1fr; }
-  #site-nav {
+  #site-nav { position: static; height: auto; border-right: 0; box-shadow: none; }
+  .nav-panel {
     position: static;
-    height: auto;
+    width: auto;
     flex-direction: row;
     flex-wrap: wrap;
     align-items: center;
     gap: .75rem 1.5rem;
     padding: 1rem;
+    overflow: visible;
     border-right: 0;
     border-bottom: 1px solid #8a5bd855;
   }
+  .nav-head { margin: 0; }
+  .nav-toggle, .nav-expand { display: none !important; }              /* the top bar is always complete */
   .brand { margin: 0; }
   .leave { margin: 0 0 0 auto; }
   #site-nav ul { grid-auto-flow: column; }
@@ -154,7 +198,10 @@ h1 {
 /* ================= Tool pages: tabs, panels, forms, buttons, status ================= */
 .page.wide { max-width: 84rem; }
 h1.tool-title { font-size: clamp(1.8rem, 4vw, 2.6rem); margin-bottom: .4rem; animation: none; }
-.tool-intro { margin: 0; color: #d9cbf2; }
+/* The description of a tool page: collapsed, the page itself starts at the controls */
+.tool-about { max-width: 62rem; margin: 0; font-size: .9rem; color: #d9cbf2; }
+.tool-about summary { width: max-content; cursor: pointer; color: var(--orchid); }
+.tool-about p { margin: .5rem 0 0; }
 
 .tabs {
   display: flex;
@@ -235,7 +282,18 @@ html[data-motion="off"] *::after { animation: none !important; transition: none 
 html[data-motion="off"] .spell { opacity: 1 !important; }
 html[data-motion="off"] .spell:hover,
 html[data-motion="off"] .spell:focus-visible { transform: none; }
-html[data-motion="off"] #motes { display: none; }
+
+/* ---------- The retracted strip (wide screens only): icons and the sigil; everything else waits for the pop-out ---------- */
+@media (min-width: 761px) {
+  html[data-nav="closed"] .nav-panel:not(.peek) { padding: 1.75rem .55rem; }
+  html[data-nav="closed"] .nav-panel:not(.peek) .nav-head { justify-content: center; }
+  html[data-nav="closed"] .nav-panel:not(.peek) :is(.brand-text, .nav-toggle, .lbl, .nav-foot, li.group) { display: none; }
+  html[data-nav="closed"] .nav-panel:not(.peek) .nav-expand { display: grid; }
+  html[data-nav="closed"] .nav-panel:not(.peek) li a { justify-content: center; padding: .55rem 0; }
+  html[data-nav="closed"] .nav-panel:not(.peek) { cursor: pointer; }
+  html[data-nav="closed"] .nav-panel.peek .nav-toggle { display: none; }      /* only an opened sidebar has the « button */
+  html[data-nav="open"] .nav-expand { display: none; }
+}
 
 /* ---------- Sidebar footer ---------- */
 #site-nav .nav-foot { margin-top: auto; padding-top: 1.5rem; display: grid; gap: .5rem; }

@@ -3,7 +3,8 @@
 //   2. The Options dialog, opened from the sidebar.
 //   3. The sidebar, built from /api/pages (a signed-out visitor just sees the brand and a Sign in link).
 //   4. window.Options.call/json/blob: helpers for pages that send work to the server.
-// Cookies (read by app.py too, so the first paint is already right): spells_motion = on|off, spells_process = browser|server.
+// Cookies (read by app.py too, so the first paint is already right): spells_motion = on|off, spells_process = browser|server,
+// spells_nav = open|closed (the sidebar: a narrow strip of icons unless opened; hovering it for 0.75 s pops it out for a moment).
 (function () {
   const root = document.documentElement;
   const YEAR = 365 * 24 * 3600;
@@ -19,6 +20,7 @@
   const opts = {
     motion: cookie.get("spells_motion") === "on" ? "on" : "off",          // animations are off by default
     process: cookie.get("spells_process") === "server" ? "server" : "browser",
+    nav: cookie.get("spells_nav") === "open" ? "open" : "closed",              // retracted by default
   };
 
   const IN_BROWSER = "Everything runs in your browser; nothing is uploaded.";
@@ -32,12 +34,14 @@
   function apply() {
     root.dataset.motion = opts.motion;
     root.dataset.process = opts.process;
+    root.dataset.nav = opts.nav;
     document.querySelectorAll(".where").forEach((el) => { el.textContent = NOTES[opts.process][el.hasAttribute("data-files") ? 1 : 0]; });
   }
   function set(patch) {
     Object.assign(opts, patch);
     cookie.set("spells_motion", opts.motion);
     cookie.set("spells_process", opts.process);
+    cookie.set("spells_nav", opts.nav);
     apply();
     reflect();
     document.dispatchEvent(new CustomEvent("optionschange", { detail: { ...opts } }));
@@ -89,7 +93,7 @@
       <fieldset>
         <legend>Motion</legend>
         <label class="switch-row">
-          <span><strong>Animations</strong><small>Floating motes, glows and hover effects. Off by default.</small></span>
+          <span><strong>Animations</strong><small>Glows, shimmer and hover effects. Off by default.</small></span>
           <input type="checkbox" role="switch" id="opt-motion">
         </label>
       </fieldset>
@@ -146,23 +150,58 @@
     root.dataset.auth = groups ? "yes" : "no";
     const items = (groups || []).map((g) =>
       (g.label ? `<li class="group">${esc(g.label)}</li>` : "") +
-      g.pages.map((p) => `<li><a href="${p.path}"${p.path === current ? ' aria-current="page"' : ""}>${esc(p.label)}</a></li>`).join("")
+      g.pages.map((p) => `<li><a href="${p.path}" title="${esc(p.label)}"${p.path === current ? ' aria-current="page"' : ""}><span class="ico" aria-hidden="true">${esc(p.glyph || "✦")}</span><span class="lbl">${esc(p.label)}</span></a></li>`).join("")
     ).join("");
     nav.innerHTML = `
-      <a class="brand" href="/">
-        <span class="sigil" aria-hidden="true">☾</span>
-        <span class="brand-text">Iprix's Spells</span>
-      </a>
-      ${groups ? `<ul>${items}</ul>` : ""}
-      <div class="nav-foot">
-        <button class="leave" type="button" data-act="options">Options</button>
-        ${groups ? '<button class="leave" type="button" data-act="logout">Seal the tower</button>' : '<a class="leave" href="/login">Sign in</a>'}
+      <div class="nav-panel">
+        <div class="nav-head">
+          <a class="brand" href="/">
+            <span class="sigil" aria-hidden="true">☾</span>
+            <span class="brand-text">Iprix's Spells</span>
+          </a>
+          <button class="nav-toggle" type="button" data-act="retract" aria-label="Retract the sidebar" title="Retract the sidebar">«</button>
+        </div>
+        <button class="nav-expand" type="button" data-act="expand" aria-label="Open the sidebar" title="Open the sidebar">»</button>
+        ${groups ? `<ul>${items}</ul>` : ""}
+        <div class="nav-foot">
+          <button class="leave" type="button" data-act="options">Options</button>
+          ${groups ? '<button class="leave" type="button" data-act="logout">Seal the tower</button>' : '<a class="leave" href="/login">Sign in</a>'}
+        </div>
       </div>`;
   }
 
+  // ---------- retracting and popping out ----------
+  // Retracted ("closed"): a narrow strip of icons. Hovering it for 0.75 s (or tabbing into it) pops the full sidebar out over
+  // the page until the pointer leaves; clicking the strip, or its » button, opens it for good (it then takes its place in the
+  // layout) and the « button next to the title retracts it again. The choice is kept in a cookie.
+  const HOVER_MS = 750;
+  let hoverTimer = 0, blocked = false;                    // blocked: just retracted under the pointer, do not pop out again until it leaves
+  const panel = () => nav.querySelector(".nav-panel");
+  const isClosed = () => root.dataset.nav !== "open";
+  const peek = (on) => { const p = panel(); if (p) p.classList.toggle("peek", on); };
+  function setNav(value) {
+    opts.nav = value;
+    cookie.set("spells_nav", value);
+    root.dataset.nav = value;
+    peek(false);
+  }
+  nav.addEventListener("pointerenter", (e) => {
+    if (e.pointerType === "touch" || !isClosed() || blocked) return;
+    clearTimeout(hoverTimer);
+    hoverTimer = setTimeout(() => { if (isClosed()) peek(true); }, HOVER_MS);
+  });
+  nav.addEventListener("pointerleave", () => { clearTimeout(hoverTimer); blocked = false; peek(false); });
+  nav.addEventListener("focusin", () => { if (isClosed()) peek(true); });
+  nav.addEventListener("focusout", (e) => { if (!nav.contains(e.relatedTarget)) peek(false); });
+
   nav.addEventListener("click", async (e) => {
     const b = e.target.closest("button[data-act]");
-    if (!b) return;
+    if (!b) {
+      if (isClosed() && !e.target.closest("a")) setNav("open");        // a click on the strip itself (not on a link)
+      return;
+    }
+    if (b.dataset.act === "expand") return setNav("open");
+    if (b.dataset.act === "retract") { blocked = true; return setNav("closed"); }
     if (b.dataset.act === "options") return open();
     await fetch("/logout", { method: "POST" });
     store.set(CACHE, "");

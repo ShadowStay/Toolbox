@@ -8,7 +8,6 @@
   const TAU = Math.PI * 2, POINTER = -Math.PI / 2, MAX = 100, SIZE = cv.width;
   const PALETTE = ["#5b2f9e", "#8a5bd8", "#3a1f6b", "#6e53cc", "#4b2a85", "#9b6ee6", "#2f1a57"];     // an odd number, so neighbours differ
   const KEY = "wheel-entries";
-  const EXAMPLE = ["Alice", "Bob", "Charlie", "Dana", "Eve", "Frank"];
   const store = {
     get: () => { try { return localStorage.getItem(KEY); } catch { return null; } },
     set: (v) => { try { localStorage.setItem(KEY, v); } catch { /* storage unavailable */ } },
@@ -32,7 +31,7 @@
     removeBtn.disabled = true;
     $("#count").textContent = all.length > MAX ? `${all.length} entries, only the first ${MAX} are used` : `${list.length} ${list.length === 1 ? "entry" : "entries"}`;
     spinBtn.disabled = hub.disabled = spinning || list.length < 2;
-    if (!spinning) say(list.length < 2 ? "Add at least two entries, then spin." : "Ready. Spin the wheel!", true);
+    if (!spinning) say(list.length < 2 ? "At least two entries are needed." : "Ready.", true);
     draw();
   }
   function removeLine(index) {                              // the index-th entry (blank lines do not count)
@@ -100,7 +99,7 @@
   function spin() {
     if (spinning) return;
     if (winner >= 0 && $("#auto-remove").checked) removeLine(winner);
-    if (list.length < 2) return say("Add at least two entries first.", true);
+    if (list.length < 2) return say("At least two entries are needed.", true);
     const n = list.length, seg = TAU / n;
     const pick = Math.floor(random() * n);                  // the winner is drawn first; the wheel is then turned to land on it
     const inside = (random() - 0.5) * 0.8 * seg;            // not always dead centre of the slice
@@ -158,11 +157,10 @@
     setLines(a);
   });
   $("#sort").addEventListener("click", () => setLines(parse().sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: "base" }))));
-  $("#example").addEventListener("click", () => setLines(EXAMPLE));
   $("#clear").addEventListener("click", () => { setLines([]); input.focus(); });
   $("#clear-history").addEventListener("click", () => { history = []; paintHistory(); });
 
   const saved = store.get();
-  input.value = saved === null ? EXAMPLE.join("\n") : saved;
+  input.value = saved === null ? "" : saved;
   changed();
 })();

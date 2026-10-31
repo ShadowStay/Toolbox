@@ -14,21 +14,22 @@
 
   <main class="page wide">
     <h1 class="tool-title">Omni File Viewer</h1>
-    <p class="tool-intro">Drop in images, PDFs, Word documents, spreadsheets, text, audio or video, look through them, and export to another format. You can also open files straight from your cloud storage. <span class="where" data-files></span></p>
+    <details class="tool-about">
+      <summary>About</summary>
+      <p>Viewer, converter and merger. Opens images (PNG, JPEG, WebP, GIF, SVG, AVIF, BMP, ICO; TIFF and HEIC when processing on the server), PDF, DOCX, spreadsheets (XLSX, XLS, ODS, CSV, TSV), text and code, audio and video (played by the browser). Exports: images to PNG, JPEG, WebP, AVIF or PDF; PDF pages to PNG or JPEG (one page, or a zip of all) or to text; DOCX to HTML, text or PDF (PDF through the print dialog, or LibreOffice on the server); spreadsheets to XLSX, ODS, CSV, TSV, JSON or HTML; text and code to TXT, HTML or PDF. Combine: images, PDFs and text files into one PDF; text, DOCX and PDF files into one text file; spreadsheets into one workbook. Limits: 30 files, 300 MB each. Files can also be opened from cloud storage. <span class="where" data-files></span></p>
+    </details>
 
     <label class="drop" id="drop">
       <strong class="big">Add files: choose, drop anywhere, or paste</strong>
-      <span class="hint">Images (PNG, JPEG, WebP, GIF, SVG, AVIF, BMP, ICO), PDF, DOCX, XLSX / XLS / ODS / CSV, text and code, MP3 / WAV, MP4 / WebM.</span>
       <input type="file" id="picker" multiple>
     </label>
     <ul class="tray" id="tray" aria-label="Opened files"></ul>
 
     <p class="status" id="status" role="status" aria-live="polite"></p>
-    <p class="empty-note" id="empty">No file yet. Add one above.</p>
+    <p class="empty-note" id="empty">No file open.</p>
 
     <section class="stage-box" id="combine" hidden aria-labelledby="combine-title">
       <h2 class="ctitle" id="combine-title">Combine files into one</h2>
-      <p class="hint">Tick the files to include and put them in order with the arrows. They are joined one after another in that order.</p>
       <ol class="corder" id="corder"></ol>
       <div class="vexport">
         <label class="vlabel" for="cfmt">Combine as</label>

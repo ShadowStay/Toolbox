@@ -36,11 +36,15 @@ html:not([data-role="dm"]) .dm-only { display: none !important; }
 .srow .sel-btn { padding: 0; font: inherit; font-weight: 600; text-align: left; color: var(--moon); background: none; border: 0; cursor: pointer; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .srow .sel-btn:hover { text-decoration: underline dotted; text-underline-offset: 3px; }
 .sgs { display: grid; grid-template-columns: 1fr 1fr; gap: .4rem; }
-.sg { display: grid; grid-template-columns: auto minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; gap: .2rem; font-size: .8rem; color: #d9cbf2; }
-.sg i { font-style: normal; opacity: .6; }
-.sg input { width: 100%; min-width: 0; padding: .2rem .3rem; font: inherit; font-size: .88rem; text-align: center; color: var(--moon); background: #22123b; border: 1px solid #8a5bd877; border-radius: .3rem; }
-.sg input:disabled { opacity: .5; }
-.sg input[readonly] { opacity: .65; cursor: not-allowed; }
+.sg { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: .35rem; font-size: .8rem; color: #d9cbf2; }
+.srow { position: relative; }
+/* The maximums: out of sight until the row is hovered or something in it has focus, then a small panel under the row. */
+.maxpop { display: none; position: absolute; left: 0; right: 0; top: calc(100% - .1rem); z-index: 6; grid-template-columns: 1fr 1fr; gap: .4rem; padding: .45rem .6rem; background: #22123b; border: 1px solid var(--candle); border-radius: .45rem; box-shadow: 0 8px 20px #000a; }
+.srow:hover .maxpop, .srow:focus-within .maxpop { display: grid; }
+.maxpop label { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: .35rem; font-size: .75rem; color: #c9a2ffcc; }
+.sg input, .maxpop input { width: 100%; min-width: 0; padding: .2rem .3rem; font: inherit; font-size: .88rem; text-align: center; color: var(--moon); background: #22123b; border: 1px solid #8a5bd877; border-radius: .3rem; }
+.sg input:disabled, .maxpop input:disabled { opacity: .5; }
+.sg input[readonly], .maxpop input[readonly] { opacity: .65; cursor: not-allowed; }
 .srow .btn { justify-self: start; }
 @media (max-width: 1200px) { .mapwrap { grid-template-columns: 1fr; } }
 

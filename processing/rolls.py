@@ -43,10 +43,9 @@ def rolls_get():
         return jsonify(rolls=rolls, last=log["last"], reset=reset)
 
 
-@bp.post("/rolls")
-def rolls_add():
-    d = request.get_json(silent=True) or {}
-    m = EXPR.match(str(d.get("expr", "")))
+def make_roll(expr, name="", label=""):
+    """Roll an expression like "2d6+3" (or "1k10+2") for someone, put it in this campaign's log and return it."""
+    m = EXPR.match(str(expr))
     if not m:
         raise Fail("Use a roll like d100, 2d6+3, d10-1 or 1k10+2.")
     n, sides = int(m.group(1) or 1), int(m.group(2))
@@ -55,7 +54,7 @@ def rolls_add():
     mod = int(m.group(3).replace(" ", "")) if m.group(3) else 0
     dice = [_dice.randint(1, sides) for _ in range(n)]
     clean = lambda v: " ".join(re.sub(r"[\x00-\x1f\x7f]", "", str(v or "")).split())[:40]
-    name, label = clean(d.get("name")), clean(d.get("label"))
+    name, label = clean(name), clean(label)
     with _lock:
         log = _log()
         log["last"] += 1
@@ -64,4 +63,10 @@ def rolls_add():
                 "total": sum(dice) + mod, "role": current_role()}
         log["rolls"].append(roll)
         del log["rolls"][:-KEEP]
-    return jsonify(roll)
+    return roll
+
+
+@bp.post("/rolls")
+def rolls_add():
+    d = request.get_json(silent=True) or {}
+    return jsonify(make_roll(d.get("expr", ""), d.get("name"), d.get("label")))

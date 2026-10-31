@@ -14,7 +14,10 @@
 
   <main class="page wide">
     <h1 class="tool-title">Live</h1>
-    <p class="tool-intro">One room for everyone. Chat, join the voice channel and share your screen, or draw together on the board.</p>
+    <details class="tool-about">
+      <summary>About</summary>
+      <p>Shared room: text chat (last 200 messages, kept in server memory), voice channel (WebRTC, up to 8 participants), screen sharing and a shared drawing board. Voice and screen sharing need HTTPS or localhost.</p>
+    </details>
     <p class="status error" id="secure-warn" hidden>Microphone and screen sharing only work on https:// or localhost. The chat and the board still work on this address.</p>
 
     <form class="card" id="login">
@@ -112,6 +115,5 @@
   </main>
 
   <script src="/shared/site.js"></script>
-  <script src="/live-board.js"></script>
 </body>
 </html>

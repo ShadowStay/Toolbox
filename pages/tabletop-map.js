@@ -169,8 +169,10 @@
     const box = (f, v, label) => `<input type="text" inputmode="decimal" autocomplete="off" data-f="${f}" value="${esc(showNum(v))}" aria-label="${esc(t.name)}: ${label}"${t.editable ? "" : " disabled"}${maxBox(f) && !isDM() ? ' readonly title="Only the dungeon master can change the maximum"' : ""}>`;
     li.innerHTML =
       `<button type="button" class="sel-btn" data-select title="Show on the map">${esc(t.name)}</button>` +
-      `<div class="sgs"><div class="sg"><span>Ép</span>${box("hp", t.hp, "Ép now")}<i>/</i>${box("max", t.max, "Max. Ép")}</div>` +
-      `<div class="sg"><span>Fp</span>${box("fp", t.fp, "Fp now")}<i>/</i>${box("fpmax", t.fpmax, "Max. Fp")}</div></div>` +
+      `<div class="sgs"><div class="sg"><span>Ép</span>${box("hp", t.hp, "Ép now")}</div>` +
+      `<div class="sg"><span>Fp</span>${box("fp", t.fp, "Fp now")}</div></div>` +
+      // Only the current values are on show; the maximums appear while the row is hovered or has focus.
+      `<div class="maxpop"><label><span>Max. Ép</span>${box("max", t.max, "Max. Ép")}</label><label><span>Max. Fp</span>${box("fpmax", t.fpmax, "Max. Fp")}</label></div>` +
       (t.editable ? '<button type="button" class="btn small" data-full title="Set Ép and Fp to their maximum">Full</button>' : "");
     if (!t.editable) li.title = "This character is locked. Open it with its password on the Character sheet tab first.";
     return li;

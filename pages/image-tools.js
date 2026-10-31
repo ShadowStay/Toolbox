@@ -287,7 +287,7 @@
     if (!ok) { history.pop(); throw new Error("Those files could not be read as images."); }
     cropping = false;
     refresh();
-    status.textContent = `Added ${plural(ok, "image")}. Drag it, or use the handles to resize and rotate.`;
+    status.textContent = `Added ${plural(ok, "image")}.`;
   }
 
   // ---------- actions (called from buttons via data-action / data-arg) ----------
@@ -324,7 +324,7 @@
       need();
       cropping = !cropping;
       refresh();
-      status.textContent = cropping ? "Crop mode: drag the handles to trim the image. Click Crop again when done." : "";
+      status.textContent = cropping ? "Crop mode." : "";
     },
     resetCrop() {
       need(); snapshot();
@@ -370,7 +370,7 @@
         l.cy = sum(rowH.slice(0, r)) + gap * r + rowH[r] / 2;
       });
       refresh();
-      status.textContent = `Arranged ${plural(n, "image")}. You can still drag them around.`;
+      status.textContent = `Arranged ${plural(n, "image")}.`;
     },
 
     async download() {

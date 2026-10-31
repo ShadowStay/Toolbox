@@ -8,6 +8,13 @@ are stored as 0..1 fractions of the board, walls and doors in cells (snapped to 
   doors   {id, x1, y1, x2, y2, open, locked}             block sight while closed
   vision  how many cells a player character can see      hidden  true = players see nothing (the DM is arranging)
 
+Effects: a token can carry effects {n, t}. A turn of combat counts t down by one (and back up when the DM goes back), whose
+effects depends on the combat's "tick" setting: "own" = the creature whose turn ends / is taken back, "all" = every participant.
+t may go below 0 (shown as ended) so that going back always restores exactly what going forward changed.
+Combat: doc["combat"] = {phase: "initiative" | "fighting", order: [token ids], init: {id: {total, roll, bonus, label}}, turn,
+round, tick}. Everybody taking part rolls k10 + KÉ (a character without weapon unless it picks one); the order is highest first
+and the DM may move anybody. Players only see participants they can see on the map (enemies out of sight are left out).
+
 Fog of war is worked out here, not in the browser, so players are only ever sent what they may see: every character
 token sees in a circle around it, stopped by walls and closed doors; what has been seen stays "explored" (dimmed) and
 is stored; enemies are only sent while in view; walls and doors only once seen. The fog itself is a small PNG.
@@ -20,6 +27,12 @@ is stored; enemies are only sent while in view; walls and doors only once seen. 
   POST /api/map/tokens/<id>/stats     {hp?, max?, fp?, fpmax?}  change Ép / Fp. Enemies: DM. Characters: DM, or whoever
                                       has the sheet open (a locked sheet needs its password). Enemy HP is never sent to players.
   GET  /api/map/tokens/<id>/portrait               the token's portrait (enemy ids are never sent to players)
+  POST /api/map/tokens/<id>/effects   {effects: [{n, t}]}  the token's effects (n = name, t = turns left, null = no limit).
+                                      Enemies: DM. Characters: DM, or whoever has the sheet open. Everybody who sees a token sees them.
+  GET  /api/map/tokens/<id>/initiative  -> {choices: [{choice, label, bonus}]}  what the token can roll initiative with (DM, or its player)
+  POST /api/map/tokens/<id>/initiative  {choice}   roll k10 + that bonus for the combat (choice -1 = KÉ without weapon, 0..9 = a weapon)
+  POST /api/map/combat                {action, ...}  DM: start {ids} | participants {ids} | begin {force?} | next | prev | end |
+                                      move {id, to} | set_init {id, total} | tick {mode: "own" | "all"}  (see "combat" below)
   POST /api/map/walls | /doors        {x1, y1, x2, y2}   DM
   POST /api/map/walls/<id>/delete | /doors/<id>/delete   DM
   POST /api/map/doors/<id>/toggle     open / close (players too, unless locked or not yet seen)
@@ -50,6 +63,7 @@ from PIL import Image, ImageChops, ImageDraw, ImageFilter
 
 from . import campaigns, characters, enemies
 from .core import Fail, bp
+from .rolls import make_roll
 from .roles import current_role, need_dm
 
 CW, CH, PPC = 16, 10, 20                      # board size in cells, fog pixels per cell
@@ -108,6 +122,8 @@ def load():
         doc["hidden"] = False
     if not isinstance(doc.get("explored"), str):
         doc["explored"] = ""
+    if not isinstance(doc.get("combat"), dict):
+        doc["combat"] = None
     return doc
 
 
@@ -308,11 +324,36 @@ def enemy_numbers(tokens):
     return out
 
 
+MAX_EFFECTS = 16
+
+
+def clean_effects(raw):
+    """A token's effects as stored: [{n: name, t: turns left or None}], at most MAX_EFFECTS."""
+    out = []
+    for e in raw if isinstance(raw, list) else []:
+        if not isinstance(e, dict):
+            continue
+        name = " ".join(re.sub(r"[\x00-\x1f\x7f]", "", str(e.get("n", ""))).split())[:40]
+        t = e.get("t")
+        if isinstance(t, bool) or not (t is None or isinstance(t, int)):
+            t = None if t in (None, "") else stat_int(t)
+        if name:
+            out.append({"n": name, "t": None if t is None else max(-999, min(999, t))})
+    return out[:MAX_EFFECTS]
+
+
+def stat_int(v):
+    try:
+        return int(float(str(v).replace(",", ".").strip()))
+    except ValueError:
+        raise Fail("Turns must be a whole number.")
+
+
 def token_view(t, role, numbers, shared):
     """One token as the caller may see it. Players never get an enemy's HP: with the numbers missing, the map draws no
     health bars on it, no HP labels and no grey, so nothing about an enemy's health is left to read."""
     s = summary(t["kind"], t["ref"])
-    out = {"id": t["id"], "kind": t["kind"], "x": t["x"], "y": t["y"], **s}
+    out = {"id": t["id"], "kind": t["kind"], "x": t["x"], "y": t["y"], "effects": clean_effects(t.get("effects")), **s}
     locked = out.pop("locked")
     if t["kind"] == "enemy":
         for k in STATS:
@@ -339,9 +380,10 @@ def map_get():
         keep = [t for t in doc["tokens"] if summary(t.get("kind"), t.get("ref")) is not None]    # their sheet was deleted
         pruned = len(keep) != len(doc["tokens"])
         doc["tokens"] = keep
+        pruned = prune_combat(doc) or pruned
         if ensure_fog(doc) or pruned:
             save(doc)
-        out = {"role": role, "vision": doc["vision"], "hidden": doc["hidden"], "tokens": [], "walls": [], "doors": [], "fog": None}
+        out = {"role": role, "vision": doc["vision"], "hidden": doc["hidden"], "tokens": [], "walls": [], "doors": [], "fog": None, "combat": None}
         if role != "dm" and doc["hidden"]:
             return jsonify(out)
         numbers, shared = enemy_numbers(keep), {}
@@ -352,6 +394,7 @@ def map_get():
             if role != "dm" and t["kind"] == "enemy" and not token_in_view(t):
                 continue
             out["tokens"].append(token_view(t, role, numbers, shared))
+        out["combat"] = combat_view(doc.get("combat"), role, {v["id"]: v for v in out["tokens"]})
         for key in ("walls", "doors"):
             out[key] = [o for o in doc[key] if role == "dm" or seg_known(seg_of(o))]
         out["fog"] = _fog["hash"]
@@ -487,7 +530,280 @@ def map_remove(tid):
         if t and dm_or_player() == "player" and t["kind"] != "character":
             abort(403, "Only the dungeon master can remove that.")
         doc["tokens"] = [o for o in doc["tokens"] if o.get("id") != tid]
+        prune_combat(doc)
         ensure_fog(doc)
+        save(doc)
+    return jsonify(ok=True)
+
+
+# ---------- effects ----------
+def may_change(t, doc):
+    """Who may change a token's Ép, Fp and effects: enemies the DM; characters the DM or whoever has the sheet open."""
+    if t["kind"] == "enemy":
+        need_dm()
+    elif dm_or_player() == "player":
+        if doc["hidden"]:
+            abort(403, "The map is hidden right now.")
+        s = summary("character", t["ref"])
+        if s and s["locked"] and t["ref"] not in characters.unlocked_ids():
+            abort(403, "This character is locked. Open it with its password on the Character sheet tab first.")
+
+
+@bp.post("/map/tokens/<tid>/effects")
+def map_effects(tid):
+    d = request.get_json(silent=True) or {}
+    if not isinstance(d.get("effects"), list):
+        raise Fail("Send the list of effects.")
+    effects = clean_effects(d["effects"])
+    with _lock:
+        doc = load()
+        t = find(doc["tokens"], tid)
+        if not t:
+            raise Fail("That token is no longer on the map.")
+        may_change(t, doc)
+        t["effects"] = effects
+        save(doc)
+    return jsonify(effects=effects)
+
+
+# ---------- combat ----------
+MAX_FIGHTERS = 60
+
+
+def prune_combat(doc):
+    """Drop fighters whose token is gone; end the combat when nobody is left. True when something changed."""
+    c = doc.get("combat")
+    if not c:
+        return False
+    ids = {t["id"] for t in doc["tokens"]}
+    order = [i for i in c["order"] if i in ids]
+    if len(order) == len(c["order"]):
+        return False
+    here = c["order"][c["turn"]] if c["order"] and 0 <= c["turn"] < len(c["order"]) else None
+    c["order"] = order
+    c["init"] = {i: v for i, v in c["init"].items() if i in ids}
+    c["turn"] = order.index(here) if here in order else min(c["turn"], max(0, len(order) - 1))
+    if not order:
+        doc["combat"] = None
+    return True
+
+
+def place(c, tid):
+    """Put a fighter who has just rolled where the result belongs: before the first one with a lower total (or none yet)."""
+    total = c["init"][tid]["total"]
+    here = c["order"][c["turn"]] if c["phase"] == "fighting" and 0 <= c["turn"] < len(c["order"]) else None
+    c["order"] = [i for i in c["order"] if i != tid]
+    at = next((k for k, i in enumerate(c["order"]) if i not in c["init"] or c["init"][i]["total"] < total), len(c["order"]))
+    c["order"].insert(at, tid)
+    if here is not None:
+        c["turn"] = c["order"].index(here)
+
+
+def combat_view(c, role, views):
+    """The combat as the caller may see it. views: token id -> token_view of what the caller can see."""
+    if not c:
+        return None
+    here = c["order"][c["turn"]] if c["phase"] == "fighting" and c["order"] else None
+    order = []
+    for tid in c["order"]:
+        v = views.get(tid)
+        if v is None:                                           # a player does not hear about enemies out of sight
+            continue
+        i = c["init"].get(tid)
+        order.append({"id": tid, "name": v["name"], "kind": v["kind"], "total": i["total"] if i else None,
+                      "roll": i["roll"] if i else None, "bonus": i["bonus"] if i else None, "label": i["label"] if i else ""})
+    out = {"phase": c["phase"], "round": c["round"], "current": here if here in views else None, "unseen_turn": bool(here) and here not in views,
+           "order": order, "pending": sum(1 for tid in c["order"] if tid not in c["init"])}
+    if role == "dm":
+        out["tick"] = c["tick"]
+    return out
+
+
+def need_combat(doc, phase=None):
+    c = doc.get("combat")
+    if not c:
+        raise Fail("There is no combat.")
+    if phase and c["phase"] != phase:
+        raise Fail("The combat is " + ("already under way." if phase == "initiative" else "still waiting for initiative rolls."))
+    return c
+
+
+def shift_effects(doc, c, tid, step):
+    """A turn counts effects down (step -1) or, going back, up (+1): the creature's own, or everybody's."""
+    for t in doc["tokens"]:
+        if t["id"] == tid or (c["tick"] == "all" and t["id"] in c["order"]):
+            for e in t.get("effects") or []:
+                if isinstance(e.get("t"), int):
+                    e["t"] = max(-999, min(999, e["t"] + step))
+
+
+def fighter_ids(doc, raw):
+    ids = []
+    for i in raw if isinstance(raw, list) else []:
+        if isinstance(i, str) and i not in ids and find(doc["tokens"], i):
+            ids.append(i)
+    if len(ids) > MAX_FIGHTERS:
+        raise Fail(f"A combat can have {MAX_FIGHTERS} fighters at most.")
+    return ids
+
+
+@bp.post("/map/combat")
+def map_combat():
+    need_dm()
+    d = request.get_json(silent=True) or {}
+    action = d.get("action")
+    with _lock:
+        doc = load()
+        prune_combat(doc)
+        c = doc.get("combat")
+        if action == "start":
+            if c:
+                raise Fail("A combat is already going on.")
+            ids = fighter_ids(doc, d.get("ids"))
+            if not ids:
+                raise Fail("Pick at least one player or monster for the combat.")
+            doc["combat"] = {"phase": "initiative", "order": ids, "init": {}, "turn": 0, "round": 1, "tick": "own"}
+        elif action == "end":
+            doc["combat"] = None
+        else:
+            c = need_combat(doc)
+            here = c["order"][c["turn"]] if c["phase"] == "fighting" and c["order"] else None
+            if action == "participants":
+                ids = fighter_ids(doc, d.get("ids"))
+                if not ids:
+                    raise Fail("A combat needs at least one fighter. End the combat instead.")
+                c["order"] = [i for i in c["order"] if i in ids] + [i for i in ids if i not in c["order"]]
+                c["init"] = {i: v for i, v in c["init"].items() if i in ids}      # newcomers wait at the end for their roll
+                c["turn"] = c["order"].index(here) if here in c["order"] else min(c["turn"], len(c["order"]) - 1)
+            elif action == "begin":
+                need_combat(doc, "initiative")
+                waiting = [i for i in c["order"] if i not in c["init"]]
+                if waiting and not d.get("force"):
+                    raise Fail(f"{len(waiting)} still have to roll initiative.")
+                c["order"] = [i for i in c["order"] if i in c["init"]]
+                if not c["order"]:
+                    raise Fail("Nobody has rolled initiative yet.")
+                c["phase"], c["turn"], c["round"] = "fighting", 0, 1
+            elif action in ("next", "prev"):
+                need_combat(doc, "fighting")
+                n = len(c["order"])
+                if action == "next":
+                    shift_effects(doc, c, c["order"][c["turn"]], -1)      # the turn that ends counts its effects down
+                    c["turn"] += 1
+                    if c["turn"] >= n:
+                        c["turn"], c["round"] = 0, c["round"] + 1
+                else:
+                    if c["turn"] == 0 and c["round"] == 1:
+                        raise Fail("This is the first turn of the combat.")
+                    c["turn"] -= 1
+                    if c["turn"] < 0:
+                        c["turn"], c["round"] = n - 1, c["round"] - 1
+                    shift_effects(doc, c, c["order"][c["turn"]], +1)      # and the turn that is taken back counts them up again
+            elif action == "move":
+                tid = d.get("id")
+                if tid not in c["order"]:
+                    raise Fail("That is not in the combat.")
+                to = d.get("to")
+                if isinstance(to, bool) or not isinstance(to, int):
+                    raise Fail("Say where to move it.")
+                c["order"].remove(tid)
+                c["order"].insert(max(0, min(len(c["order"]), to)), tid)
+                if here is not None:
+                    c["turn"] = c["order"].index(here)
+            elif action == "set_init":
+                tid = d.get("id")
+                if tid not in c["order"]:
+                    raise Fail("That is not in the combat.")
+                if d.get("total") in (None, ""):
+                    c["init"].pop(tid, None)
+                else:
+                    total = stat_value(d.get("total"))
+                    c["init"][tid] = {"total": int(round(total)), "roll": None, "bonus": None, "label": "set by the DM"}
+                    place(c, tid)
+            elif action == "tick":
+                if d.get("mode") not in ("own", "all"):
+                    raise Fail("Pick whose effects count down.")
+                c["tick"] = d["mode"]
+            else:
+                raise Fail("Unknown combat action.")
+        save(doc)
+    return jsonify(ok=True)
+
+
+# ---------- initiative ----------
+def initiative_choices(t):
+    """What a token can roll initiative with: [{choice, label, bonus}] (KÉ without weapon first)."""
+    data = KINDS[t["kind"]].read(t["ref"]).get("data") or {}
+    if t["kind"] == "enemy":
+        return [{"choice": -1, "label": "KÉ", "bonus": round(number(data.get("ke")) or 0)}]
+    base = number(data.get("ke.wpn")) or 0
+    mod = number(data.get("ke.mod")) or 0                       # Módosítók is added with every weapon
+    out = [{"choice": -1, "label": "Fegyver nélkül", "bonus": round(base)}]
+    for i in range(10):
+        name, ke = str(data.get(f"w.{i}.n") or "").strip(), number(data.get(f"w.{i}.ke"))
+        if name and ke is not None:
+            out.append({"choice": i, "label": name, "bonus": round(base + ke + mod)})
+    return out
+
+
+def may_roll_for(t, doc):
+    """The DM for anybody; a player for their own character."""
+    if dm_or_player() == "dm":
+        return
+    if t["kind"] != "character":
+        abort(403, "Only the dungeon master rolls for that.")
+    may_change(t, doc)
+
+
+@bp.get("/map/tokens/<tid>/initiative")
+def initiative_get(tid):
+    with _lock:
+        doc = load()
+        t = find(doc["tokens"], tid)
+        if not t:
+            raise Fail("That token is no longer on the map.")
+        may_roll_for(t, doc)
+        return jsonify(choices=initiative_choices(t))
+
+
+@bp.post("/map/tokens/<tid>/initiative")
+def initiative_roll(tid):
+    d = request.get_json(silent=True) or {}
+    choice = d.get("choice", -1)
+    with _lock:
+        doc = load()
+        t = find(doc["tokens"], tid)
+        if not t:
+            raise Fail("That token is no longer on the map.")
+        c = need_combat(doc)
+        if tid not in c["order"]:
+            raise Fail("That is not in the combat.")
+        may_roll_for(t, doc)
+        if dm_or_player() == "player" and (c["phase"] != "initiative" or tid in c["init"]):
+            raise Fail("Initiative has been rolled already. Ask the dungeon master to clear it.")
+        pick = next((x for x in initiative_choices(t) if x["choice"] == choice), None)
+        if not pick:
+            raise Fail("Pick one of the offered rolls.")
+        numbers, shared = enemy_numbers(doc["tokens"]), {}
+        for o in doc["tokens"]:
+            if o["kind"] == "enemy":
+                shared[o["ref"]] = shared.get(o["ref"], 0) + 1
+        name = token_view(t, "dm", numbers, shared)["name"]
+        roll = make_roll(f"1d10{pick['bonus']:+d}" if pick["bonus"] else "1d10", name,
+                         "Kezdeményezés" + ("" if pick["choice"] == -1 else f" ({pick['label']})"))
+        c["init"][tid] = {"total": roll["total"], "roll": roll["dice"][0], "bonus": pick["bonus"], "label": pick["label"]}
+        place(c, tid)
+        save(doc)
+    return jsonify(total=roll["total"], roll=roll)
+
+
+@bp.post("/map/tokens/<tid>/initiative/clear")
+def initiative_clear(tid):
+    need_dm()
+    with _lock:
+        doc = load()
+        c = need_combat(doc)
+        c["init"].pop(tid, None)
         save(doc)
     return jsonify(ok=True)
 
@@ -670,6 +986,7 @@ def saves_load(sid):
         doc["vision"] = src.get("vision") if isinstance(src.get("vision"), (int, float)) else 7
         doc["explored"] = src.get("explored") if isinstance(src.get("explored"), str) else ""
         doc["hidden"] = True                 # check it over first; show it to the players when ready
+        doc["combat"] = None                 # the fighters of the old map are gone
         _fog["sig"] = None
         ensure_fog(doc)
         save(doc)

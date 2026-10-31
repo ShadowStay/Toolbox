@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Iprix's Spells – Online Text, Image and File Tools</title>
-  <meta name="description" content="An online toolbox to edit and compare text, edit and convert images, and view, convert and combine PDF, Word and spreadsheet files. Runs in your browser or on the server.">
+  <title>Iprix's Spells – Text, Image and File Tools</title>
+  <meta name="description" content="Web tools: text processing (regex find/replace, case conversion, diff), image editor and converter, viewer, converter and merger for PDF, DOCX and spreadsheets, calculator, cloud storage, chat room with voice and a tabletop RPG toolkit. Processing runs in the browser or on the server.">
   <meta name="robots" content="index, follow, max-image-preview:large">
   <meta name="theme-color" content="#140b22">
   <link rel="canonical" href="{{ORIGIN}}/">
@@ -12,13 +12,13 @@
 
   <meta property="og:type" content="website">
   <meta property="og:site_name" content="Iprix's Spells">
-  <meta property="og:title" content="Iprix's Spells – Online Text, Image and File Tools">
-  <meta property="og:description" content="Edit and compare text, edit and convert images, view and convert PDF, Word and spreadsheet files. In your browser or on the server.">
+  <meta property="og:title" content="Iprix's Spells – Text, Image and File Tools">
+  <meta property="og:description" content="Text processing, image editing, PDF/DOCX/spreadsheet viewing and conversion, calculator, cloud storage, chat room and tabletop RPG tools. Browser or server processing.">
   <meta property="og:url" content="{{ORIGIN}}/">
   <meta property="og:image" content="{{ORIGIN}}/images/Iprix.png">
   <meta name="twitter:card" content="summary">
-  <meta name="twitter:title" content="Iprix's Spells – Online Text, Image and File Tools">
-  <meta name="twitter:description" content="Edit and compare text, edit and convert images, view and convert PDF, Word and spreadsheet files.">
+  <meta name="twitter:title" content="Iprix's Spells – Text, Image and File Tools">
+  <meta name="twitter:description" content="Text processing, image editing, PDF/DOCX/spreadsheet viewing and conversion, calculator, cloud storage, chat room and tabletop RPG tools.">
   <meta name="twitter:image" content="{{ORIGIN}}/images/Iprix.png">
 
   <script type="application/ld+json">
@@ -30,7 +30,7 @@
         "@id": "{{ORIGIN}}/#website",
         "url": "{{ORIGIN}}/",
         "name": "Iprix's Spells",
-        "description": "An online toolbox for text, images and files.",
+        "description": "Web tools for text, images and files.",
         "inLanguage": "en"
       },
       {
@@ -42,13 +42,15 @@
         "operatingSystem": "Any (web browser)",
         "isPartOf": { "@id": "{{ORIGIN}}/#website" },
         "featureList": [
-          "Find and replace with regular expressions, change case, sort and deduplicate lines, extract emails and URLs",
-          "Compare two texts line by line or word by word",
-          "Layer, crop, rotate, filter, arrange and convert images between PNG, JPEG, WebP and AVIF",
-          "View PDF, Word, spreadsheet, text, image, audio and video files",
-          "Convert files to other formats and combine several files into one",
-          "Shared chat room with voice and screen sharing",
-          "Process in the browser or on the server"
+          "Find and replace with regular expressions, case conversion, line sort and deduplication, extraction of emails, URLs and numbers, Base64 and URL encoding, line and word diff",
+          "Layered image editor: transform, crop, per-layer filters, grid arrangement, tile split, conversion between PNG, JPEG, WebP and AVIF",
+          "Viewer for PDF, DOCX, spreadsheets, text, images, audio and video",
+          "Conversion of PDF, DOCX, spreadsheet, text and image files; merging of several files into one PDF, text file or workbook",
+          "Calculator with unit conversion, equations and linear systems",
+          "Shared cloud storage with resumable uploads",
+          "Chat room with WebRTC voice, screen sharing and a drawing board",
+          "Tabletop RPG tools: character sheets, dice log, battle map with fog of war, combat tracker",
+          "Processing in the browser or on the server"
         ]
       }
     ]
@@ -61,76 +63,72 @@
   <link rel="stylesheet" href="/shared/site.css">
 </head>
 <body>
-  <canvas id="motes" aria-hidden="true"></canvas>
   <aside id="site-nav" aria-label="Main navigation"></aside>
 
   <main class="page">
     <header class="hero">
-      <div class="hero-text">
-        <p class="eyebrow">✦ The tower is open ✦</p>
-        <h1>Iprix's Spells <span class="name">an online toolbox for text, images and files</span></h1>
-        <p class="lede">Edit and compare text, edit and convert images, and view, convert and combine PDF, Word and spreadsheet files. No installs: open a tool and start.</p>
-        <p class="whisper" aria-live="off"><span id="whisper">Small spells, sharp edges.</span></p>
-        <p class="signin-only"><a class="btn primary cta" href="/login">Sign in to open the tools</a></p>
-      </div>
-      <figure class="portrait">
-        <svg class="runes" viewBox="0 0 200 200" aria-hidden="true">
-          <defs><path id="rune-path" d="M100,100 m-90,0 a90,90 0 1,1 180,0 a90,90 0 1,1 -180,0"/></defs>
-          <text><textPath href="#rune-path" textLength="563" lengthAdjust="spacing">ᚠ ᚢ ᚦ ᚨ ᚱ ᚲ ᚷ ᚹ ᚺ ᚾ ᛁ ᛃ ᛇ ᛈ ᛉ ᛊ ᛏ ᛒ ᛖ ᛗ ᛚ ᛜ ᛞ ᛟ</textPath></text>
-        </svg>
-        <div class="frame"><img src="/images/Iprix.png" alt="Portrait of Iprix, who makes these tools" width="208" height="208" fetchpriority="high"></div>
-      </figure>
+      <h1>Iprix's Spells</h1>
+      <p class="lede">Web tools for text, images and files. Text, image and file processing runs in the browser by default and can run on the server instead (Options).</p>
+      <p class="signin-only"><a class="btn primary cta" href="/login">Sign in</a></p>
     </header>
 
     <section class="spellbook" aria-labelledby="spellbook-title">
-      <h2 id="spellbook-title"><span>Spellbook: the tools</span></h2>
+      <h2 id="spellbook-title"><span>Tools</span></h2>
       <div id="shelves"><!--SPELLBOOK--></div>
     </section>
 
     <section class="about" aria-labelledby="what-title">
-      <h2 id="what-title"><span>What you can do here</span></h2>
+      <h2 id="what-title"><span>Features</span></h2>
       <div class="about-grid">
         <article>
-          <h3>Work with text</h3>
-          <p>Find and replace across a whole document, with optional regular expressions. Change case (UPPER, Title, camelCase, snake_case and more), sort and deduplicate lines, strip HTML, pull out email addresses and URLs, encode Base64 and URLs, and see exactly what changed between two versions of a text.</p>
+          <h3>Text</h3>
+          <p>Find and replace with plain text or regular expressions, case conversion (upper, lower, title, sentence, camel, Pascal, snake, kebab, constant), line sort, deduplication, join and split, HTML tag stripping, extraction of emails, URLs and numbers, Base64, URL and HTML encoding, line and word diff.</p>
         </article>
         <article>
-          <h3>Edit and convert images</h3>
-          <p>Every image is a layer you can drag, resize, rotate and crop. Apply filters, line several images up into a collage, cut one into tiles, and save as PNG, JPEG, WebP or AVIF.</p>
+          <h3>Images</h3>
+          <p>Layered editor: move, resize, rotate, crop and flip layers, per-layer filters, arrangement in a grid, tile split. Reads PNG, JPEG, WebP, GIF and BMP (TIFF and HEIC on the server) and writes PNG, JPEG, WebP and AVIF.</p>
         </article>
         <article>
-          <h3>View and convert files</h3>
-          <p>Open PDFs, Word documents, spreadsheets, images, text, audio and video in one viewer. Export a PDF page as an image, a document as plain text or HTML, a spreadsheet as CSV or Excel, and combine several files into one PDF, text file or workbook.</p>
+          <h3>Files</h3>
+          <p>Viewer for PDF, DOCX, spreadsheets, images, text and code, audio and video. Exports PDF pages as PNG or JPEG, DOCX as HTML, text or PDF, spreadsheets as XLSX, ODS, CSV, TSV, JSON or HTML. Merges several files into one PDF, text file or workbook.</p>
         </article>
         <article>
-          <h3>Talk in the shared room</h3>
-          <p>One chat room for everyone who is signed in, with a voice channel and screen sharing between browsers.</p>
+          <h3>Calculator</h3>
+          <p>Expressions, unit conversion, equations with one unknown and linear systems, evaluated in the browser.</p>
+        </article>
+        <article>
+          <h3>Storage and room</h3>
+          <p>Shared file storage (500 GB) with resumable chunked uploads and zip download of folders. A room with text chat, WebRTC voice (up to 8 participants), screen sharing and a drawing board.</p>
+        </article>
+        <article>
+          <h3>Tabletop</h3>
+          <p>Character and enemy sheets stored per campaign, a server-side dice log, a battle map with tokens, walls, doors, fog of war and distance measuring, and a combat tracker with initiative and effect durations.</p>
         </article>
       </div>
     </section>
 
     <section class="about" aria-labelledby="how-title">
-      <h2 id="how-title"><span>Your choice: browser or server</span></h2>
-      <p>By default the tools run in your own browser, so your text and files stay on your device. If you prefer, switch to server processing in the Options dialog: the same tools then run on the site's server, which handles more formats (such as TIFF and HEIC photos) and large files, and keeps nothing once you are done. Animations are off by default and can be turned on in the same dialog. Both choices are remembered in a small cookie on your device.</p>
+      <h2 id="how-title"><span>Processing</span></h2>
+      <p>By default text, images and files are processed in the browser and never leave the device. With server processing selected in the Options dialog the same operations run on the server, which additionally reads TIFF and HEIC images and handles larger files. Both settings are stored in cookies. Cloud storage, the chat room and the tabletop always use the server.</p>
     </section>
 
     <section class="about faq" aria-labelledby="faq-title">
-      <h2 id="faq-title"><span>Questions</span></h2>
+      <h2 id="faq-title"><span>Details</span></h2>
       <details>
-        <summary>Are my files uploaded?</summary>
-        <p>Not in browser mode: files are opened and converted on your device. In server mode they are sent to the site's server for the task and deleted when you close the file or after 30 minutes.</p>
+        <summary>Are files uploaded?</summary>
+        <p>Not in browser mode. In server mode a file is sent to the server for the task and deleted when it is closed or after 30 minutes without use.</p>
       </details>
       <details>
-        <summary>Which file types can I open?</summary>
-        <p>Images (PNG, JPEG, WebP, GIF, SVG, AVIF, BMP, ICO, plus TIFF and HEIC in server mode), PDF, Word (.docx), spreadsheets (XLSX, XLS, ODS, CSV), text and code files, MP3 and WAV audio, and MP4 and WebM video.</p>
+        <summary>Input formats of the file viewer</summary>
+        <p>Images (PNG, JPEG, WebP, GIF, SVG, AVIF, BMP, ICO, plus TIFF and HEIC in server mode), PDF, Word (.docx), spreadsheets (XLSX, XLSM, XLS, ODS, CSV, TSV), text and code files, audio and video.</p>
       </details>
       <details>
-        <summary>Do I need to install anything?</summary>
-        <p>No. Everything works in a modern web browser. Microphone and screen sharing in the chat need a secure (https) connection.</p>
+        <summary>Requirements</summary>
+        <p>A current web browser. Microphone and screen sharing in the chat room need HTTPS or localhost.</p>
       </details>
       <details>
-        <summary>How do I get in?</summary>
-        <p>The tools are protected by a password. Use the sign-in link, enter the password, and the tools appear in the sidebar.</p>
+        <summary>Access</summary>
+        <p>This page is public. The tools are protected by a password.</p>
       </details>
     </section>
   </main>

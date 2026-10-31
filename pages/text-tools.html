@@ -14,7 +14,10 @@
 
   <main class="page wide">
     <h1 class="tool-title">Text Tools</h1>
-    <p class="tool-intro">Bulk edit, clean up and compare text. <span class="where"></span></p>
+    <details class="tool-about">
+      <summary>About</summary>
+      <p>Text processing on the input pane. Find, replace and delete with plain text or a regular expression (match case, whole word; <code>$1</code>, <code>$&amp;</code>, <code>$&lt;name&gt;</code>, <code>\n</code> and <code>\t</code> in the replacement). Case conversion: upper, lower, title, sentence, swap, camel, Pascal, snake, kebab and constant (the last five convert each line separately). Line operations: sort, reverse, shuffle, remove duplicates, remove empty lines, number, prefix and suffix, join, split. Clean-up: trim, collapse spaces and blank lines, remove line breaks, strip HTML tags and accents, straighten quotes. Extraction of emails, URLs, numbers and word frequency. Base64, URL and HTML encoding. Line or word diff of two texts. <span class="where"></span></p>
+    </details>
 
     <div class="tabs" role="tablist" aria-label="Text tools">
       <button class="tab" role="tab" data-tab="replace" aria-selected="true">Find &amp; Replace</button>
@@ -79,7 +82,6 @@
         <button class="btn" data-action="case" data-arg="kebab">kebab-case</button>
         <button class="btn" data-action="case" data-arg="constant">CONSTANT_CASE</button>
       </div>
-      <p class="hint">camel, Pascal, snake, kebab and constant case convert each line separately.</p>
     </section>
 
     <!-- Lines -->

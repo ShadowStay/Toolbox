@@ -9,6 +9,9 @@
 //   * "TÉ with a weapon": k100 + Fegyver nélkül + the weapon's TÉ + the TÉ Módosítók, one button per weapon of the Fegyverek table;
 //   * "Sebzés": one button per weapon (and the shield) whose Sebzés is a dice roll like "1k10+2" (number of dice, k, sides,
 //     + or − the bonus). Weapon buttons are named after the first five letters of the weapon and a dot.
+// "My rolls": rolls you name yourself ("Sneak attack", k100 + 3). Each shows its name with the actual roll under it in smaller
+// text. Edit opens a list where you rename them, change the roll, delete them, add new ones and arrange them (▲ ▼, or drag the
+// ⠿ handle). They are kept in this browser, separately for each character (and one set for when there is no character).
 //   window.Dice = { mount(el), as() -> {id, name} | null, choose(id), hasChoice() -> Promise<bool>, sync() }
 //   choose(id): play as that character; sync(): read the characters and their weapons again (after the sheet was saved).
 (function () {
@@ -29,6 +32,7 @@
   // There is no selector in the dice panel: the character is the one chosen with the character picker of the sheet, or in
   // the player/dungeon master dialog. The panel only says who is rolling.
   function paintAs() {
+    reloadCustom();
     for (const p of panels) p.as.textContent = current() ? `Rolling as ${current().name}` : isDM() ? "Rolling as Dungeon Master" : "Rolling as Player: choose a character at the top of the sheet";
   }
   async function loadChoices() {
@@ -147,6 +151,105 @@
     } catch (err) { p.say(err.message || String(err), true); }
   }
 
+  // ---------- my rolls ----------
+  const MAX_CUSTOM = 24, crKey = () => "tabletop-rolls:" + (asId || "_");
+  let custom = [], customKey = null;                        // [{n: name, r: roll as typed}]
+  function parseRoll(text) {                                // "k100 + 3", "1k10+2", "2d6-1" -> {expr: "1d100+3", shown: "k100 + 3"} | null
+    const m = DAMAGE.exec(String(text || ""));
+    if (!m) return null;
+    const n = +(m[1] || 1), sides = +m[2], mod = m[3] ? (m[3] === "-" ? -1 : 1) * +m[4] : 0;
+    if (n < 1 || n > 100 || sides < 2) return null;
+    return { expr: `${n}d${sides}${mod ? (mod > 0 ? "+" : "-") + Math.abs(mod) : ""}`, shown: `${n === 1 ? "" : n}k${sides}${mod ? ` ${plus(mod)}` : ""}` };
+  }
+  function reloadCustom() {
+    if (customKey === crKey()) return;
+    customKey = crKey();
+    try {
+      const a = JSON.parse(localStorage.getItem(customKey) || "[]");
+      custom = (Array.isArray(a) ? a : []).filter((c) => c && typeof c.n === "string" && typeof c.r === "string").slice(0, MAX_CUSTOM);
+    } catch { custom = []; }
+    paintCustom(true);
+  }
+  function saveCustom() { try { localStorage.setItem(customKey, JSON.stringify(custom)); } catch { /* storage unavailable */ } }
+  function paintCustomButtons() {
+    for (const p of panels) {
+      const buttons = custom.map((c) => ({ c, roll: parseRoll(c.r) })).filter((x) => x.roll).map(({ c, roll }) => {
+        const b = document.createElement("button"), name = document.createElement("span"), what = document.createElement("small");
+        b.type = "button"; b.className = "btn cr-btn"; b.dataset.expr = roll.expr; b.dataset.label = c.n.trim() || roll.shown;
+        name.className = "nm"; name.textContent = c.n.trim() || roll.shown;
+        what.className = "rl"; what.textContent = roll.shown;                  // the actual roll, under the name
+        b.append(name, what);
+        return b;
+      });
+      p.crButtons.replaceChildren(...buttons);
+      p.crHint.hidden = buttons.length > 0 || p.editing;
+    }
+  }
+  function paintEditor(p) {
+    p.crEditor.hidden = !p.editing;
+    p.crEdit.textContent = p.editing ? "Done" : "Edit";
+    if (!p.editing) return;
+    p.crList.replaceChildren(...custom.map((c, i) => {
+      const row = document.createElement("div");
+      row.className = "cr-row"; row.dataset.i = i;
+      row.innerHTML = `<span class="grip" title="Drag to arrange" aria-hidden="true">⠿</span>
+        <input type="text" data-f="n" maxlength="30" placeholder="Name" aria-label="Name of the roll" autocomplete="off" spellcheck="false">
+        <input type="text" data-f="r" placeholder="k100 + 3" aria-label="The roll, like k100 + 3 or 2k6" autocomplete="off" spellcheck="false">
+        <span class="cr-moves"><button type="button" class="btn small" data-move="-1" aria-label="Move up" title="Move up">▲</button><button type="button" class="btn small" data-move="1" aria-label="Move down" title="Move down">▼</button><button type="button" class="btn small" data-del aria-label="Delete this roll" title="Delete">✕</button></span>`;
+      const [nameBox, rollBox] = row.querySelectorAll("input");
+      nameBox.value = c.n; rollBox.value = c.r;
+      rollBox.classList.toggle("bad", !parseRoll(c.r));
+      rollBox.title = parseRoll(c.r) ? "" : "Use a roll like k100 + 3, 2k6 or 1k10 - 1";
+      row.querySelector("[data-move='-1']").disabled = i === 0;
+      row.querySelector("[data-move='1']").disabled = i === custom.length - 1;
+      return row;
+    }));
+    p.crAdd.disabled = custom.length >= MAX_CUSTOM;
+  }
+  function paintCustom() {
+    paintCustomButtons();
+    panels.forEach(paintEditor);
+  }
+  function moveCustom(from, to) {
+    if (from === to || !custom[from] || to < 0 || to >= custom.length) return;
+    custom.splice(to, 0, custom.splice(from, 1)[0]);
+    saveCustom(); paintCustom();
+  }
+  function wireCustom(p) {
+    p.crEdit.addEventListener("click", () => { p.editing = !p.editing; paintCustomButtons(); paintEditor(p); });
+    p.crAdd.addEventListener("click", () => {
+      if (custom.length >= MAX_CUSTOM) return;
+      custom.push({ n: "", r: "k100" });
+      saveCustom(); paintCustom();
+      p.crList.querySelector(".cr-row:last-child input").focus();
+    });
+    p.crEditor.addEventListener("input", (e) => {                              // typing: save and update the buttons, but keep the boxes as they are
+      const box = e.target.closest("input[data-f]"), row = box && box.closest(".cr-row");
+      if (!row) return;
+      custom[+row.dataset.i][box.dataset.f] = box.value;
+      if (box.dataset.f === "r") { box.classList.toggle("bad", !parseRoll(box.value)); box.title = parseRoll(box.value) ? "" : "Use a roll like k100 + 3, 2k6 or 1k10 - 1"; }
+      saveCustom(); paintCustomButtons();
+    });
+    p.crEditor.addEventListener("click", (e) => {
+      const row = e.target.closest(".cr-row"), i = row ? +row.dataset.i : -1;
+      if (e.target.closest("[data-del]")) { custom.splice(i, 1); saveCustom(); paintCustom(); }
+      else if (e.target.closest("[data-move]")) moveCustom(i, i + +e.target.closest("[data-move]").dataset.move);
+    });
+    // Dragging: only the ⠿ handle starts a drag, so the text boxes keep working normally.
+    let from = -1;
+    p.crEditor.addEventListener("pointerdown", (e) => { const g = e.target.closest(".grip"); if (g) g.closest(".cr-row").draggable = true; });
+    p.crEditor.addEventListener("dragstart", (e) => { from = +e.target.closest(".cr-row").dataset.i; e.dataTransfer.effectAllowed = "move"; e.dataTransfer.setData("text/plain", String(from)); });
+    p.crEditor.addEventListener("dragover", (e) => { if (from >= 0) e.preventDefault(); });
+    p.crEditor.addEventListener("drop", (e) => {
+      const row = e.target.closest(".cr-row");
+      if (from < 0 || !row) return;
+      e.preventDefault();
+      moveCustom(from, +row.dataset.i);
+      from = -1;
+    });
+    p.crEditor.addEventListener("dragend", () => { from = -1; p.crList.querySelectorAll(".cr-row").forEach((r) => { r.draggable = false; }); });
+  }
+
   // ---------- the roller (drawn into the sheet and the map) ----------
   function mount(root) {
     root.innerHTML = `
@@ -159,6 +262,15 @@
         <button class="btn primary" type="button" data-die="d100">k100</button>
       </div>
       <div class="weapons" data-weapons aria-label="Weapon rolls" hidden></div>
+      <div class="myrolls" aria-label="My rolls">
+        <div class="cr-head"><small class="hd">My rolls</small><button type="button" class="btn small" data-cr-edit>Edit</button></div>
+        <div class="actions cr-buttons" data-cr-buttons></div>
+        <p class="hint nomargin" data-cr-hint>Press Edit to make your own rolls.</p>
+        <div class="cr-editor" data-cr-editor hidden>
+          <div class="cr-list" data-cr-list></div>
+          <button type="button" class="btn small" data-cr-add>+ Add a roll</button>
+        </div>
+      </div>
       <form class="custom">
         <input type="text" data-custom placeholder="2d6+3" aria-label="Dice expression" autocomplete="off" spellcheck="false">
         <button class="btn" type="submit">Roll</button>
@@ -167,7 +279,8 @@
       <ol class="rolls" aria-live="polite" aria-label="Rolls of everybody at the table"></ol>`;
     const q = (s) => root.querySelector(s);
     const sayEl = q("[data-say]");
-    const p = { root, as: q("[data-as]"), log: q(".rolls"), weapons: q("[data-weapons]"), say: (t, error) => { sayEl.textContent = t; sayEl.classList.toggle("error", !!error); } };
+    const p = { root, as: q("[data-as]"), log: q(".rolls"), weapons: q("[data-weapons]"), editing: false,
+      crEdit: q("[data-cr-edit]"), crButtons: q("[data-cr-buttons]"), crHint: q("[data-cr-hint]"), crEditor: q("[data-cr-editor]"), crList: q("[data-cr-list]"), crAdd: q("[data-cr-add]"), say: (t, error) => { sayEl.textContent = t; sayEl.classList.toggle("error", !!error); } };
     panels.push(p);
     p.mod = () => parseInt(q("[data-mod]").value, 10) || 0;
     q("[data-mod]").addEventListener("input", () => paintQuick(p));
@@ -179,7 +292,9 @@
       } else if (w) roll(p, w.dataset.expr, w.dataset.label);       // weapon rolls are complete as they stand: the Modifier box is not added
     });
     q(".custom").addEventListener("submit", (e) => { e.preventDefault(); roll(p, q("[data-custom]").value); });
+    wireCustom(p);
     paintAs();
+    paintCustom();
     paintWeapons();
     paintLogs();
   }

@@ -14,7 +14,10 @@
 
   <main class="page wide">
     <h1 class="tool-title">Cloud Storage</h1>
-    <p class="tool-intro">Keep files of any type and any size, and download them from anywhere you are signed in. One shared drive of 500 GB.</p>
+    <details class="tool-about">
+      <summary>About</summary>
+      <p>Shared file storage with a 500 GB quota. Any file type and size. Uploads are sent in chunks and resume after an interrupted connection. Folders, rename, move (drag onto a folder or use Move), download of a file, or of a folder as a .zip.</p>
+    </details>
 
     <div class="meter" aria-live="polite">
       <div class="bar" role="img" aria-label="Space used"><span id="bar"></span></div>
@@ -23,7 +26,6 @@
 
     <label class="drop" id="drop">
       <strong class="big">Drop files or folders anywhere on this page</strong>
-      <span class="hint">Or use the buttons below. Large files are sent in pieces and pick up where they left off if the connection drops.</span>
     </label>
 
     <div class="actions toolbar">
@@ -45,7 +47,6 @@
     </section>
 
     <nav class="crumbs" id="crumbs" aria-label="Folder path"></nav>
-    <p class="hint move-hint">Move files or folders after uploading: drag them onto a folder (or onto a folder in the path above), or use their Move button.</p>
 
     <div class="selbar" id="selbar" hidden>
       <strong id="selcount"></strong>
@@ -68,7 +69,7 @@
         <tbody id="rows"></tbody>
       </table>
     </div>
-    <p class="empty-note" id="empty" hidden>This folder is empty. Drop something in.</p>
+    <p class="empty-note" id="empty" hidden>Empty folder.</p>
 
     <dialog id="mover">
       <h2>Move to</h2>

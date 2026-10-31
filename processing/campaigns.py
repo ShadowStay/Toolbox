@@ -8,7 +8,7 @@ enemies, the map and the saved maps) lives in its own folder, so several campaig
   data/campaigns/<id>/map_saves/      saved maps                   (battlemap.py)
 
 Everybody picks the campaign they are playing right now; the choice is kept in the cookie spells_campaign (a year), so
-the next visit opens the same one, and it can be changed at any time (shared/role.js shows the picker). Every other
+the next visit opens the same one, and it can be changed at any time (the role part of pages/tabletop.js shows the picker). Every other
 module asks folder() for its place on disk, which follows that cookie. A cookie that names a campaign that does not
 exist (any more) falls back to the first campaign.
 

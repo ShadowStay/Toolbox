@@ -8,14 +8,16 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Uncial+Antiqua&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/shared/site.css">
-  <link rel="stylesheet" href="/tabletop-map.css">
 </head>
 <body>
   <aside id="site-nav" aria-label="Main navigation"></aside>
 
   <main class="page wide">
     <h1 class="tool-title">Tabletop</h1>
-    <p class="tool-intro">Keep your characters on the server, fill in their sheets, roll dice and move everyone around on the shared map. Changes save by themselves.<span class="dm-only"> As the dungeon master you also have the Dungeon Master HQ tab for enemies and campaigns.</span></p>
+    <details class="tool-about">
+      <summary>About</summary>
+      <p>Tabletop RPG tools, per campaign. Character sheets and enemy sheets are stored on the server (a character can have a password). Dice are rolled by the server into a log shared by everyone on the page. The map has tokens, walls, doors, fog of war, distance measuring and a combat tracker (initiative, turn order, effect durations). <span class="dm-only">The Dungeon Master HQ tab (enemies, campaigns, dungeon master password) is shown to the dungeon master only.</span></p>
+    </details>
 
     <div id="rolebar" aria-live="polite"></div>
 
@@ -44,8 +46,7 @@
     <div class="table">
       <div class="sheet-wrap">
         <div class="sheetbar">
-          <button class="btn primary" type="button" id="apply-class">Apply class &amp; calculate</button>
-          <p class="hint">Fills the base values of the class in Kaszt, then calculates Fegyver nélkül, Max. Ép, Max. Fp and the Ψ pajzs ME values. Every box stays editable.</p>
+          <button class="btn primary" type="button" id="apply-class" title="Fills the base values of the class in Kaszt, then calculates Fegyver nélkül, Max. Ép, Max. Fp and the Ψ pajzs ME values. Every box stays editable.">Apply class &amp; calculate</button>
         </div>
         <div class="tabs" role="tablist" aria-label="Sheet pages">
           <button class="tab" role="tab" data-page="1" aria-selected="true">Character</button>
@@ -173,7 +174,6 @@
           <div class="settings-grid">
             <div class="settings-col">
               <h3>Campaigns</h3>
-              <p class="hint nomargin">Characters, enemies and maps belong to a campaign. Everybody chooses the one they play with the Change button at the top of the page.</p>
               <div class="actions">
                 <button class="btn" type="button" data-camp="new">New campaign</button>
                 <button class="btn" type="button" data-camp="rename">Rename this campaign</button>
@@ -206,7 +206,7 @@
           <button class="btn" type="button" data-tool="measure" aria-pressed="false" title="Measure a distance: click or drag from one spot to another">📏 Measure</button>
         </div>
         <div class="measure-opts" id="measure-opts" hidden>
-          <label class="field">1 tile = <input type="text" id="measure-scale" inputmode="decimal" autocomplete="off" placeholder="optional, e.g. 1.5"></label>
+          <label class="field">1 tile = <input type="text" id="measure-scale" inputmode="decimal" autocomplete="off" placeholder="optional"></label>
           <label class="field">Unit <input type="text" id="measure-unit" maxlength="6" autocomplete="off" value="m"></label>
         </div>
         <label class="field size">Token size <input type="range" id="map-size" min="44" max="140" value="76"></label>
@@ -229,13 +229,13 @@
           <label class="check"><input type="checkbox" id="fog-preview" checked> Show the players' fog</label>
           <button class="btn" type="button" id="fog-reset">Reset explored area</button>
           <button class="btn" type="button" id="saves-open">Save / load…</button>
+          <button class="btn" type="button" id="combat-open" title="Open the initiative tab to start or run a combat">⚔ Combat</button>
         </div>
       </div>
-
-      <p class="hint mapnote" id="map-help"></p>
       <p class="status" id="map-status" role="status" aria-live="polite"></p>
       <div class="mapwrap viewpanel">
       <div class="mapframe">
+        <div class="boardwrap">
         <div class="mapboard" id="map" aria-label="Map board">
           <svg class="geo" id="geo" viewBox="0 0 16 10" preserveAspectRatio="none" aria-hidden="true">
             <g id="g-geo"></g>
@@ -247,24 +247,42 @@
           <img class="fog" id="fog" alt="" hidden>
           <div class="mapcover" id="mapcover" hidden><div><strong>The dungeon master is setting up the map.</strong><br>It will appear here when it is ready.</div></div>
         </div>
-      </div>
-      <aside class="mapside" aria-label="Hit points">
-        <h2>Party</h2>
-        <ul class="sidelist" id="side-party"></ul>
-        <div class="dm-only">
-          <h2>Enemies</h2>
-          <ul class="sidelist" id="side-enemies"></ul>
+        <!-- The sidebar pops out over the right edge of the board: Ép / Fp of everybody, and the initiative order of a combat. -->
+        <aside class="drawer" id="drawer" aria-label="Ép, Fp and initiative">
+          <button class="drawer-tab" id="drawer-tab" type="button" aria-expanded="false" aria-controls="drawer-body" title="Show the Ép and Fp of everybody">
+            <span id="drawer-tab-text">Ép / Fp</span><small id="drawer-tab-sub" hidden></small>
+          </button>
+          <div class="drawer-body" id="drawer-body" inert>
+            <div class="drawer-head">
+              <div class="dtabs" role="tablist" aria-label="Sidebar">
+                <button class="dtab" type="button" role="tab" data-dtab="hp" aria-selected="true">Ép &amp; Fp</button>
+                <button class="dtab" type="button" role="tab" data-dtab="init" aria-selected="false">Initiative</button>
+              </div>
+              <button class="drawer-close" id="drawer-close" type="button" aria-label="Close the sidebar" title="Close">✕</button>
+            </div>
+            <div class="dpanel" data-dpanel="hp">
+              <h2>Party</h2>
+              <ul class="sidelist" id="side-party"></ul>
+              <div class="dm-only">
+                <h2>Enemies</h2>
+                <ul class="sidelist" id="side-enemies"></ul>
+              </div>
+            </div>
+            <div class="dpanel" data-dpanel="init" id="init-panel" hidden></div>
+          </div>
+        </aside>
         </div>
+      </div>
+      <aside class="mapside" aria-label="Dice">
         <div class="dice" id="dice-map" aria-label="Dice roller"></div>
       </aside>
       </div>
-      <p class="empty-note" id="map-empty" hidden>Nobody is on the map yet. Add a character above<span class="dm-only"> or an enemy from <a href="#dm" data-goto="dm">Dungeon Master HQ</a></span>.</p>
+      <p class="empty-note" id="map-empty" hidden>Nobody is on the map.</p>
 
       <dialog id="saves" aria-labelledby="saves-title">
         <h2 id="saves-title">Save and load maps</h2>
-        <p class="hint nomargin">A save keeps the tokens, walls, doors, player sight and the explored area. Loading replaces the current map and hides it from players until you show it.</p>
         <div class="savebar">
-          <label class="field">Save the current map as <input type="text" id="save-name" maxlength="60" autocomplete="off" spellcheck="false" placeholder="e.g. Goblin cave, level 1"></label>
+          <label class="field">Save the current map as <input type="text" id="save-name" maxlength="60" autocomplete="off" spellcheck="false" placeholder="Map name"></label>
           <button class="btn primary" type="button" id="save-go">Save</button>
         </div>
         <ul class="savelist" id="save-list"></ul>
@@ -272,13 +290,15 @@
         <div class="actions"><button class="btn" type="button" id="saves-close">Close</button></div>
       </dialog>
     </section>
+
+    <!-- The window of a token (double-click it on the map): Ép, Fp and effects -->
+    <dialog class="dlg tokdlg" id="token-dialog" aria-labelledby="token-title">
+      <div class="tok-head"><h2 id="token-title"></h2><button type="button" class="btn small" id="token-close" aria-label="Close">✕</button></div>
+      <div id="token-body"></div>
+      <p class="status" id="token-status" role="status" aria-live="polite"></p>
+    </dialog>
   </main>
 
   <script src="/shared/site.js"></script>
-  <script src="/shared/role.js" data-ask="unset"></script>
-  <script src="/shared/sheet-utils.js"></script>
-  <script src="/tabletop-dice.js"></script>
-  <script src="/tabletop-map.js"></script>
-  <script src="/tabletop-dm.js"></script>
 </body>
 </html>

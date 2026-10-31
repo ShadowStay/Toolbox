@@ -14,7 +14,10 @@
 
   <main class="page wide">
     <h1 class="tool-title">Fortune Wheel</h1>
-    <p class="tool-intro">Type your options, one per line, and spin. Everything happens in your browser and your list is remembered on this device.</p>
+    <details class="tool-about">
+      <summary>About</summary>
+      <p>Draws one entry at random from a list (one entry per line, up to 100) with <code>crypto.getRandomValues</code>, then rotates the wheel to the drawn entry. The list is stored in this browser (localStorage); the last 30 results are kept until the page is closed.</p>
+    </details>
 
     <div class="wheel-layout">
       <section class="wheel-stage" aria-label="Wheel">
@@ -23,7 +26,7 @@
           <canvas id="wheel" width="800" height="800" role="img" aria-label="The wheel"></canvas>
           <button class="hub" id="hub" type="button" aria-label="Spin the wheel">SPIN</button>
         </div>
-        <p class="result" id="result" role="status" aria-live="polite">Add at least two entries, then spin.</p>
+        <p class="result" id="result" role="status" aria-live="polite">At least two entries are needed.</p>
         <div class="actions result-actions">
           <button class="btn primary" id="spin" type="button">Spin the wheel</button>
           <button class="btn" id="remove-winner" type="button" disabled>Remove the winner</button>
@@ -40,7 +43,6 @@
           <div class="actions">
             <button class="btn small" id="shuffle" type="button">Shuffle order</button>
             <button class="btn small" id="sort" type="button">Sort A→Z</button>
-            <button class="btn small" id="example" type="button">Example list</button>
             <button class="btn small" id="clear" type="button">Clear</button>
           </div>
         </div>
@@ -51,7 +53,7 @@
             <button class="btn small" id="clear-history" type="button">Clear</button>
           </div>
           <ol id="history" class="history" aria-label="Past results"></ol>
-          <p class="hint nomargin" id="history-empty">Nothing yet.</p>
+          <p class="hint nomargin" id="history-empty">No results.</p>
         </div>
       </section>
     </div>

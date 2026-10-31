@@ -20,9 +20,6 @@
 .inline { display: flex; align-items: center; gap: .5rem; font-size: .9rem; color: #d9cbf2; }
 .calc-bar .btn { margin-left: auto; }
 
-.chips { display: flex; flex-wrap: wrap; gap: .45rem; margin-top: 1rem; }
-.chip { padding: .3rem .7rem; font: inherit; font-size: .85rem; font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; color: var(--moon); cursor: pointer; background: #3a1f6b; border: 1px solid #8a5bd855; border-radius: 2rem; }
-.chip:hover { background: #4b2a85; border-color: var(--candle); }
 
 .vars { display: flex; flex-wrap: wrap; align-items: center; gap: .45rem; margin-top: 1rem; font-size: .9rem; }
 .vars .label { color: var(--orchid); }

@@ -1,4 +1,4 @@
-"""Who is at the table: a player or the dungeon master. The Tabletop page asks when it opens (shared/role.js) and the
+"""Who is at the table: a player or the dungeon master. The Tabletop page asks when it opens (the role part of this file) and the
 answer is kept in a signed cookie (30 days), so the server can enforce it: players never get the enemy list, enemy
 sheets, enemy HP, walls they have not seen, and so on.
 

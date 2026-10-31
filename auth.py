@@ -93,7 +93,7 @@ def _register_failure(ip: str) -> None:
 
 
 # Reachable without signing in, so search engines can read the home page. Everything else needs the password.
-PUBLIC_PATHS = {"/", "/index.css", "/index.js", "/robots.txt", "/sitemap.xml"}
+PUBLIC_PATHS = {"/", "/index.css", "/robots.txt", "/sitemap.xml"}
 PUBLIC_PREFIXES = ("/shared/", "/images/")
 
 
