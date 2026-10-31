@@ -52,6 +52,14 @@ def origin() -> str:
 
 def option(name: str, allowed: tuple, default: str) -> str:
     value = request.cookies.get("spells_" + name)
+    # Remove animations by default
+    if name == "motion" and default == "off":
+        return "off"
+    return value if value in allowed else default
+    value = request.cookies.get("spells_" + name)
+    # Remove animations by default
+    if name == "motion" and default == "off":
+        return "off"
     return value if value in allowed else default
 
 
@@ -147,11 +155,7 @@ def safe_headers(resp):
     resp.headers.setdefault("X-Frame-Options", "SAMEORIGIN")
     return resp
 
-
-@app.route("/dungeon-master-hq")
-def old_dungeon_master_hq():
-    """The Dungeon Master HQ is a tab of the Tabletop page now; old bookmarks land on it."""
-    return redirect("/tabletop#dm", 301)
+    # All the routes for tabletop are now handled by the generic <path:url> pattern in the main routing
 
 
 @app.route("/robots.txt")

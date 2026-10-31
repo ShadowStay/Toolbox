@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Map</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Uncial+Antiqua&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/shared/site.css">
+  <link rel="stylesheet" href="/tabletop.css">
+</head>
+<body>
+  <aside id="site-nav" aria-label="Main navigation"></aside>
+  <main class="page wide">
+    <h1 class="tool-title">Map</h1>
+    <details class="tool-about">
+      <summary>About</summary>
+      <p>Tabletop RPG tools, per campaign. Character sheets and enemy sheets are stored on the server (a character can have a password). Dice are rolled by the server into a log shared by everyone on the page. The map has tokens, walls, doors, fog of war, distance measuring and a combat tracker (initiative, turn order, effect durations). <span class="dm-only">The Dungeon Master HQ tab (enemies, campaigns, dungeon master password) is shown to the dungeon master only.</span></p>
+    </details>
+    <div id="rolebar" aria-live="polite"></div>
+    <div class="tabs viewtabs" role="tablist" aria-label="Tabletop views">
+      <button class="tab" role="tab" data-view="sheet" aria-selected="false">Character sheet</button>
+      <button class="tab" role="tab" data-view="map" aria-selected="true">Map</button>
+      <button class="tab dmtab dm-only" role="tab" data-view="dm" aria-selected="false">☠ Dungeon Master HQ</button>
+      <button class="btn small tabset" type="button" id="tt-settings-open" title="Tabletop settings">⚙ Settings</button>
+    </div>
+    <div id="view-map" hidden aria-label="Tabletop map">
+      <div class="rolebar">
+        <span class="pill dm-only" id="hidden-badge" hidden>Hidden from players</span>
+      </div>
+      <div class="mapbar">
+        <label class="field">Add to the map <select id="map-add"></select></label>
+        <div class="actions">
+          <button class="btn primary" type="button" id="map-add-go">Add</button>
+          <button class="btn" type="button" id="map-remove" disabled>Remove selected</button>
+          <button class="btn" type="button" data-tool="measure" aria-pressed="false" title="Measure a distance: click or drag from one spot to another">📏 Measure</button>
+        </div>
+        <div class="measure-opts" id="measure-opts" hidden>
+          <label class="field">1 tile = <input type="text" id="measure-scale" inputmode="decimal" autocomplete="off" placeholder="optional"></label>
+          <label class="field">Unit <input type="text" id="measure-unit" maxlength="6" autocomplete="off" value="m"></label>
+        </div>
+        <label class="field size">Token size <input type="range" id="map-size" min="44" max="140" value="76"></label>
+      </div>
+      <div class="dmbar dm-only">
+        <div class="toolgroup" role="group" aria-label="Map tools">
+          <button class="btn" type="button" data-tool="move" aria-pressed="true">Move</button>
+          <button class="btn" type="button" data-tool="wall" aria-pressed="false">Draw walls</button>
+          <button class="btn" type="button" data-tool="door" aria-pressed="false">Place doors</button>
+          <button class="btn small" type="button" id="chain-end" hidden>Finish wall</button>
+        </div>
+        <div class="toolgroup" role="group" aria-label="Selected door">
+          <button class="btn" type="button" id="door-toggle" disabled>Open / close door</button>
+          <button class="btn" type="button" id="door-lock" disabled>Lock door</button>
+        </div>
+        <label class="field vis">Player sight (squares) <input type="number" id="map-vision" min="1" max="20" value="7"></label>
+        <div class="toolgroup">
+          <button class="btn" type="button" id="map-hide">Hide map from players</button>
+          <label class="check"><input type="checkbox" id="fog-preview" checked> Show the players' fog</label>
+          <button class="btn" type="button" id="fog-reset">Reset explored area</button>
+          <button class="btn" type="button" id="saves-open">Save / load…</button>
+          <button class="btn" type="button" id="combat-open" title="Open the initiative tab to start or run a combat">⚔ Combat</button>
+        </div>
+      </div>
+      <p class="status" id="map-status" role="status" aria-live="polite"></p>
+      <div class="mapwrap viewpanel">
+      <div class="mapframe">
+        <div class="boardwrap">
+        <div class="mapboard" id="map" aria-label="Map board">
+          <svg class="geo" id="geo" viewBox="0 0 16 10" preserveAspectRatio="none" aria-hidden="true">
+            <g id="g-geo"></g>
+            <line class="pv" id="pv" hidden></line>
+            <line class="measure" id="m-line" hidden></line>
+          </svg>
+          <div class="mdot" id="m-a" hidden></div><div class="mdot" id="m-b" hidden></div>
+          <div class="mlabel" id="m-label" hidden></div>
+          <img class="fog" id="fog" alt="" hidden>
+          <div class="mapcover" id="mapcover" hidden><div><strong>The dungeon master is setting up the map.</strong><br>It will appear here when it is ready.</div></div>
+        </div>
+        <!-- The sidebar pops out over the right edge of the board: Ép / Fp of everybody, and the initiative order of a combat. -->
+        <aside class="drawer" id="drawer" aria-label="Ép, Fp and initiative">
+          <button class="drawer-tab" id="drawer-tab" type="button" aria-expanded="false" aria-controls="drawer-body" title="Show the Ép and Fp of everybody">
+            <span id="drawer-tab-text">Ép / Fp</span><small id="drawer-tab-sub" hidden></small>
+          </button>
+          <div class="drawer-body" id="drawer-body" inert>
+            <div class="drawer-head">
+              <div class="dtabs" role="tablist" aria-label="Sidebar">
+                <button class="dtab" type="button" role="tab" data-dtab="hp" aria-selected="true">Ép &amp; Fp</button>
+                <button class="dtab" type="button" role="tab" data-dtab="init" aria-selected="false">Initiative</button>
+              </div>
+              <button class="drawer-close" id="drawer-close" type="button" aria-label="Close the sidebar" title="Close">✕</button>
+            </div>
+            <div class="dpanel" data-dpanel="hp">
+              <h2>Party</h2>
+              <ul class="sidelist" id="side-party"></ul>
+              <div class="dm-only">
+                <h2>Enemies</h2>
+                <ul class="sidelist" id="side-enemies"></ul>
+              </div>
+            </div>
+            <div class="dpanel" data-dpanel="init" id="init-panel" hidden></div>
+          </div>
+        </aside>
+        </div>
+      </div>
+      <aside class="mapside" aria-label="Dice">
+        <div class="dice" id="dice-map" aria-label="Dice roller"></div>
+      </aside>
+      </div>
+      <p class="empty-note" id="map-empty" hidden>Nobody is on the map.</p>
+    </div>
+    <dialog id="saves" aria-labelledby="saves-title">
+      <h2 id="saves-title">Save and load maps</h2>
+      <div class="savebar">
+        <label class="field">Save the current map as <input type="text" id="save-name" maxlength="60" autocomplete="off" spellcheck="false" placeholder="Map name"></label>
+        <button class="btn primary" type="button" id="save-go">Save</button>
+      </div>
+      <ul class="savelist" id="save-list"></ul>
+      <p class="status" id="save-status" role="status"></p>
+      <div class="actions"><button class="btn" type="button" id="saves-close">Close</button></div>
+    </dialog>
+  </main>
+  <script src="/shared/site.js"></script>
+  <script src="/tabletop/map.js"></script>
+</body>
+</html>
