@@ -8,7 +8,7 @@ from flask import Flask, Response, abort, jsonify, redirect, request, send_from_
 from auth import init_auth, is_authed
 from board import bp as board_bp
 from chat import bp as chat_bp
-from processing import bp as processing_bp
+# from processing import bp as processing_bp
 from storage import bp as storage_bp
 
 BASE = Path(__file__).parent.resolve()
