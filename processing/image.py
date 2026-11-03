@@ -51,18 +51,26 @@ def load(src):
     return im.convert("RGBA")
 
 
+def color(value):
+    """A CSS colour as an RGB tuple; anything Pillow cannot read is a mistake the person can fix, not a server error."""
+    try:
+        return ImageColor.getrgb(str(value))
+    except ValueError:
+        raise Fail("That colour is not valid.")
+
+
 def encode(im, fmt, quality=90, bg="#ffffff"):
     if fmt not in FORMATS:
         raise Fail("Unknown image format.")
     name, mime, _ = FORMATS[fmt]
     if fmt == "jpeg":
-        flat = Image.new("RGB", im.size, ImageColor.getrgb(bg))
+        flat = Image.new("RGB", im.size, color(bg))
         flat.paste(im, mask=im.getchannel("A"))
         im = flat
     buf = io.BytesIO()
     try:
-        im.save(buf, name, quality=int(max(1, min(100, quality))))
-    except (KeyError, OSError, ValueError):
+        im.save(buf, name, quality=int(max(1, min(100, float(quality)))))
+    except (KeyError, OSError, ValueError, TypeError):
         raise Fail(f"The server can't save {fmt.upper()} files. Pick another format.")
     return buf.getvalue(), mime
 
@@ -119,7 +127,7 @@ def render_layers(state, sources):
     """Compose the artboard exactly as the page's canvas does: crop, scale, flip, filter, rotate, then draw."""
     art = state.get("art") or {}
     w, h = check_size(art.get("w", 0), art.get("h", 0))
-    base = (0, 0, 0, 0) if art.get("transp") else ImageColor.getrgb(art.get("bg", "#ffffff")) + (255,)
+    base = (0, 0, 0, 0) if art.get("transp") else color(art.get("bg", "#ffffff")) + (255,)
     canvas = Image.new("RGBA", (w, h), base)
     cache = {}
     for L in state.get("layers", []):

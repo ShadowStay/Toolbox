@@ -132,7 +132,7 @@ PATTERNS = {
 
 
 def natural_key(s):
-    return [int(t) if t.isdigit() else t.casefold() for t in re.split(r"(\d+)", s)]
+    return [int(t) if i % 2 else t.casefold() for i, t in enumerate(re.split(r"(\d+)", s))]   # odd positions are the digit runs
 
 
 # ---------- actions: (params, text, arg) -> (text, message) ----------

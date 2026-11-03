@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Tabletop</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Uncial+Antiqua&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/shared/site.css">
+  <link rel="stylesheet" href="/tabletop.css">
+</head>
+<body>
+  <aside id="site-nav" aria-label="Main navigation"></aside>
+  <main class="page wide">
+    <h1 class="tool-title">Tabletop</h1>
+    <details class="tool-about">
+      <summary>About</summary>
+      <p>Tabletop RPG tools, per campaign. Character sheets and enemy sheets are stored on the server (a character can have a password). Dice are rolled by the server into a log shared by everyone on the page. The map has tokens, walls, doors, fog of war, distance measuring and a combat tracker (initiative, turn order, effect durations). <span class="dm-only">The Dungeon Master HQ tab (enemies, campaigns, dungeon master password) is shown to the dungeon master only.</span></p>
+    </details>
+    <div id="rolebar" aria-live="polite"></div>
+    <div class="tabs viewtabs" role="tablist" aria-label="Tabletop views">
+      <button class="tab" role="tab" data-view="sheet" aria-selected="true">Character sheet</button>
+      <button class="tab" role="tab" data-view="map" aria-selected="false">Map</button>
+      <button class="tab dmtab dm-only" role="tab" data-view="dm" aria-selected="false">☠ Dungeon Master HQ</button>
+      <button class="btn small tabset" type="button" id="tt-settings-open" title="Tabletop settings">⚙ Settings</button>
+    </div>
+    <div id="view-sheet">
+    <div class="charbar">
+      <label class="field">Character <select id="chars"></select></label>
+      <div class="actions">
+        <button class="btn primary" type="button" data-act="new">New character</button>
+        <button class="btn" type="button" data-act="duplicate">Duplicate</button>
+        <button class="btn" type="button" data-act="password" title="Protect this character with a password">🔒 Password…</button>
+        <button class="btn" type="button" data-act="relock" hidden title="Close this character again in this browser">Lock now</button>
+        <button class="btn" type="button" data-act="export">Export</button>
+        <label class="btn" tabindex="0" id="import-label">Import<input type="file" id="import" accept=".json,application/json" hidden></label>
+        <button class="btn" type="button" data-act="delete">Delete</button>
+      </div>
+    </div>
+    <p class="status" id="status" role="status" aria-live="polite"></p>
+    <div class="table">
+      <div class="sheet-wrap">
+        <div class="sheetbar">
+          <button class="btn primary" type="button" id="apply-class" title="Fills the base values of the class in Kaszt, then calculates Fegyver nélkül, Max. Ép, Max. Fp and the Ψ pajzs ME values. Every box stays editable.">Apply class &amp; calculate</button>
+        </div>
+        <div class="tabs" role="tablist" aria-label="Sheet pages">
+          <button class="tab" role="tab" data-page="1" aria-selected="true">Character</button>
+          <button class="tab" role="tab" data-page="2" aria-selected="false">Skills &amp; gear</button>
+        </div>
+        <div class="sheet" id="sheet"></div>
+      </div>
+      <aside class="dice" id="dice-sheet" aria-label="Dice roller"></aside>
+    </div>
+    </div>
+    <dialog id="pw-dialog" class="dlg" aria-labelledby="pw-title">
+      <form id="pw-form">
+        <h2 id="pw-title">Locked character</h2>
+        <p class="hint nomargin" id="pw-text"></p>
+        <label class="field">Password <input type="password" id="pw-input" autocomplete="off"></label>
+        <p class="status" id="pw-status" role="alert"></p>
+        <div class="actions"><button class="btn" type="button" id="pw-cancel">Cancel</button><button class="btn primary" type="submit">Unlock</button></div>
+      </form>
+    </dialog>
+    <dialog id="lock-dialog" class="dlg" aria-labelledby="lock-title">
+      <form id="lock-form">
+        <h2 id="lock-title">Password for this character</h2>
+        <p class="hint nomargin" id="lock-text"></p>
+        <label class="field">New password <input type="password" id="lock-new" autocomplete="new-password"></label>
+        <label class="field">Repeat the password <input type="password" id="lock-new2" autocomplete="new-password"></label>
+        <p class="status" id="lock-status" role="alert"></p>
+        <div class="actions">
+          <button class="btn" type="button" id="lock-remove" hidden>Remove password</button>
+          <button class="btn" type="button" id="lock-cancel">Cancel</button>
+          <button class="btn primary" type="submit" id="lock-save">Set password</button>
+        </div>
+      </form>
+    </dialog>
+    <dialog id="tt-settings" aria-labelledby="tt-settings-title">
+      <h2 id="tt-settings-title">Tabletop settings</h2>
+      <fieldset>
+        <legend>Character sheet</legend>
+        <label class="switch-row">
+          <span><strong>Show spent HM next to the stat</strong><small>A “+3 HM” label next to KÉ, TÉ, VÉ and CÉ, like the race modifier next to the main stats. Click a stat's title to see how it is calculated.</small></span>
+          <input type="checkbox" role="switch" id="set-hm" checked>
+        </label>
+      </fieldset>
+      <div class="opt-actions"><button class="opt-done" type="button" id="tt-settings-close">Done</button></div>
+    </dialog>
+    <div id="view-map" hidden aria-label="Tabletop map">
+      <div class="rolebar">
+        <span class="pill dm-only" id="hidden-badge" hidden>Hidden from players</span>
+      </div>
+      <div class="mapbar">
+        <label class="field">Add to the map <select id="map-add"></select></label>
+        <div class="actions">
+          <button class="btn primary" type="button" id="map-add-go">Add</button>
+          <button class="btn" type="button" id="map-remove" disabled>Remove selected</button>
+          <button class="btn" type="button" data-tool="measure" aria-pressed="false" title="Measure a distance: click or drag from one spot to another">📏 Measure</button>
+        </div>
+        <div class="measure-opts" id="measure-opts" hidden>
+          <label class="field">1 tile = <input type="text" id="measure-scale" inputmode="decimal" autocomplete="off" placeholder="optional"></label>
+          <label class="field">Unit <input type="text" id="measure-unit" maxlength="6" autocomplete="off" value="m"></label>
+        </div>
+        <label class="field size">Token size <input type="range" id="map-size" min="44" max="140" value="76"></label>
+      </div>
+      <div class="dmbar dm-only">
+        <div class="toolgroup" role="group" aria-label="Map tools">
+          <button class="btn" type="button" data-tool="move" aria-pressed="true">Move</button>
+          <button class="btn" type="button" data-tool="wall" aria-pressed="false">Draw walls</button>
+          <button class="btn" type="button" data-tool="door" aria-pressed="false">Place doors</button>
+          <button class="btn small" type="button" id="chain-end" hidden>Finish wall</button>
+        </div>
+        <div class="toolgroup" role="group" aria-label="Selected door">
+          <button class="btn" type="button" id="door-toggle" disabled>Open / close door</button>
+          <button class="btn" type="button" id="door-lock" disabled>Lock door</button>
+        </div>
+        <label class="field vis">Player sight (squares) <input type="number" id="map-vision" min="1" max="20" value="7"></label>
+        <div class="toolgroup">
+          <button class="btn" type="button" id="map-hide">Hide map from players</button>
+          <label class="check"><input type="checkbox" id="fog-preview" checked> Show the players' fog</label>
+          <button class="btn" type="button" id="fog-reset">Reset explored area</button>
+          <button class="btn" type="button" id="saves-open">Save / load…</button>
+          <button class="btn" type="button" id="combat-open" title="Open the initiative tab to start or run a combat">⚔ Combat</button>
+        </div>
+      </div>
+      <p class="status" id="map-status" role="status" aria-live="polite"></p>
+      <div class="mapwrap viewpanel">
+      <div class="mapframe">
+        <div class="boardwrap">
+        <div class="mapboard" id="map" aria-label="Map board">
+          <svg class="geo" id="geo" viewBox="0 0 16 10" preserveAspectRatio="none" aria-hidden="true">
+            <g id="g-geo"></g>
+            <line class="pv" id="pv" hidden></line>
+            <line class="measure" id="m-line" hidden></line>
+          </svg>
+          <div class="mdot" id="m-a" hidden></div><div class="mdot" id="m-b" hidden></div>
+          <div class="mlabel" id="m-label" hidden></div>
+          <img class="fog" id="fog" alt="" hidden>
+          <div class="mapcover" id="mapcover" hidden><div><strong>The dungeon master is setting up the map.</strong><br>It will appear here when it is ready.</div></div>
+        </div>
+        <!-- The sidebar pops out over the right edge of the board: Ép / Fp of everybody, and the initiative order of a combat. -->
+        <aside class="drawer" id="drawer" aria-label="Ép, Fp and initiative">
+          <button class="drawer-tab" id="drawer-tab" type="button" aria-expanded="false" aria-controls="drawer-body" title="Show the Ép and Fp of everybody">
+            <span id="drawer-tab-text">Ép / Fp</span><small id="drawer-tab-sub" hidden></small>
+          </button>
+          <div class="drawer-body" id="drawer-body" inert>
+            <div class="drawer-head">
+              <div class="dtabs" role="tablist" aria-label="Sidebar">
+                <button class="dtab" type="button" role="tab" data-dtab="hp" aria-selected="true">Ép &amp; Fp</button>
+                <button class="dtab" type="button" role="tab" data-dtab="init" aria-selected="false">Initiative</button>
+              </div>
+              <button class="drawer-close" id="drawer-close" type="button" aria-label="Close the sidebar" title="Close">✕</button>
+            </div>
+            <div class="dpanel" data-dpanel="hp">
+              <h2>Party</h2>
+              <ul class="sidelist" id="side-party"></ul>
+              <div class="dm-only">
+                <h2>Enemies</h2>
+                <ul class="sidelist" id="side-enemies"></ul>
+              </div>
+            </div>
+            <div class="dpanel" data-dpanel="init" id="init-panel" hidden></div>
+          </div>
+        </aside>
+        </div>
+      </div>
+      <aside class="mapside" aria-label="Dice">
+        <div class="dice" id="dice-map" aria-label="Dice roller"></div>
+      </aside>
+      </div>
+      <p class="empty-note" id="map-empty" hidden>Nobody is on the map.</p>
+    </div>
+    <dialog id="saves" aria-labelledby="saves-title">
+      <h2 id="saves-title">Save and load maps</h2>
+      <div class="savebar">
+        <label class="field">Save the current map as <input type="text" id="save-name" maxlength="60" autocomplete="off" spellcheck="false" placeholder="Map name"></label>
+        <button class="btn primary" type="button" id="save-go">Save</button>
+      </div>
+      <ul class="savelist" id="save-list"></ul>
+      <p class="status" id="save-status" role="status"></p>
+      <div class="actions"><button class="btn" type="button" id="saves-close">Close</button></div>
+    </dialog>
+    <dialog id="token-dialog" class="dlg" aria-labelledby="token-title">
+      <h2 id="token-title"></h2>
+      <div id="token-body"></div>
+      <p class="status" id="token-status" role="status"></p>
+      <div class="actions"><button class="btn" type="button" id="token-close">Close</button></div>
+    </dialog>
+    <section id="view-dm" hidden aria-label="Dungeon Master HQ">
+    <div class="charbar" id="dm-bar">
+      <label class="field">Enemy <select id="enemies"></select></label>
+      <div class="actions">
+        <button class="btn primary" type="button" data-act="new">New enemy</button>
+        <button class="btn" type="button" data-act="duplicate">Duplicate</button>
+        <label class="count" title="How many of this enemy to put on the map. Each one gets its own HP."><span>×</span><input type="number" id="dm-count" min="1" max="20" value="1" aria-label="How many to add to the map"></label>
+        <button class="btn" type="button" data-act="map">Add to map</button>
+        <button class="btn" type="button" data-act="export">Export</button>
+        <label class="btn" tabindex="0" id="dm-import-label">Import<input type="file" id="dm-import" accept=".json,application/json" hidden></label>
+        <button class="btn" type="button" data-act="delete">Delete</button>
+      </div>
+    </div>
+    <p class="status" id="dm-status" role="status" aria-live="polite"></p>
+    <div class="sheet viewpanel" id="dm-sheet">
+      <div class="dm-grid">
+        <section class="card ident">
+          <label class="f nm"><span>Az ellenfél neve</span><input type="text" data-k="name" autocomplete="off" spellcheck="false"></label>
+          <label class="f in"><span>Típus / faj</span><input type="text" data-k="kind" autocomplete="off" spellcheck="false"></label>
+          <div class="portrait" id="dm-portrait" tabindex="0" role="button" aria-label="Choose a portrait"><img id="dm-portrait-img" alt="Portrait" hidden><span id="dm-portrait-hint">Click to add a portrait</span></div>
+          <input type="file" id="dm-portrait-file" accept="image/*" hidden>
+          <button class="btn small" type="button" id="dm-portrait-clear">Remove portrait</button>
+        </section>
+        <section class="card dm-hp">
+          <h3>Életerő</h3>
+          <div class="pair">
+            <label class="f"><span>Akt. Ép</span><input type="text" data-k="hp.curep" inputmode="numeric" autocomplete="off"></label>
+            <label class="f"><span>Max. Ép</span><input type="text" data-k="hp.maxep" inputmode="numeric" autocomplete="off"></label>
+          </div>
+          <div class="pair">
+            <label class="f"><span>Akt. Fp</span><input type="text" data-k="hp.curfp" inputmode="numeric" autocomplete="off"></label>
+            <label class="f"><span>Max. Fp</span><input type="text" data-k="hp.maxfp" inputmode="numeric" autocomplete="off"></label>
+          </div>
+          <div class="hurt">
+            <label class="f"><span>Amount</span><input type="text" id="dm-amount" value="1" inputmode="numeric" autocomplete="off"></label>
+            <button class="btn" type="button" data-hp="full" title="Set Akt. Ép and Akt. Fp to their maximum">Full HP</button>
+            <button class="btn" type="button" data-hp="fp" title="Add the amount to Akt. Fp (not above Max. Fp)">Heal FP</button>
+            <button class="btn" type="button" data-hp="ep" title="Add the amount to Akt. Ép (not above Max. Ép)">Heal HP</button>
+          </div>
+        </section>
+        <section class="card dm-combat">
+          <h3>Harci értékek</h3>
+          <div class="pair">
+            <label class="f"><span>KÉ</span><input type="text" data-k="ke" inputmode="numeric" autocomplete="off"></label>
+            <label class="f"><span>TÉ</span><input type="text" data-k="te" inputmode="numeric" autocomplete="off"></label>
+          </div>
+          <div class="pair">
+            <label class="f"><span>VÉ</span><input type="text" data-k="ve" inputmode="numeric" autocomplete="off"></label>
+            <label class="f"><span>CÉ</span><input type="text" data-k="ce" inputmode="numeric" autocomplete="off"></label>
+          </div>
+          <label class="f"><span>Tám./kör</span><input type="text" data-k="tam" inputmode="numeric" autocomplete="off"></label>
+        </section>
+        <section class="card dm-attacks">
+          <h3>Támadások</h3>
+          <div class="tbl attacks"><table>
+            <thead><tr><th>Támadás</th><th>Tám/kör</th><th>TÉ</th><th>Sebzés</th><th>Leírás</th></tr></thead>
+            <tbody id="dm-attacks"></tbody>
+          </table></div>
+        </section>
+        <section class="card dm-notes">
+          <label class="f"><span>Különleges képességek</span><textarea data-k="abilities" rows="5" spellcheck="false"></textarea></label>
+          <label class="f"><span>Zsákmány</span><textarea data-k="loot" rows="5" spellcheck="false"></textarea></label>
+          <label class="f"><span>Jegyzetek</span><textarea data-k="notes" rows="5" spellcheck="false"></textarea></label>
+        </section>
+      </div>
+    </div>
+    <details class="card settings" id="dm-settings">
+      <summary>Campaigns &amp; dungeon master password</summary>
+      <div class="settings-grid">
+        <div class="settings-col">
+          <h3>Campaigns</h3>
+          <div class="actions">
+            <button class="btn" type="button" data-camp="new">New campaign</button>
+            <button class="btn" type="button" data-camp="rename">Rename this campaign</button>
+            <button class="btn" type="button" data-camp="delete">Delete this campaign</button>
+          </div>
+        </div>
+        <form class="settings-col" id="dm-pw-change">
+          <h3>Dungeon master password</h3>
+          <p class="hint nomargin" id="dm-pw-note"></p>
+          <label class="f"><span>Current password</span><input type="password" id="dm-pw-cur" autocomplete="current-password"></label>
+          <label class="f"><span>New password (at least 4 characters)</span><input type="password" id="dm-pw-new" autocomplete="new-password"></label>
+          <label class="f"><span>Repeat the new password</span><input type="password" id="dm-pw-new2" autocomplete="new-password"></label>
+          <div class="actions"><button class="btn primary" type="submit" id="dm-pw-go">Change password</button></div>
+        </form>
+      </div>
+    </details>
+    </section>
+  </main>
+  <script src="/shared/site.js"></script>
+  <script src="/tabletop.js"></script>
+</body>
+</html>

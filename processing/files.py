@@ -357,7 +357,7 @@ def export_pdf(e, o, fmt):
             f = "png" if fmt == "png-page" else "jpeg"
             return page_png(doc, n, 2, f), "image/" + f
         if fmt in ("png-all", "jpg-all"):
-            return zip_pages(doc, fmt[:3], re.sub(r"\.[^.]+$", "", e["name"]) or "file")
+            return zip_pages(doc, "png" if fmt == "png-all" else "jpeg", re.sub(r"\.[^.]+$", "", e["name"]) or "file")
         if fmt == "txt":
             text = pdf_text(doc)
             if not text: raise Fail("No text found. This PDF may be a scan or only contain images.")

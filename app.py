@@ -8,7 +8,7 @@ from flask import Flask, Response, abort, jsonify, redirect, request, send_from_
 from auth import init_auth, is_authed
 from board import bp as board_bp
 from chat import bp as chat_bp
-# from processing import bp as processing_bp
+from processing import bp as processing_bp
 from storage import bp as storage_bp
 
 BASE = Path(__file__).parent.resolve()
@@ -38,7 +38,7 @@ TOOLS = {
     "cloud-storage": ("☁", "Shared file storage, 500 GB, resumable uploads."),
     "fortune-wheel": ("✺", "Random pick from a list of entries."),
     "live": ("☄", "Chat room with voice, screen sharing and a drawing board."),
-    "tabletop": ("✠", "Character sheets, dice log, battle map with fog of war, combat tracker."),
+    "tabletop": ("✠", "Character sheets, dice, a shared battle map with fog of war, and the dungeon master's HQ."),
 }
 LABELS = {}                                             # names that title-casing the file name would get wrong
 FALLBACK = ("✦", "")
@@ -52,14 +52,6 @@ def origin() -> str:
 
 def option(name: str, allowed: tuple, default: str) -> str:
     value = request.cookies.get("spells_" + name)
-    # Remove animations by default
-    if name == "motion" and default == "off":
-        return "off"
-    return value if value in allowed else default
-    value = request.cookies.get("spells_" + name)
-    # Remove animations by default
-    if name == "motion" and default == "off":
-        return "off"
     return value if value in allowed else default
 
 
@@ -154,8 +146,6 @@ def safe_headers(resp):
     resp.headers.setdefault("Referrer-Policy", "same-origin")
     resp.headers.setdefault("X-Frame-Options", "SAMEORIGIN")
     return resp
-
-    # All the routes for tabletop are now handled by the generic <path:url> pattern in the main routing
 
 
 @app.route("/robots.txt")

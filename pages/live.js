@@ -969,7 +969,11 @@
       render();
       fire("disconnect");
       say("Disconnected. Reconnecting…", true);
-      retry = setTimeout(connect, 3000);
+      retry = setTimeout(async () => {
+        // EventSource cannot see why it failed. If the sign-in has expired, retrying would never succeed: sign in again.
+        try { if ((await fetch("/api/pages", { credentials: "same-origin" })).status === 401) return location.reload(); } catch { /* offline: try again below */ }
+        connect();
+      }, 3000);
     };
   }
 

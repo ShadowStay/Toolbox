@@ -1,0 +1,9 @@
+__pycache__/chat.cpython-314.pyc
+app.py.bak
+pages/dungeon-master-hq.css
+pages/tabletop/character-sheet.html
+pages/tabletop/map.html
+pages/tabletop/tabletop-dice.js
+pages/tabletop/tabletop-dm.js
+pages/tabletop/tabletop-map.css
+pages/tabletop/tabletop-map.js
