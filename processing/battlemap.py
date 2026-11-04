@@ -149,7 +149,8 @@ def summary(kind, ref):
         return None
     path = KINDS[kind].directory() / f"{ref}.json"
     try:
-        stamp = path.stat().st_mtime_ns
+        st = path.stat()
+        stamp = (st.st_mtime_ns, st.st_size, st.st_ino)          # every save replaces the file, so a coarse clock cannot hide a change
     except OSError:
         return None
     hit = _cache.get(str(path))
@@ -930,7 +931,9 @@ def save_path(sid):
 def read_save(path):
     try:
         d = json.loads(path.read_text(encoding="utf-8"))
-        return d if isinstance(d, dict) and isinstance(d.get("doc"), dict) else None
+        ok = isinstance(d, dict) and isinstance(d.get("doc"), dict) and isinstance(d.get("id"), str) \
+            and isinstance(d.get("name"), str) and isinstance(d.get("saved"), (int, float))
+        return d if ok else None
     except (OSError, ValueError):
         return None
 

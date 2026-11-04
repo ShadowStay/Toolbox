@@ -18,7 +18,7 @@ import uuid
 from flask import jsonify, request
 
 from . import campaigns
-from .characters import ID, clean, portrait_response
+from .characters import ID, MAX_SHEETS, clean, portrait_response
 from .core import Fail, bp
 from .roles import need_dm
 
@@ -73,6 +73,8 @@ def enemies_list():
 def enemies_create():
     need_dm()
     d = request.get_json(silent=True) or {}
+    if directory().is_dir() and sum(1 for _ in directory().glob("*.json")) >= MAX_SHEETS:
+        raise Fail("This campaign has too many enemies. Delete some first.")
     eid = uuid.uuid4().hex
     write(eid, d.get("data") or {})
     return jsonify(id=eid)

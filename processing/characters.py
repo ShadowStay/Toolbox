@@ -39,6 +39,7 @@ from .roles import current_role
 
 ID = re.compile(r"^[0-9a-f]{32}$")
 MAX_KEYS, MAX_VALUE, MAX_PORTRAIT = 1500, 20_000, 700_000
+MAX_SHEETS = 200                              # per campaign (characters, and enemies in enemies.py)
 MIN_PW, MAX_PW = 3, 200
 UNLOCK_COOKIE, UNLOCK_AGE, MAX_UNLOCKED = "spells_unlocked", 30 * 24 * 3600, 60
 _lock = threading.RLock()
@@ -161,6 +162,8 @@ def characters_list():
 @bp.post("/characters")
 def characters_create():
     d = request.get_json(silent=True) or {}
+    if directory().is_dir() and sum(1 for _ in directory().glob("*.json")) >= MAX_SHEETS:
+        raise Fail("This campaign has too many characters. Delete some first.")
     cid = uuid.uuid4().hex
     write(cid, d.get("data") or {})
     return jsonify(id=cid)

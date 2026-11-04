@@ -127,15 +127,17 @@ def role_set():
     if role not in ("player", "dm"):
         raise Fail("Choose player or dungeon master.")
     if role == "dm" and current_role() != "dm":                    # already the DM: no need to type it again
-        pin = d.get("pin")
+        pin, wrong = d.get("pin"), False
         with _lock:
             if dm_source() is None:
                 if d.get("create") is not True:
                     raise Fail("No dungeon master password has been chosen yet.")
                 _store(_valid_new(pin))
-            elif not _check(pin):
-                time.sleep(1)                                      # slows down guessing
-                raise Fail("That is not the dungeon master password.")
+            else:
+                wrong = not _check(pin)
+        if wrong:
+            time.sleep(1)                                          # slows down guessing (outside the lock: it must not block the real dungeon master)
+            raise Fail("That is not the dungeon master password.")
     return _answer(role)
 
 
@@ -147,8 +149,10 @@ def role_password():
     d = request.get_json(silent=True) or {}
     new = _valid_new(d.get("new"))
     with _lock:
-        if not _check(d.get("current")):
-            time.sleep(1)
-            raise Fail("The current password is not right.")
-        _store(new)
+        right = _check(d.get("current"))
+        if right:
+            _store(new)
+    if not right:
+        time.sleep(1)
+        raise Fail("The current password is not right.")
     return _answer("dm")                                          # a fresh cookie for this browser; the others are signed out
