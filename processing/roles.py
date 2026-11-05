@@ -24,8 +24,9 @@ from flask import abort, jsonify, request
 from itsdangerous import BadSignature, URLSafeTimedSerializer
 from werkzeug.security import check_password_hash, generate_password_hash
 
-from auth import DATA, _secret
-from .core import Fail, bp
+from . import DATA, _secret
+from errors import Fail
+from . import bp
 
 COOKIE = "spells_role"
 MAX_AGE = 30 * 24 * 3600

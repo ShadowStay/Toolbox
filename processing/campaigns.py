@@ -31,8 +31,9 @@ import uuid
 
 from flask import jsonify, request
 
-from auth import DATA
-from .core import Fail, bp
+from . import DATA
+from errors import Fail
+from . import bp
 from .roles import need_dm
 
 ROOT = DATA / "campaigns"

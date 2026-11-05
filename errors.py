@@ -1,7 +1,7 @@
 """Errors shared by every API blueprint. Raise Fail("message") for a mistake the person can fix (answered with 400 and
 the message); anything unexpected is logged on the server and answered with a plain 500, so file paths and library
 messages never reach the browser."""
-from flask import current_app, jsonify
+from flask import Response, current_app, jsonify
 from werkzeug.exceptions import HTTPException
 
 
@@ -22,3 +22,7 @@ def handle_errors(bp, fallback="The server could not do that."):
     def _boom(e):
         current_app.logger.exception("Unhandled error in %s", bp.name)
         return jsonify(error=fallback), 500
+
+
+def send_bytes(data: bytes, mimetype: str) -> Response:
+    return Response(data, mimetype=mimetype, headers={"Cache-Control": "no-store"})

@@ -19,7 +19,8 @@ from flask import jsonify, request
 
 from . import campaigns
 from .characters import ID, MAX_SHEETS, clean, portrait_response
-from .core import Fail, bp
+from errors import Fail
+from . import bp
 from .roles import need_dm
 
 _lock = threading.Lock()

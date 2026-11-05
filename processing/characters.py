@@ -32,9 +32,10 @@ from flask import Response, abort, jsonify, request
 from itsdangerous import BadSignature, URLSafeTimedSerializer
 from werkzeug.security import check_password_hash, generate_password_hash
 
-from auth import BASE, _secret
+from . import BASE, _secret
 from . import campaigns
-from .core import Fail, bp
+from errors import Fail
+from . import bp
 from .roles import current_role
 
 ID = re.compile(r"^[0-9a-f]{32}$")

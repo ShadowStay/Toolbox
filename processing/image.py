@@ -12,7 +12,8 @@ import numpy as np
 from flask import request
 from PIL import Image, ImageColor, ImageFilter, ImageOps
 
-from .core import Fail, bp, send_bytes
+from errors import Fail, send_bytes
+from . import bp
 
 Image.MAX_IMAGE_PIXELS = 200_000_000
 MAX_PIXELS, MAX_SIDE = 50_000_000, 16384

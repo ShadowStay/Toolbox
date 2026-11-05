@@ -16,7 +16,8 @@ import time
 from flask import jsonify, request
 
 from .campaigns import current_id
-from .core import Fail, bp
+from errors import Fail
+from . import bp
 from .roles import current_role
 
 KEEP = 100

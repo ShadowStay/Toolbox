@@ -623,7 +623,7 @@ window.SheetUtils = {
 })();
 
 // ====================================================================================================
-// 4. Views, map, sidebar drawer, measuring tool
+// 4. Views, map, the three sliders, measuring tool
 // ====================================================================================================
 
 // Tabletop views and map (the tabs of pages/tabletop.html: Character sheet, Map and, for the dungeon master, Dungeon Master HQ; server side: processing/battlemap.py and roles.py).
@@ -634,8 +634,11 @@ window.SheetUtils = {
 (function () {
   const $ = (s) => document.querySelector(s);
   const api = window.Options;
-  const CW = 16, CH = 10;                                   // the board is 16 x 10 squares
-  const board = $("#map"), geoG = $("#g-geo"), pv = $("#pv"), fogImg = $("#fog"), cover = $("#mapcover");
+  // The board is cols x rows squares (set by the dungeon master) of CELL pixels each. Tokens are always TOK pixels wide, so a
+  // bigger map is simply more play area. Everything on the board (tokens, walls, doors, windows) is stored in squares.
+  const CELL = 64, TOK = 56, MARGIN = 0.12;
+  let cols = 16, rows = 10;
+  const board = $("#map"), viewport = $("#viewport"), geoG = $("#g-geo"), pv = $("#pv"), fogImg = $("#fog"), cover = $("#mapcover"), segMenu = $("#seg-menu");
   const status = $("#map-status"), addSel = $("#map-add");
   const say = (text, error) => { status.textContent = text; status.classList.toggle("error", !!error); };
   async function run(fn) { try { await fn(); } catch (err) { say(err.message || String(err), true); } }
@@ -649,7 +652,8 @@ window.SheetUtils = {
   const isDM = () => window.Role.get() === "dm";
   const num1 = (v) => +v.toFixed(1);
 
-  let data = { tokens: [], walls: [], doors: [], hidden: false, vision: 7, fog: null };
+  let data = { tokens: [], walls: [], doors: [], windows: [], hidden: false, vision: 7, cols: 16, rows: 10, fog: null };
+  const SEG = { wall: "walls", door: "doors", window: "windows" };                    // the kinds of wall part, and their lists
   let tool = "move", chain = null, gesture = null;
   let sel = { type: "", id: "" };
 
@@ -664,6 +668,7 @@ window.SheetUtils = {
     store.set("tabletop-view", name);
     clearInterval(timer);
     if (name === "map") {
+      centered = false;
       applyRole();
       run(async () => { await loadChoices(); await refresh(); });
       timer = setInterval(() => { if (!document.hidden) run(refresh); }, 2000);
@@ -779,7 +784,7 @@ window.SheetUtils = {
     badge.textContent = "✦" + fx.length;
     el.classList.toggle("fixed", !canMove(t));
     el.classList.toggle("mine", t.kind === "character" && !!window.Dice.as() && t.ref === window.Dice.as().id);   // the character you play
-    if (!busy.has(t.id)) { el.style.left = t.x * 100 + "%"; el.style.top = t.y * 100 + "%"; }
+    if (!busy.has(t.id)) { el.style.left = t.x * CELL + "px"; el.style.top = t.y * CELL + "px"; }
     el.classList.toggle("sel", sel.type === "token" && sel.id === t.id);
   }
   const canMove = (t) => isDM() || t.kind === "character";
@@ -815,7 +820,7 @@ window.SheetUtils = {
     return li;
   }
   function renderSide() {
-    const side = $("#drawer"), dm = isDM();
+    const side = $("#drawer-hp"), dm = isDM();
     const rows = data.tokens.filter((t) => t.kind === "character" || dm);
     const sig = JSON.stringify([dm, [...showMax], rows.map((t) => [t.id, t.kind, t.name, t.hp, t.max, t.fp, t.fpmax, t.editable])]);
     if (sig === sideSig) return;
@@ -829,11 +834,11 @@ window.SheetUtils = {
     try { await api.json(`/api/map/tokens/${id}/stats`, { [field]: value }); }
     finally { sideSig = ""; await refresh(); }                   // on an error the box goes back to the stored number
   }
-  $("#drawer").addEventListener("change", (e) => {
+  $("#drawer-hp").addEventListener("change", (e) => {
     const input = e.target.closest("input[data-f]"), li = input && input.closest(".srow");
     if (li) run(() => setStat(li.dataset.id, input.dataset.f, input.value));
   });
-  $("#drawer").addEventListener("click", (e) => {
+  $("#drawer-hp").addEventListener("click", (e) => {
     const li = e.target.closest(".srow");
     if (!li) return;
     const t = data.tokens.find((x) => x.id === li.dataset.id);
@@ -851,63 +856,99 @@ window.SheetUtils = {
       await refresh();
     });
   });
-  $("#drawer").addEventListener("dblclick", (e) => {
+  $("#drawer-hp").addEventListener("dblclick", (e) => {
     const li = e.target.closest(".srow");
     if (li && e.target.closest("[data-select]")) window.TableMap.openToken(li.dataset.id);
   });
 
-  // ---------- the sidebar that pops out over the board ----------
-  // Closed, only its tab shows at the right edge of the board. Two tabs inside: Ép & Fp, and Initiative (this file).
-  function showDTab(name) {
-    document.querySelectorAll("[data-dtab]").forEach((b) => b.setAttribute("aria-selected", String(b.dataset.dtab === name)));
-    document.querySelectorAll("[data-dpanel]").forEach((p) => { p.hidden = p.dataset.dpanel !== name; });
-    store.set("tabletop-dtab", name);
+  // ---------- the three sliders that pop out over the right edge of the map ----------
+  // Combat (initiative, this file's last part), Ép & Fp, and Dice: each has a tab on the edge and its own slider. One is open
+  // at a time; clicking its tab again, the ✕ or Escape closes it.
+  const DRAWERS = ["init", "hp", "dice"];
+  const drawerEl = (n) => $("#drawer-" + n), tabEl = (n) => document.querySelector(`.dock-tab[data-drawer="${n}"]`);
+  function setDrawer(n, on) {
+    drawerEl(n).classList.toggle("open", on);
+    drawerEl(n).inert = !on;
+    tabEl(n).setAttribute("aria-expanded", String(on));
   }
-  function openDrawer(tab) {
-    $("#drawer").classList.add("open");
-    $("#drawer-tab").setAttribute("aria-expanded", "true");
-    $("#drawer-body").inert = false;
-    showDTab(tab || store.get("tabletop-dtab") || "hp");
-  }
-  function closeDrawer() {
-    $("#drawer").classList.remove("open");
-    $("#drawer-tab").setAttribute("aria-expanded", "false");
-    $("#drawer-body").inert = true;
-  }
-  const drawerOpen = () => $("#drawer").classList.contains("open");
-  $("#drawer-tab").addEventListener("click", () => (drawerOpen() ? closeDrawer() : openDrawer()));
-  $("#drawer-close").addEventListener("click", () => { closeDrawer(); $("#drawer-tab").focus(); });
-  document.querySelectorAll("[data-dtab]").forEach((b) => b.addEventListener("click", () => showDTab(b.dataset.dtab)));
-  $("#combat-open").addEventListener("click", () => openDrawer("init"));
-  document.addEventListener("keydown", (e) => { if (e.key === "Escape" && drawerOpen() && $("#drawer").contains(document.activeElement)) { closeDrawer(); $("#drawer-tab").focus(); } });
+  const openDrawer = (name) => DRAWERS.forEach((n) => setDrawer(n, n === (DRAWERS.includes(name) ? name : "hp")));
+  const closeDrawer = () => DRAWERS.forEach((n) => setDrawer(n, false));
+  const drawerOpen = () => DRAWERS.some((n) => drawerEl(n).classList.contains("open"));
+  DRAWERS.forEach((n) => {
+    tabEl(n).addEventListener("click", () => (drawerEl(n).classList.contains("open") ? closeDrawer() : openDrawer(n)));
+    drawerEl(n).querySelector("[data-close]").addEventListener("click", () => { closeDrawer(); tabEl(n).focus(); });
+  });
+  document.addEventListener("keydown", (e) => {
+    if (e.key !== "Escape") return;
+    const n = DRAWERS.find((x) => drawerEl(x).classList.contains("open") && drawerEl(x).contains(document.activeElement));
+    if (n) { closeDrawer(); tabEl(n).focus(); }
+  });
 
   // What the token window and the initiative tab (the next sections) use of this section.
   window.TableMap = {
     data: () => data, refresh: () => refresh(), say, isDM, api, esc, run, statLine, toggleMax, setStat, effectText, showMax,
-    openDrawer, closeDrawer, showDTab, drawerOpen,
+    openDrawer, closeDrawer, drawerOpen,
     openToken() {},                                                              // set by this file
-    setTab(text, sub) {                                                          // the label of the sidebar's tab at the edge of the board
-      $("#drawer-tab-text").textContent = text;
-      $("#drawer-tab-sub").textContent = sub || "";
-      $("#drawer-tab-sub").hidden = !sub;
+    setTab(text, sub) {                                                          // the label of the Combat tab at the edge of the map
+      $("#tab-init-text").textContent = text;
+      $("#tab-init-sub").textContent = sub || "";
+      $("#tab-init-sub").hidden = !sub;
     },
   };
 
-  // ---------- walls and doors ----------
+  // ---------- panning: the board is dragged around in its window ----------
+  let pan = { x: 0, y: 0 }, panning = null, centered = false;
+  const applyPan = () => { board.style.transform = `translate(${pan.x}px, ${pan.y}px)`; };
+  function clampPan() {                                         // part of the board always stays in view
+    const keep = 120;
+    pan.x = clamp(pan.x, keep - cols * CELL, viewport.clientWidth - keep);
+    pan.y = clamp(pan.y, keep - rows * CELL, viewport.clientHeight - keep);
+  }
+  function centerBoard() {
+    pan = { x: (viewport.clientWidth - cols * CELL) / 2, y: (viewport.clientHeight - rows * CELL) / 2 };
+    clampPan(); applyPan(); hideSegMenu();
+  }
+  function sizeBoard() {
+    board.style.width = cols * CELL + "px";
+    board.style.height = rows * CELL + "px";
+    $("#geo").setAttribute("viewBox", `0 0 ${cols} ${rows}`);
+    geoSig = "";
+    clampPan(); applyPan();
+  }
+  $("#map-center").addEventListener("click", centerBoard);
+  addEventListener("resize", () => { clampPan(); applyPan(); });
+  viewport.addEventListener("pointerdown", (e) => {
+    if (e.target.closest(".dock, .drawer, .corner, .segmenu, .mapcover")) return;
+    const middle = e.button === 1;
+    if (!(middle || (e.button === 0 && tool === "move" && !drag && !e.target.closest(".token, .hit")))) return;
+    panning = { sx: e.clientX, sy: e.clientY, ox: pan.x, oy: pan.y };
+    board.classList.add("panning");
+    hideSegMenu();
+    viewport.setPointerCapture(e.pointerId);
+    e.preventDefault();
+  });
+  viewport.addEventListener("pointermove", (e) => {
+    if (!panning) return;
+    pan.x = panning.ox + e.clientX - panning.sx; pan.y = panning.oy + e.clientY - panning.sy;
+    clampPan(); applyPan();
+  });
+  const endPan = () => { panning = null; board.classList.remove("panning"); };
+  viewport.addEventListener("pointerup", endPan);
+  viewport.addEventListener("pointercancel", endPan);
+
+  // ---------- walls, doors and windows ----------
   let geoSig = "";
   function drawGeo() {
-    const sig = JSON.stringify([data.walls, data.doors, sel, isDM()]);
+    const sig = JSON.stringify([data.walls, data.doors, data.windows, sel, isDM()]);
     if (sig === geoSig) return;
     geoSig = sig;
     const line = (cls, o, extra = "") => `<line class="${cls}" x1="${o.x1}" y1="${o.y1}" x2="${o.x2}" y2="${o.y2}" ${extra}/>`;
-    const hit = (type, o) => line("hit", o, `data-t="${type}" data-id="${o.id}"`);
-    const isSel = (type, id) => sel.type === type && sel.id === id;
+    const hit = (type, o) => (isDM() ? line("hit", o, `data-t="${type}" data-id="${o.id}"`) : "");     // only the dungeon master clicks them
+    const isSel = (type, id) => (sel.type === type && sel.id === id ? " sel" : "");
     geoG.innerHTML =
-      data.walls.map((w) => line("wall" + (isSel("wall", w.id) ? " sel" : ""), w) + (isDM() ? hit("wall", w) : "")).join("") +
-      data.doors.map((d) => {
-        const lock = d.locked ? `<text class="lock" x="${(d.x1 + d.x2) / 2}" y="${(d.y1 + d.y2) / 2 - .35}">🔒</text>` : "";
-        return line(`door ${d.open ? "open" : "closed"}${d.locked ? " locked" : ""}${isSel("door", d.id) ? " sel" : ""}`, d) + hit("door", d) + lock;
-      }).join("");
+      data.walls.map((w) => line("wall" + isSel("wall", w.id), w) + hit("wall", w)).join("") +
+      data.windows.map((w) => line("window" + isSel("window", w.id), w) + hit("window", w)).join("") +
+      data.doors.map((d) => line(`door ${d.open ? "open" : "closed"}${isSel("door", d.id)}`, d) + hit("door", d)).join("");
   }
 
   // ---------- refreshing from the server ----------
@@ -922,6 +963,10 @@ window.SheetUtils = {
     $("#map-hide").textContent = data.hidden ? "Show map to players" : "Hide map from players";
     if (document.activeElement !== $("#map-vision")) $("#map-vision").value = data.vision;
     cover.hidden = !(data.hidden && !dm);
+    if (data.cols !== cols || data.rows !== rows) { cols = data.cols || 16; rows = data.rows || 10; sizeBoard(); }
+    if (document.activeElement !== $("#map-cols")) $("#map-cols").value = cols + 1;           // the size is given in grid lines
+    if (document.activeElement !== $("#map-rows")) $("#map-rows").value = rows + 1;
+    if (!centered && viewport.clientWidth) { centerBoard(); centered = true; }
 
     const ids = new Set(data.tokens.map((t) => t.id));
     for (const [id, el] of els) if (!ids.has(id)) { el.remove(); els.delete(id); busy.delete(id); if (sel.id === id) select("", ""); }
@@ -930,8 +975,7 @@ window.SheetUtils = {
       if (!el) { el = build(t); els.set(t.id, el); board.append(el); }
       paint(el, t);
     }
-    if (sel.type === "wall" && !data.walls.some((w) => w.id === sel.id)) select("", "");
-    if (sel.type === "door" && !data.doors.some((d) => d.id === sel.id)) select("", "");
+    if (SEG[sel.type] && !data[SEG[sel.type]].some((o) => o.id === sel.id)) select("", "");
     drawGeo();
     renderSide();
 
@@ -950,17 +994,67 @@ window.SheetUtils = {
     sel = { type, id };
     els.forEach((el, k) => el.classList.toggle("sel", type === "token" && k === id));
     document.querySelectorAll(".srow").forEach((li) => li.classList.toggle("sel", type === "token" && li.dataset.id === id));
+    if (!SEG[type]) hideSegMenu();
     geoSig = "";
     drawGeo();
     updateButtons();
   }
   function updateButtons() {
-    const door = sel.type === "door" ? data.doors.find((d) => d.id === sel.id) : null;
     const tok = sel.type === "token" ? data.tokens.find((t) => t.id === sel.id) : null;
     $("#map-remove").disabled = !sel.type || (!isDM() && !(tok && tok.kind === "character"));
-    $("#door-toggle").disabled = !door;
-    $("#door-lock").disabled = !door;
-    $("#door-lock").textContent = door && door.locked ? "Unlock door" : "Lock door";
+  }
+
+  // The dungeon master clicks a wall, door or window: a little menu next to the click says what it can become.
+  const segOf = () => (SEG[sel.type] ? data[SEG[sel.type]].find((o) => o.id === sel.id) : null);
+  function hideSegMenu() { segMenu.hidden = true; }
+  function showSegMenu(e) {
+    const o = segOf();
+    if (!o || !isDM()) return hideSegMenu();
+    const items = {
+      wall: [["Make a door", "convert:door"], ["Make a window", "convert:window"], ["Delete", "delete"]],
+      door: [[o.open ? "Close the door" : "Open the door", "toggle"], ["Back to a wall", "convert:wall"], ["Delete", "delete"]],
+      window: [["Back to a wall", "convert:wall"], ["Delete", "delete"]],
+    }[sel.type];
+    segMenu.innerHTML = `<div class="seg-title">${sel.type}</div>` + items.map(([label, act]) => `<button type="button" class="btn small${act === "toggle" ? " primary" : ""}" data-seg="${act}">${label}</button>`).join("");
+    segMenu.hidden = false;
+    const r = viewport.getBoundingClientRect();
+    segMenu.style.left = clamp(e.clientX - r.left + 8, 4, Math.max(4, r.width - segMenu.offsetWidth - 4)) + "px";
+    segMenu.style.top = clamp(e.clientY - r.top + 8, 4, Math.max(4, r.height - segMenu.offsetHeight - 4)) + "px";
+  }
+  segMenu.addEventListener("click", (e) => {
+    const b = e.target.closest("[data-seg]"), o = segOf();
+    if (!b || !o) return;
+    const kind = SEG[sel.type], act = b.dataset.seg, type = sel.type;
+    run(async () => {
+      if (act === "toggle") await api.json(`/api/map/doors/${o.id}/toggle`, {});
+      else if (act === "delete") { await api.json(`/api/map/${kind}/${o.id}/delete`, {}); select("", ""); }
+      else { const to = act.split(":")[1]; await api.json(`/api/map/${kind}/${o.id}/convert`, { to }); sel = { type: to, id: o.id }; }
+      hideSegMenu();
+      await refresh();
+      if (act === "toggle") say(o.open ? "Door closed." : "Door opened.");
+    });
+  });
+
+  // ---------- walls stop players ----------
+  // Walls, windows and closed doors stop a token a player drags (the server checks it again); the dungeon master drags tokens
+  // through them. A token is stopped a small margin before the first one in its way.
+  const rayHit = (px, py, dx, dy, x1, y1, x2, y2) => {
+    const ex = x2 - x1, ey = y2 - y1, den = dx * ey - dy * ex;
+    if (Math.abs(den) < 1e-12) return null;
+    const ax = x1 - px, ay = y1 - py, t = (ax * ey - ay * ex) / den, u = (ax * dy - ay * dx) / den;
+    return t >= 0 && u >= -1e-9 && u <= 1 + 1e-9 ? t : null;
+  };
+  function sweep(x0, y0, x1, y1) {
+    const dx = x1 - x0, dy = y1 - y0, len = Math.hypot(dx, dy);
+    if (len < 1e-9) return [x1, y1];
+    let first = 1;
+    for (const o of [...data.walls, ...data.windows, ...data.doors.filter((d) => !d.open)]) {
+      const h = rayHit(x0, y0, dx, dy, o.x1, o.y1, o.x2, o.y2);
+      if (h !== null && h > 1e-6 && h < first) first = h;
+    }
+    if (first >= 1) return [x1, y1];
+    const k = Math.max(0, first - MARGIN / len);
+    return [x0 + dx * k, y0 + dy * k];
   }
 
   // ---------- dragging tokens ----------
@@ -975,7 +1069,7 @@ window.SheetUtils = {
     if (!canMove(t)) return;
     busy.add(id);
     // Remember where inside the token the pointer grabbed it, so it does not jump to centre on the pointer.
-    drag = { id, el, r, dx: e.clientX - (r.left + t.x * r.width), dy: e.clientY - (r.top + t.y * r.height), x: t.x, y: t.y, moved: false };
+    drag = { id, el, r, dx: e.clientX - (r.left + t.x * CELL), dy: e.clientY - (r.top + t.y * CELL), x: t.x, y: t.y, path: [], moved: false };
     el.setPointerCapture(e.pointerId);
     e.preventDefault();
   });
@@ -983,32 +1077,40 @@ window.SheetUtils = {
     if (!drag) return;
     drag.moved = true;
     drag.el.classList.add("drag");
-    drag.x = clamp((e.clientX - drag.dx - drag.r.left) / drag.r.width, 0, 1);
-    drag.y = clamp((e.clientY - drag.dy - drag.r.top) / drag.r.height, 0, 1);
-    drag.el.style.left = drag.x * 100 + "%";
-    drag.el.style.top = drag.y * 100 + "%";
+    const tx = clamp((e.clientX - drag.dx - drag.r.left) / CELL, 0, cols), ty = clamp((e.clientY - drag.dy - drag.r.top) / CELL, 0, rows);
+    const [nx, ny] = isDM() ? [tx, ty] : sweep(drag.x, drag.y, tx, ty);
+    const last = drag.path[drag.path.length - 1] || [drag.x, drag.y];
+    if (!isDM() && Math.hypot(nx - last[0], ny - last[1]) > 0.25 && drag.path.length < 150) drag.path.push([+drag.x.toFixed(3), +drag.y.toFixed(3)]);   // the way it went, for the server
+    drag.x = nx; drag.y = ny;
+    drag.el.style.left = nx * CELL + "px";
+    drag.el.style.top = ny * CELL + "px";
   });
   async function drop() {
     if (!drag) return;
-    const { id, el, x, y, moved } = drag;
+    const { id, el, x, y, moved, path } = drag;
     drag = null;
     el.classList.remove("drag");
     if (!moved) { busy.delete(id); return; }
     const t = data.tokens.find((q) => q.id === id);
     if (t) { t.x = x; t.y = y; }
-    try { await api.json("/api/map/tokens/" + id, { x, y }); await refresh(); }
+    try {
+      const r = await api.json("/api/map/tokens/" + id, isDM() ? { x, y } : { x, y, path });
+      if (t) { t.x = r.x; t.y = r.y; }                         // where the server let it stand
+      await refresh();
+    }
     catch (err) { say(err.message || String(err), true); }
     busy.delete(id);
   }
   board.addEventListener("pointerup", drop);
   board.addEventListener("pointercancel", drop);
 
-  // ---------- drawing walls and doors (dungeon master) ----------
-  const drawing = () => tool === "wall" || tool === "door";      // the tools only the dungeon master can use
+  // ---------- drawing walls (dungeon master) ----------
+  const drawing = () => tool === "wall";                          // the tool only the dungeon master can use
   function setTool(next) {
     tool = next;
     endChain();
     clearMeasure();
+    hideSegMenu();
     $("#measure-opts").hidden = tool !== "measure";
     if (tool === "measure") say("Measure: snaps to tile centres and tokens. Esc clears the line.");
     else if (next === "move") say("");
@@ -1020,7 +1122,7 @@ window.SheetUtils = {
   const snap = (v) => Math.round(v * 2) / 2;
   const cellAt = (e) => {
     const r = board.getBoundingClientRect();
-    return { x: clamp(snap(((e.clientX - r.left) / r.width) * CW), 0, CW), y: clamp(snap(((e.clientY - r.top) / r.height) * CH), 0, CH) };
+    return { x: clamp(snap((e.clientX - r.left) / CELL), 0, cols), y: clamp(snap((e.clientY - r.top) / CELL), 0, rows) };
   };
   function showPreview(to) {
     pv.hidden = !chain;
@@ -1033,16 +1135,15 @@ window.SheetUtils = {
 
   async function commit(a, b) {
     if (Math.hypot(b.x - a.x, b.y - a.y) < 0.4) return;
-    const kind = tool === "door" ? "doors" : "walls";
-    await api.json("/api/map/" + kind, { x1: a.x, y1: a.y, x2: b.x, y2: b.y });
+    await api.json("/api/map/walls", { x1: a.x, y1: a.y, x2: b.x, y2: b.y });
     await refresh();
   }
-  const afterCommit = (p) => { if (tool === "wall") { chain = { x: p.x, y: p.y }; $("#chain-end").hidden = false; showPreview(p); } else endChain(); };
+  const afterCommit = (p) => { chain = { x: p.x, y: p.y }; $("#chain-end").hidden = false; showPreview(p); };
 
   board.addEventListener("pointerdown", (e) => {
     if (!drawing() || !isDM() || e.button !== 0) return;
     const p = cellAt(e);
-    if (!chain) { chain = p; gesture = { x: p.x, y: p.y }; $("#chain-end").hidden = tool !== "wall"; showPreview(p); return; }
+    if (!chain) { chain = p; gesture = { x: p.x, y: p.y }; $("#chain-end").hidden = false; showPreview(p); return; }
     const from = chain;
     afterCommit(p);
     run(() => commit(from, p));
@@ -1069,15 +1170,15 @@ window.SheetUtils = {
   let ms = null;                                              // {a, b, fixed, drag}: the points are {x, y, name?} in tile units
   const spot = (e) => {
     const r = board.getBoundingClientRect();
-    const x = clamp(((e.clientX - r.left) / r.width) * CW, 0, CW), y = clamp(((e.clientY - r.top) / r.height) * CH, 0, CH);
-    const reach = Math.max(0.5, (+$("#map-size").value / 2) / (r.width / CW));         // a token's radius, in tiles
+    const x = clamp((e.clientX - r.left) / CELL, 0, cols), y = clamp((e.clientY - r.top) / CELL, 0, rows);
+    const reach = Math.max(0.5, TOK / 2 / CELL);                                        // a token's radius, in tiles
     let best = null, near = reach;
     for (const t of data.tokens) {
-      const d = Math.hypot(t.x * CW - x, t.y * CH - y);
+      const d = Math.hypot(t.x - x, t.y - y);
       if (d <= near) { best = t; near = d; }
     }
-    return best ? { x: best.x * CW, y: best.y * CH, name: best.name }
-                : { x: clamp(Math.floor(x) + 0.5, 0.5, CW - 0.5), y: clamp(Math.floor(y) + 0.5, 0.5, CH - 0.5) };
+    return best ? { x: best.x, y: best.y, name: best.name }
+                : { x: clamp(Math.floor(x) + 0.5, 0.5, cols - 0.5), y: clamp(Math.floor(y) + 0.5, 0.5, rows - 0.5) };
   };
   function clearMeasure() {
     ms = null;
@@ -1089,7 +1190,7 @@ window.SheetUtils = {
     line.setAttribute("x1", a.x); line.setAttribute("y1", a.y); line.setAttribute("x2", b.x); line.setAttribute("y2", b.y);
     for (const [id, p] of [["m-a", a], ["m-b", b]]) {
       const dot = $("#" + id);
-      dot.style.left = (p.x / CW) * 100 + "%"; dot.style.top = (p.y / CH) * 100 + "%"; dot.hidden = false;
+      dot.style.left = p.x * CELL + "px"; dot.style.top = p.y * CELL + "px"; dot.hidden = false;
     }
     const scale = parseFloat($("#measure-scale").value.replace(",", ".")), unit = $("#measure-unit").value.trim();
     let text = `${num1(tiles)} ${num1(tiles) === 1 ? "tile" : "tiles"}`;
@@ -1097,7 +1198,7 @@ window.SheetUtils = {
     if (a.name && b.name) text = `${a.name} → ${b.name}: ${text}`;
     const label = $("#m-label");
     label.textContent = text;
-    label.style.left = ((a.x + b.x) / 2 / CW) * 100 + "%"; label.style.top = ((a.y + b.y) / 2 / CH) * 100 + "%";
+    label.style.left = ((a.x + b.x) / 2) * CELL + "px"; label.style.top = ((a.y + b.y) / 2) * CELL + "px";
     line.hidden = label.hidden = false;
   }
   board.addEventListener("pointerdown", (e) => {
@@ -1126,34 +1227,19 @@ window.SheetUtils = {
   });
   document.addEventListener("keydown", (e) => { if (e.key === "Escape" && tool === "measure") clearMeasure(); });
 
-  // ---------- doors ----------
-  async function toggleDoor(id) {
-    await api.json(`/api/map/doors/${id}/toggle`, {});
-    await refresh();
-  }
+  // ---------- clicking a wall, door or window (dungeon master) ----------
+  // Players cannot open doors; the dungeon master clicks one to open it, or clicks a wall to turn it into a door or window.
   geoG.addEventListener("click", (e) => {
     const h = e.target.closest(".hit");
-    if (!h || tool !== "move") return;
-    const type = h.dataset.t, id = h.dataset.id;
-    if (!isDM()) { if (type === "door") run(() => toggleDoor(id)); return; }       // players: one click opens a door
-    select(type, id);
+    if (!h || tool !== "move" || !isDM()) return;
+    select(h.dataset.t, h.dataset.id);
+    showSegMenu(e);
   });
-  geoG.addEventListener("dblclick", (e) => {                                      // the dungeon master: double-click
-    const h = e.target.closest('.hit[data-t="door"]');
-    if (h && isDM() && tool === "move") run(() => toggleDoor(h.dataset.id));
-  });
-  $("#door-toggle").addEventListener("click", () => run(() => toggleDoor(sel.id)));
-  $("#door-lock").addEventListener("click", () => run(async () => {
-    const door = data.doors.find((d) => d.id === sel.id);
-    if (!door) return;
-    await api.json(`/api/map/doors/${door.id}/lock`, { locked: !door.locked });
-    await refresh();
-  }));
 
   // ---------- removing ----------
   $("#map-remove").addEventListener("click", () => run(async () => {
     if (!sel.type) return;
-    const path = { token: "tokens", wall: "walls", door: "doors" }[sel.type];
+    const path = { token: "tokens", ...SEG }[sel.type];
     const tok = sel.type === "token" ? data.tokens.find((t) => t.id === sel.id) : null;
     await api.json(`/api/map/${path}/${sel.id}/delete`, {});
     select("", "");
@@ -1165,17 +1251,19 @@ window.SheetUtils = {
   const typing = (e) => e.target.closest("input, select, textarea");
   document.addEventListener("keydown", (e) => {
     if ($("#view-map").hidden || typing(e) || $("#saves").open) return;
-    if (e.key === "Escape") return endChain();
+    if (e.key === "Escape") { hideSegMenu(); return endChain(); }
     if (!sel.type) return;
     if (e.key === "Delete") { e.preventDefault(); return $("#map-remove").click(); }
     const t = sel.type === "token" ? data.tokens.find((x) => x.id === sel.id) : null, el = t && els.get(t.id);
     if (!t || !el || !canMove(t)) return;
-    const st = e.shiftKey ? 0.05 : 0.01;
+    const st = e.shiftKey ? 0.75 : 0.15;
     const d = { ArrowLeft: [-st, 0], ArrowRight: [st, 0], ArrowUp: [0, -st], ArrowDown: [0, st] }[e.key];
     if (!d) return;
     e.preventDefault();
-    t.x = clamp(t.x + d[0], 0, 1); t.y = clamp(t.y + d[1], 0, 1);
-    el.style.left = t.x * 100 + "%"; el.style.top = t.y * 100 + "%";
+    let nx = clamp(t.x + d[0], 0, cols), ny = clamp(t.y + d[1], 0, rows);
+    if (!isDM()) [nx, ny] = sweep(t.x, t.y, nx, ny);
+    t.x = nx; t.y = ny;
+    el.style.left = t.x * CELL + "px"; el.style.top = t.y * CELL + "px";
     busy.add(t.id);
     api.json("/api/map/tokens/" + t.id, { x: t.x, y: t.y }).catch((err) => say(err.message, true)).finally(() => busy.delete(t.id));
   });
@@ -1185,6 +1273,16 @@ window.SheetUtils = {
   vision.addEventListener("change", () => run(async () => {
     await api.json("/api/map/settings", { vision: +vision.value });
     await refresh();
+  }));
+  // The size is typed as grid lines (a map of 17 x 11 grid lines is 16 x 10 squares).
+  $("#map-size-go").addEventListener("click", () => run(async () => {
+    const x = parseInt($("#map-cols").value, 10), y = parseInt($("#map-rows").value, 10);
+    if (!(x >= 2 && y >= 2)) throw new Error("A map needs at least 2 grid lines each way.");
+    if (x > 61 || y > 61) throw new Error("A map can have at most 61 grid lines each way.");
+    if ((x - 1 < cols || y - 1 < rows) && !confirm("A smaller map pulls tokens back inside it and removes walls, doors and windows that stick out. Go on?")) return;
+    const r = await api.json("/api/map/settings", { cols: x - 1, rows: y - 1 });
+    await refresh();
+    say(`The map is now ${r.cols + 1} × ${r.rows + 1} grid lines (${r.cols} × ${r.rows} squares).` + (r.removed ? ` ${r.removed} wall part${r.removed === 1 ? "" : "s"} outside it removed.` : ""));
   }));
   $("#map-hide").addEventListener("click", () => run(async () => {
     await api.json("/api/map/settings", { hidden: !data.hidden });
@@ -1211,7 +1309,7 @@ window.SheetUtils = {
       const info = document.createElement("span"), name = document.createElement("strong"), meta = document.createElement("small");
       info.className = "sn";
       name.textContent = s.name;
-      meta.textContent = `${new Date(s.saved * 1000).toLocaleString()} · ${s.tokens} token${s.tokens === 1 ? "" : "s"}, ${s.walls} wall${s.walls === 1 ? "" : "s"}, ${s.doors} door${s.doors === 1 ? "" : "s"}`;
+      meta.textContent = `${new Date(s.saved * 1000).toLocaleString()} · ${s.tokens} token${s.tokens === 1 ? "" : "s"}, ${s.walls} wall${s.walls === 1 ? "" : "s"}, ${s.doors} door${s.doors === 1 ? "" : "s"}, ${s.windows || 0} window${s.windows === 1 ? "" : "s"}`;
       info.append(name, meta);
       const load = document.createElement("button"), del = document.createElement("button");
       load.className = del.className = "btn small";
@@ -1261,13 +1359,6 @@ window.SheetUtils = {
     if (e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom) dlg.close();
   });
 
-  // ---------- token size (a personal setting, kept in this browser) ----------
-  const size = $("#map-size");
-  const applySize = () => board.style.setProperty("--tok", size.value + "px");
-  if (store.get("tabletop-token")) size.value = store.get("tabletop-token");
-  applySize();
-  size.addEventListener("input", () => { applySize(); store.set("tabletop-token", size.value); });
-
   // The role is asked first (the role part of this file); then open on the map again if that is where the person was.
   window.Role.ready.then(() => {
   applyRole();
@@ -1281,9 +1372,9 @@ window.SheetUtils = {
 // ====================================================================================================
 
 // The window of a token on the map (double-click the token, or its name in the sidebar): Ép, Fp and the effects with the
-// turns they have left. Every change is saved as soon as you leave the box; the map and the sidebar follow. Click Ép or Fp
+// rounds they have left. Every change is saved as soon as you leave the box; the map and the sidebar follow. Click Ép or Fp
 // to see the maximum. Enemies show effects only to players (their health is the dungeon master's secret).
-// Effects: a name and the turns left (empty = no limit). Combat counts the turns down (this file); one that ran out
+// Effects: a name and the rounds left (empty = no limit). Combat counts them down at the start of every round; one that ran out
 // stays on the list, marked "ended", until it is deleted. What a player may change is decided by the server.
 (function () {
   const M = window.TableMap, $ = (s) => document.querySelector(s);
@@ -1297,7 +1388,7 @@ window.SheetUtils = {
     const ended = e.t != null && e.t <= 0;
     return `<li class="fx${ended ? " ended" : ""}" data-fx>` +
       `<input type="text" data-n maxlength="40" value="${M.esc(e.n)}" aria-label="Effect"${editable ? "" : " disabled"}>` +
-      `<input type="number" data-t step="1" min="-999" max="999" value="${e.t == null ? "" : e.t}" placeholder="∞" aria-label="Turns left (empty: no limit)" title="Turns left (empty: no limit)"${editable ? "" : " disabled"}>` +
+      `<input type="number" data-t step="1" min="-999" max="999" value="${e.t == null ? "" : e.t}" placeholder="∞" aria-label="Rounds left (empty: no limit)" title="Rounds left (empty: no limit)"${editable ? "" : " disabled"}>` +
       (editable ? '<button type="button" class="btn small" data-del aria-label="Delete this effect" title="Delete">✕</button>' : "") +
       (ended ? '<small class="ended-tag">ended</small>' : "") + "</li>";
   };
@@ -1318,7 +1409,7 @@ window.SheetUtils = {
       `<ul class="fxlist" aria-label="Effects">${(t.effects || []).map((e) => effectRow(e, t.editable)).join("")}</ul>` +
       (mine ? "" : '<p class="hint nomargin">No effects.</p>') +
       (t.editable ? `<form class="fxadd" data-add><input type="text" data-n maxlength="40" placeholder="New effect" aria-label="New effect" autocomplete="off">` +
-        `<input type="number" data-t step="1" min="-999" max="999" placeholder="turns" aria-label="Turns (empty: no limit)" title="Turns (empty: no limit)">` +
+        `<input type="number" data-t step="1" min="-999" max="999" placeholder="rounds" aria-label="Rounds (empty: no limit)" title="Rounds (empty: no limit)">` +
         `<button class="btn primary small" type="submit">Add</button></form>` : "");
   }
 
@@ -1374,8 +1465,8 @@ window.SheetUtils = {
 // The Initiative tab of the map's sidebar: combat mode. The dungeon master turns it on and picks who fights (players and
 // monsters); then everybody taking part rolls k10 + KÉ. A character rolls with its KÉ without a weapon, but clicking
 // Roll initiative also offers k10 + KÉ with each weapon (the server knows the numbers). The order is highest first and the
-// dungeon master can move anybody. When the DM begins, "Next turn" passes the turn on and counts down the effects (see
-// processing/battlemap.py for which ones); "Previous turn" takes it back and counts them up again. All of it lives on the
+// dungeon master can move anybody. When the DM begins, "Next turn" passes the turn on; at the start of every new round the
+// effects of all fighters count down by one ("Previous turn" back into the round before counts them up again). All of it lives on the
 // server and is drawn from the "mapdata" event of this file, so everybody sees the same order.
 (function () {
   const M = window.TableMap, $ = (s) => document.querySelector(s), esc = M.esc, api = M.api;
@@ -1393,10 +1484,10 @@ window.SheetUtils = {
 
   // ---------- the label of the sidebar's tab at the edge of the board ----------
   function paintTab() {
-    if (!combat) return M.setTab("Ép / Fp", "");
-    if (combat.phase === "initiative") return M.setTab("⚔ Initiative", combat.pending ? `${combat.pending} to roll` : "ready");
+    if (!combat) return M.setTab("Combat", "");
+    if (combat.phase === "initiative") return M.setTab("Initiative", combat.pending ? `${combat.pending} to roll` : "ready");
     const cur = combat.order.find((e) => e.id === combat.current);
-    M.setTab(`⚔ Round ${combat.round}`, cur ? cur.name : combat.unseen_turn ? "?" : "");
+    M.setTab(`Round ${combat.round}`, cur ? cur.name : combat.unseen_turn ? "?" : "");
   }
 
   // ---------- drawing ----------
@@ -1437,11 +1528,11 @@ window.SheetUtils = {
     if (dm) {
       controls = '<div class="actions init-ctl">' + (c.phase === "initiative"
         ? '<button class="btn small" data-act="roll-monsters">Roll for all monsters</button>' + `<button class="btn primary small" data-act="begin">${c.pending ? "Begin anyway" : "Begin the combat"}</button>`
-        : '<button class="btn small" data-act="prev" title="Take the turn back: effects count up again">◀ Previous turn</button><button class="btn primary small" data-act="next" title="Next turn: effects count down">Next turn ▶</button>') +
-        '<button class="btn small" data-act="fighters">Fighters…</button><button class="btn small" data-act="end">End combat</button></div>' +
-        `<label class="field tick">Effects count down <select data-tick><option value="own"${c.tick === "own" ? " selected" : ""}>on the turn of the one who has them</option><option value="all"${c.tick === "all" ? " selected" : ""}>every turn, for everybody</option></select></label>`;
+        : '<button class="btn small" data-act="prev" title="Take the turn back. Going back into the round before counts the effects up again.">◀ Previous turn</button><button class="btn primary small" data-act="next" title="Next turn. When a new round starts, every effect has one round less left.">Next turn ▶</button>') +
+        '<button class="btn small" data-act="fighters">Fighters…</button><button class="btn small" data-act="end">End combat</button></div>';
     }
-    return `<div class="chead"><strong>${phase}</strong></div>` + (mine ? '<p class="yourturn">It is your turn!</p>' : "") +
+    const note = c.phase === "fighting" ? '<p class="hint nomargin">Effects count down by one at the start of every round.</p>' : "";
+    return `<div class="chead"><strong>${phase}</strong></div>` + note + (mine ? '<p class="yourturn">It is your turn!</p>' : "") +
       (c.unseen_turn ? '<p class="hint">Something you cannot see is acting.</p>' : "") + controls +
       `<ol class="order" aria-label="Turn order">${c.order.map((e, i) => entryHtml(e, i, dm)).join("")}</ol>` +
       (c.order.length ? "" : '<p class="hint">Nobody you can see is in the combat.</p>');
@@ -1508,9 +1599,8 @@ window.SheetUtils = {
     if (b && ACTS[b.dataset.act]) { say(""); run(async () => { try { await ACTS[b.dataset.act](b); } catch (err) { menu = null; render(true); throw err; } }); }
   });
   root.addEventListener("change", (e) => {
-    const pick = e.target.closest("[data-pick]"), tick = e.target.closest("[data-tick]");
+    const pick = e.target.closest("[data-pick]");
     if (pick && setup) { pick.checked ? setup.ids.add(pick.dataset.pick) : setup.ids.delete(pick.dataset.pick); render(true); }
-    else if (tick) run(() => post("tick", { mode: tick.value }));
   });
 
   document.addEventListener("mapdata", (e) => {

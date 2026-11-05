@@ -1,18 +1,24 @@
-"""The shared tabletop map on pages/tabletop.*. One map for everybody. The board is 16 x 10 squares ("cells"); tokens
-are stored as 0..1 fractions of the board, walls and doors in cells (snapped to half a cell).
+"""The shared tabletop map on pages/tabletop.*. One map for everybody. The board is cols x rows squares ("cells"), set by
+the dungeon master (default 16 x 10, at most 60 x 60). Tokens, walls, doors and windows are all stored in cells (walls
+snapped to half a cell). Older maps stored tokens as 0..1 fractions of a 16 x 10 board; load() converts them.
 
   tokens  {id, kind: "character" | "enemy", ref, x, y}   ref points at a sheet; name and portrait are read from it.
           A character's HP is read from its sheet. Every enemy token has its own HP (hp, max, fp, fpmax, copied from the
           enemy sheet when it is put on the map and edited per token), so three goblins keep three separate HPs.
-  walls   {id, x1, y1, x2, y2}                           block sight
-  doors   {id, x1, y1, x2, y2, open, locked}             block sight while closed
+  walls   {id, x1, y1, x2, y2}                           block sight and movement
+  doors   {id, x1, y1, x2, y2, open}                     a wall part turned into a door: blocks sight and movement while
+                                                         closed. Only the dungeon master opens or closes it.
+  windows {id, x1, y1, x2, y2}                           a wall part turned into a window: blocks movement, but lets sight
+                                                         through, seen only half as far behind it as it would be without it
   vision  how many cells a player character can see      hidden  true = players see nothing (the DM is arranging)
 
-Effects: a token can carry effects {n, t}. A turn of combat counts t down by one (and back up when the DM goes back), whose
-effects depends on the combat's "tick" setting: "own" = the creature whose turn ends / is taken back, "all" = every participant.
-t may go below 0 (shown as ended) so that going back always restores exactly what going forward changed.
+Players cannot walk through walls, windows or closed doors (the server stops a dragged token at the first one); the dungeon
+master can move tokens through anything.
+
+Effects: a token can carry effects {n, t}. At the start of every round of combat (not every turn) t counts down by one for every
+participant, and back up when the DM goes back to the previous round. t may go below 0 (shown as ended) so that going back always restores exactly what going forward changed.
 Combat: doc["combat"] = {phase: "initiative" | "fighting", order: [token ids], init: {id: {total, roll, bonus, label}}, turn,
-round, tick}. Everybody taking part rolls k10 + KÉ (a character without weapon unless it picks one); the order is highest first
+round}. Everybody taking part rolls k10 + KÉ (a character without weapon unless it picks one); the order is highest first
 and the DM may move anybody. Players only see participants they can see on the map (enemies out of sight are left out).
 
 Fog of war is worked out here, not in the browser, so players are only ever sent what they may see: every character
@@ -22,7 +28,7 @@ is stored; enemies are only sent while in view; walls and doors only once seen. 
   GET  /api/map                       everything the caller may see (see roles.py: players get the filtered version)
   GET  /api/map/fog.png               the fog overlay (black = unexplored, dim = explored, clear = in view)
   POST /api/map/tokens                {kind, ref, count?}  add (players: characters only; DM: up to 20 enemies at once)
-  POST /api/map/tokens/<id>           {x, y}       move (players: characters only)
+  POST /api/map/tokens/<id>           {x, y}       move, in cells (players: characters only, stopped by walls). -> {x, y} where it ended up
   POST /api/map/tokens/<id>/delete                 take off the map (players: characters only)
   POST /api/map/tokens/<id>/stats     {hp?, max?, fp?, fpmax?}  change Ép / Fp. Enemies: DM. Characters: DM, or whoever
                                       has the sheet open (a locked sheet needs its password). Enemy HP is never sent to players.
@@ -32,14 +38,14 @@ is stored; enemies are only sent while in view; walls and doors only once seen. 
   GET  /api/map/tokens/<id>/initiative  -> {choices: [{choice, label, bonus}]}  what the token can roll initiative with (DM, or its player)
   POST /api/map/tokens/<id>/initiative  {choice}   roll k10 + that bonus for the combat (choice -1 = KÉ without weapon, 0..9 = a weapon)
   POST /api/map/combat                {action, ...}  DM: start {ids} | participants {ids} | begin {force?} | next | prev | end |
-                                      move {id, to} | set_init {id, total} | tick {mode: "own" | "all"}  (see "combat" below)
-  POST /api/map/walls | /doors        {x1, y1, x2, y2}   DM
-  POST /api/map/walls/<id>/delete | /doors/<id>/delete   DM
-  POST /api/map/doors/<id>/toggle     open / close (players too, unless locked or not yet seen)
-  POST /api/map/doors/<id>/lock       {locked}     DM
-  POST /api/map/settings              {vision?, hidden?}   DM
+                                      move {id, to} | set_init {id, total}  (see "combat" below)
+  POST /api/map/walls                 {x1, y1, x2, y2}   DM draws a wall
+  POST /api/map/<walls|doors|windows>/<id>/delete   DM
+  POST /api/map/<walls|doors|windows>/<id>/convert  {to: "wall" | "door" | "window"}   DM turns that part into something else
+  POST /api/map/doors/<id>/toggle     DM opens / closes a door
+  POST /api/map/settings              {vision?, hidden?, cols?, rows?}   DM (cols / rows = the board size in squares)
   POST /api/map/fog/reset             forget what was explored   DM
-  GET  /api/map/saves                 DM    -> {saves: [{id, name, saved, tokens, walls, doors}]}
+  GET  /api/map/saves                 DM    -> {saves: [{id, name, saved, tokens, walls, doors, windows}]}
   POST /api/map/saves                 DM    {name} save the map now (same name = replace)
   POST /api/map/saves/<id>/load       DM    replace the map with a save (it comes back hidden from players)
   POST /api/map/saves/<id>/delete     DM
@@ -62,14 +68,17 @@ from flask import Response, abort, jsonify, request
 from PIL import Image, ImageChops, ImageDraw, ImageFilter
 
 from . import campaigns, characters, enemies
-from .core import Fail, bp
+from errors import Fail
+from . import bp
 from .rolls import make_roll
 from .roles import current_role, need_dm
 
-CW, CH, PPC = 16, 10, 20                      # board size in cells, fog pixels per cell
-FW, FH = CW * PPC, CH * PPC
+DEF_COLS, DEF_ROWS, MAX_SIDE, PPC = 16, 10, 60, 20     # default board size and the largest side, in cells; fog pixels per cell
+WALL, WINDOW = 0, 1                           # what a sight blocker is: opaque, or a window (sight goes through, halved)
+SEGS = {"wall": "walls", "door": "doors", "window": "windows"}
+MARGIN = 0.12                                 # how close to a wall a player's token may come, in cells
 KINDS = {"character": characters, "enemy": enemies}
-MAX_TOKENS, MAX_WALLS, MAX_DOORS, MAX_SAVES = 200, 1500, 300, 100
+MAX_TOKENS, MAX_SEGS, MAX_SAVES = 200, 1500, 100
 HEX = re.compile(r"^[0-9a-f]{32}$")
 _lock = threading.RLock()
 _cache = {}                                   # sheet path -> (mtime_ns, summary), so polling does not re-read every sheet
@@ -113,9 +122,10 @@ def load():
     except (OSError, ValueError):
         doc = {}
     doc = doc if isinstance(doc, dict) else {}
-    for key in ("tokens", "walls", "doors"):
+    for key in ("tokens", "walls", "doors", "windows"):
         if not isinstance(doc.get(key), list):
             doc[key] = []
+    migrate(doc)
     if isinstance(doc.get("vision"), bool) or not isinstance(doc.get("vision"), (int, float)):
         doc["vision"] = 7
     if not isinstance(doc.get("hidden"), bool):
@@ -125,6 +135,24 @@ def load():
     if not isinstance(doc.get("combat"), dict):
         doc["combat"] = None
     return doc
+
+
+def side(v, default):
+    return int(v) if isinstance(v, int) and not isinstance(v, bool) and 1 <= v <= MAX_SIDE else default
+
+
+def migrate(doc):
+    """Give a map its size. A map from before the board could be resized has tokens as 0..1 fractions of 16 x 10."""
+    if "cols" not in doc:
+        for t in doc.get("tokens", []):
+            if isinstance(t, dict):
+                t["x"], t["y"] = round(float(t.get("x", 0.5)) * DEF_COLS, 3), round(float(t.get("y", 0.5)) * DEF_ROWS, 3)
+        doc["cols"], doc["rows"] = DEF_COLS, DEF_ROWS
+    doc["cols"], doc["rows"] = side(doc["cols"], DEF_COLS), side(doc["rows"], DEF_ROWS)
+
+
+def dims(doc):
+    return doc["cols"], doc["rows"]
 
 
 def save(doc):
@@ -173,9 +201,16 @@ def summary(kind, ref):
 
 # ---------- sight ----------
 def blockers(doc):
-    segs = [(w["x1"], w["y1"], w["x2"], w["y2"]) for w in doc["walls"]]
-    segs += [(d["x1"], d["y1"], d["x2"], d["y2"]) for d in doc["doors"] if not d.get("open")]
+    """What stops sight: (x1, y1, x2, y2, WALL | WINDOW). Walls and closed doors are opaque; a window lets sight through."""
+    segs = [(w["x1"], w["y1"], w["x2"], w["y2"], WALL) for w in doc["walls"]]
+    segs += [(d["x1"], d["y1"], d["x2"], d["y2"], WALL) for d in doc["doors"] if not d.get("open")]
+    segs += [(w["x1"], w["y1"], w["x2"], w["y2"], WINDOW) for w in doc["windows"]]
     return segs
+
+
+def movement_blockers(doc):
+    """What stops a player's token: walls, windows and closed doors."""
+    return [s[:4] for s in blockers(doc)]
 
 
 def ray_hit(px, py, dx, dy, x1, y1, x2, y2):
@@ -191,32 +226,55 @@ def ray_hit(px, py, dx, dy, x1, y1, x2, y2):
 
 
 def view_polygon(px, py, radius, segs):
-    """The area one viewer sees: a circle cut short by walls (rays towards every wall end, and a few around)."""
+    """The area one viewer sees: a circle cut short by walls (rays towards every wall end, and a few around). A ray that
+    goes through a window carries on, but only half of what it had left: behind a window you see half as far."""
     near = [s for s in segs if max(s[0], s[2]) >= px - radius and min(s[0], s[2]) <= px + radius
             and max(s[1], s[3]) >= py - radius and min(s[1], s[3]) <= py + radius]
     angles = {math.radians(k) for k in range(0, 360, 4)}
-    for x1, y1, x2, y2 in near:
+    for x1, y1, x2, y2, _kind in near:
         for x, y in ((x1, y1), (x2, y2)):
             a = math.atan2(y - py, x - px)
             angles.update((a - 1e-4, a, a + 1e-4))
     pts = []
     for a in sorted(angles):
         dx, dy = math.cos(a), math.sin(a)
-        t = radius
-        for s in near:
-            h = ray_hit(px, py, dx, dy, *s)
-            if h is not None and h < t:
-                t = h
-        pts.append((px + dx * t, py + dy * t))
+        hits = sorted((h, s[4]) for s in near if (h := ray_hit(px, py, dx, dy, *s[:4])) is not None)
+        reach = radius
+        for h, kind in hits:
+            if h >= reach:
+                break
+            if kind == WALL:
+                reach = h
+                break
+            reach = h + (reach - h) / 2
+        pts.append((px + dx * reach, py + dy * reach))
     return pts
 
 
-def _decode(b64):
+def sweep(doc, x0, y0, x1, y1):
+    """Where a token that is dragged from (x0, y0) towards (x1, y1) ends up when walls, windows and closed doors stop it:
+    the first one in the way, less a small margin. Used for players; the dungeon master moves freely."""
+    dx, dy = x1 - x0, y1 - y0
+    length = math.hypot(dx, dy)
+    if length < 1e-9:
+        return x1, y1
+    first = 1.0
+    for s in movement_blockers(doc):
+        h = ray_hit(x0, y0, dx, dy, *s)
+        if h is not None and 1e-6 < h < first:
+            first = h
+    if first >= 1.0:
+        return x1, y1
+    k = max(0.0, first - MARGIN / length)
+    return round(x0 + dx * k, 4), round(y0 + dy * k, 4)
+
+
+def _decode(b64, size):
     try:
         im = Image.open(io.BytesIO(base64.b64decode(b64))).convert("L") if b64 else None
     except Exception:
         return None
-    return im if im is not None and im.size == (FW, FH) else None
+    return im if im is not None and im.size == size else None
 
 
 def _encode(im):
@@ -228,18 +286,20 @@ def _encode(im):
 def ensure_fog(doc):
     """Bring the fog up to date with the characters, walls and doors. Returns True when doc["explored"] changed
     (the caller then saves the document)."""
-    chars = sorted((round(t["x"] * CW, 3), round(t["y"] * CH, 3)) for t in doc["tokens"]
+    cols, rows = dims(doc)
+    FW, FH = cols * PPC, rows * PPC
+    chars = sorted((round(t["x"], 3), round(t["y"], 3)) for t in doc["tokens"]
                    if t.get("kind") == "character" and summary("character", t.get("ref")) is not None)
     segs, radius = blockers(doc), max(1, min(20, float(doc["vision"])))
-    sig = hashlib.md5(json.dumps([chars, segs, radius]).encode()).hexdigest()
+    sig = hashlib.md5(json.dumps([chars, segs, radius, cols, rows]).encode()).hexdigest()
     if _fog["sig"] == sig:
         return False
     vis = Image.new("L", (FW, FH), 0)
     draw = ImageDraw.Draw(vis)
     for px, py in chars:
         draw.polygon([(x * PPC, y * PPC) for x, y in view_polygon(px, py, radius, segs)], fill=255)
-    if _fog["key"] != doc["explored"] or _fog["explored"] is None:
-        _fog["explored"], _fog["key"] = _decode(doc["explored"]) or Image.new("L", (FW, FH), 0), doc["explored"]
+    if _fog["key"] != doc["explored"] or _fog["explored"] is None or _fog["explored"].size != (FW, FH):
+        _fog["explored"], _fog["key"] = _decode(doc["explored"], (FW, FH)) or Image.new("L", (FW, FH), 0), doc["explored"]
     old = _fog["explored"]
     new = ImageChops.lighter(old, vis)
     changed = ImageChops.difference(new, old).getbbox() is not None
@@ -258,12 +318,12 @@ def ensure_fog(doc):
 
 
 def _lit(img, x, y):
-    px, py = min(FW - 1, max(0, int(x * PPC))), min(FH - 1, max(0, int(y * PPC)))
+    px, py = min(img.width - 1, max(0, int(x * PPC))), min(img.height - 1, max(0, int(y * PPC)))
     return img.crop((max(0, px - 1), max(0, py - 1), px + 2, py + 2)).getextrema()[1] > 127
 
 
 def token_in_view(t):
-    return _lit(_fog["vis"], t["x"] * CW, t["y"] * CH)
+    return _lit(_fog["vis"], t["x"], t["y"])
 
 
 def seg_known(s):
@@ -278,10 +338,11 @@ def seg_of(o):
 
 
 # ---------- checking what browsers send ----------
-def unit(v):
+def coord(v, top):
+    """A position in cells, kept on the board."""
     if isinstance(v, bool) or not isinstance(v, (int, float)) or v != v:
         raise Fail("That position is not valid.")
-    return round(min(1.0, max(0.0, float(v))), 4)
+    return round(min(float(top), max(0.0, float(v))), 4)
 
 
 def cell(v, top):
@@ -290,8 +351,8 @@ def cell(v, top):
     return round(v * 2) / 2
 
 
-def seg_from(d, longest):
-    x1, y1, x2, y2 = cell(d.get("x1"), CW), cell(d.get("y1"), CH), cell(d.get("x2"), CW), cell(d.get("y2"), CH)
+def seg_from(d, longest, cols, rows):
+    x1, y1, x2, y2 = cell(d.get("x1"), cols), cell(d.get("y1"), rows), cell(d.get("x2"), cols), cell(d.get("y2"), rows)
     if (x1, y1) == (x2, y2):
         raise Fail("It needs two different points.")
     if math.hypot(x2 - x1, y2 - y1) > longest:
@@ -384,7 +445,8 @@ def map_get():
         pruned = prune_combat(doc) or pruned
         if ensure_fog(doc) or pruned:
             save(doc)
-        out = {"role": role, "vision": doc["vision"], "hidden": doc["hidden"], "tokens": [], "walls": [], "doors": [], "fog": None, "combat": None}
+        out = {"role": role, "vision": doc["vision"], "hidden": doc["hidden"], "cols": doc["cols"], "rows": doc["rows"],
+               "tokens": [], "walls": [], "doors": [], "windows": [], "fog": None, "combat": None}
         if role != "dm" and doc["hidden"]:
             return jsonify(out)
         numbers, shared = enemy_numbers(keep), {}
@@ -396,7 +458,7 @@ def map_get():
                 continue
             out["tokens"].append(token_view(t, role, numbers, shared))
         out["combat"] = combat_view(doc.get("combat"), role, {v["id"]: v for v in out["tokens"]})
-        for key in ("walls", "doors"):
+        for key in ("walls", "doors", "windows"):
             out[key] = [o for o in doc[key] if role == "dm" or seg_known(seg_of(o))]
         out["fog"] = _fog["hash"]
         return jsonify(out)
@@ -449,7 +511,9 @@ def map_add():
         for _ in range(count):
             n = len(tokens)                  # new tokens land in a staggered row so they do not hide each other
             tid = uuid.uuid4().hex
-            token = {"id": tid, "kind": kind, "ref": ref, "x": round(0.08 + (n % 10) * 0.09, 4), "y": round(0.12 + (n // 10 % 7) * 0.12, 4)}
+            cols, rows = dims(doc)
+            token = {"id": tid, "kind": kind, "ref": ref, "x": round(min(cols - 0.5, 1.25 + (n % 10) * 1.4), 4),
+                     "y": round(min(rows - 0.5, 1.25 + (n // 10 % 7) * 1.2), 4)}
             if kind == "enemy":              # every enemy gets its own HP, copied from the sheet (full when the sheet has no current value)
                 token["n"] = max(enemy_numbers([t for t in tokens if t.get("ref") == ref]).values(), default=0) + 1
                 token["hp"] = sheet["hp"] if sheet["hp"] is not None else sheet["max"]
@@ -466,9 +530,10 @@ def map_add():
 @bp.post("/map/tokens/<tid>")
 def map_move(tid):
     d = request.get_json(silent=True) or {}
-    x, y = unit(d.get("x")), unit(d.get("y"))
     with _lock:
         doc = load()
+        cols, rows = dims(doc)
+        x, y = coord(d.get("x"), cols), coord(d.get("y"), rows)
         t = find(doc["tokens"], tid)
         if not t:
             raise Fail("That token is no longer on the map.")
@@ -477,10 +542,15 @@ def map_move(tid):
                 abort(403, "Only the dungeon master can move that.")
             if doc["hidden"]:
                 abort(403, "The map is hidden right now.")
+            way = d.get("path") if isinstance(d.get("path"), list) else []          # the places the drag went through, in order
+            px, py = t["x"], t["y"]
+            for pt in [q for q in way[:150] if isinstance(q, (list, tuple)) and len(q) == 2] + [[x, y]]:
+                px, py = sweep(doc, px, py, coord(pt[0], cols), coord(pt[1], rows))   # walls, windows and closed doors stop a player
+            x, y = px, py                                                           # the DM walks through them
         t["x"], t["y"] = x, y
         ensure_fog(doc)                      # what the character sees from here is now explored
         save(doc)
-    return jsonify(ok=True)
+    return jsonify(ok=True, x=x, y=y)
 
 
 def stat_value(v):
@@ -615,8 +685,6 @@ def combat_view(c, role, views):
                       "roll": i["roll"] if i else None, "bonus": i["bonus"] if i else None, "label": i["label"] if i else ""})
     out = {"phase": c["phase"], "round": c["round"], "current": here if here in views else None, "unseen_turn": bool(here) and here not in views,
            "order": order, "pending": sum(1 for tid in c["order"] if tid not in c["init"])}
-    if role == "dm":
-        out["tick"] = c["tick"]
     return out
 
 
@@ -629,10 +697,10 @@ def need_combat(doc, phase=None):
     return c
 
 
-def shift_effects(doc, c, tid, step):
-    """A turn counts effects down (step -1) or, going back, up (+1): the creature's own, or everybody's."""
+def shift_effects(doc, c, step):
+    """A new round counts the effects of every fighter down by one (step -1); going back to the round before, up again (+1)."""
     for t in doc["tokens"]:
-        if t["id"] == tid or (c["tick"] == "all" and t["id"] in c["order"]):
+        if t["id"] in c["order"]:
             for e in t.get("effects") or []:
                 if isinstance(e.get("t"), int):
                     e["t"] = max(-999, min(999, e["t"] + step))
@@ -663,7 +731,7 @@ def map_combat():
             ids = fighter_ids(doc, d.get("ids"))
             if not ids:
                 raise Fail("Pick at least one player or monster for the combat.")
-            doc["combat"] = {"phase": "initiative", "order": ids, "init": {}, "turn": 0, "round": 1, "tick": "own"}
+            doc["combat"] = {"phase": "initiative", "order": ids, "init": {}, "turn": 0, "round": 1}
         elif action == "end":
             doc["combat"] = None
         else:
@@ -689,17 +757,17 @@ def map_combat():
                 need_combat(doc, "fighting")
                 n = len(c["order"])
                 if action == "next":
-                    shift_effects(doc, c, c["order"][c["turn"]], -1)      # the turn that ends counts its effects down
                     c["turn"] += 1
                     if c["turn"] >= n:
                         c["turn"], c["round"] = 0, c["round"] + 1
+                        shift_effects(doc, c, -1)                        # a new round: every effect has one round less left
                 else:
                     if c["turn"] == 0 and c["round"] == 1:
                         raise Fail("This is the first turn of the combat.")
                     c["turn"] -= 1
                     if c["turn"] < 0:
                         c["turn"], c["round"] = n - 1, c["round"] - 1
-                    shift_effects(doc, c, c["order"][c["turn"]], +1)      # and the turn that is taken back counts them up again
+                        shift_effects(doc, c, +1)                        # back to the round before: they count up again
             elif action == "move":
                 tid = d.get("id")
                 if tid not in c["order"]:
@@ -721,10 +789,6 @@ def map_combat():
                     total = stat_value(d.get("total"))
                     c["init"][tid] = {"total": int(round(total)), "roll": None, "bonus": None, "label": "set by the DM"}
                     place(c, tid)
-            elif action == "tick":
-                if d.get("mode") not in ("own", "all"):
-                    raise Fail("Pick whose effects count down.")
-                c["tick"] = d["mode"]
             else:
                 raise Fail("Unknown combat action.")
         save(doc)
@@ -809,85 +873,71 @@ def initiative_clear(tid):
     return jsonify(ok=True)
 
 
-# ---------- walls and doors ----------
-def add_segment(key, longest, limit, extra):
+# ---------- walls, doors and windows ----------
+# The dungeon master draws walls. Clicking a wall part turns it into a door or a window (and back); a door is opened and
+# closed by the dungeon master only.
+@bp.post("/map/walls")
+def wall_add():
     need_dm()
-    seg = seg_from(request.get_json(silent=True) or {}, longest)
     with _lock:
         doc = load()
-        if len(doc[key]) >= limit:
-            raise Fail("There are too many of those on the map.")
+        seg = seg_from(request.get_json(silent=True) or {}, MAX_SIDE, *dims(doc))
+        if sum(len(doc[k]) for k in SEGS.values()) >= MAX_SEGS:
+            raise Fail("There are too many walls on the map.")
         oid = uuid.uuid4().hex
-        doc[key].append({"id": oid, **seg, **extra})
+        doc["walls"].append({"id": oid, **seg})
         ensure_fog(doc)
         save(doc)
     return jsonify(id=oid)
 
 
-def remove_segment(key, oid):
+@bp.post("/map/<kind>/<oid>/delete")
+def segment_remove(kind, oid):
     need_dm()
+    if kind not in SEGS.values():
+        abort(404)
     with _lock:
         doc = load()
-        doc[key] = [o for o in doc[key] if o.get("id") != oid]
+        doc[kind] = [o for o in doc[kind] if o.get("id") != oid]
         ensure_fog(doc)
         save(doc)
     return jsonify(ok=True)
 
 
-@bp.post("/map/walls")
-def wall_add():
-    return add_segment("walls", 40, MAX_WALLS, {})
-
-
-@bp.post("/map/walls/<oid>/delete")
-def wall_remove(oid):
-    return remove_segment("walls", oid)
-
-
-@bp.post("/map/doors")
-def door_add():
-    return add_segment("doors", 8, MAX_DOORS, {"open": False, "locked": False})
-
-
-@bp.post("/map/doors/<oid>/delete")
-def door_remove(oid):
-    return remove_segment("doors", oid)
+@bp.post("/map/<kind>/<oid>/convert")
+def segment_convert(kind, oid):
+    need_dm()
+    to = (request.get_json(silent=True) or {}).get("to")
+    if kind not in SEGS.values() or to not in SEGS:
+        raise Fail("Pick wall, door or window.")
+    with _lock:
+        doc = load()
+        o = find(doc[kind], oid)
+        if not o:
+            raise Fail("That part of the wall is gone.")
+        if SEGS[to] != kind:
+            doc[kind] = [x for x in doc[kind] if x is not o]
+            new = {"id": o["id"], "x1": o["x1"], "y1": o["y1"], "x2": o["x2"], "y2": o["y2"]}
+            if to == "door":
+                new["open"] = False
+            doc[SEGS[to]].append(new)
+            ensure_fog(doc)
+            save(doc)
+    return jsonify(ok=True)
 
 
 @bp.post("/map/doors/<oid>/toggle")
 def door_toggle(oid):
-    role = dm_or_player()
+    need_dm()                                # players cannot open doors
     with _lock:
         doc = load()
         door = find(doc["doors"], oid)
         if not door:
             raise Fail("That door is gone.")
-        if role == "player":
-            ensure_fog(doc)
-            if doc["hidden"]:
-                abort(403, "The map is hidden right now.")
-            if door.get("locked"):
-                abort(403, "That door is locked.")
-            if not seg_known(seg_of(door)):
-                abort(403, "You can't reach that door.")
         door["open"] = not door.get("open")
         ensure_fog(doc)                      # opening a door lets sight through at once
         save(doc)
         return jsonify(open=door["open"])
-
-
-@bp.post("/map/doors/<oid>/lock")
-def door_lock(oid):
-    need_dm()
-    d = request.get_json(silent=True) or {}
-    with _lock:
-        doc = load()
-        door = find(doc["doors"], oid)
-        if not door:
-            raise Fail("That door is gone.")
-        door["locked"] = bool(d.get("locked"))
-        save(doc)
-    return jsonify(locked=door["locked"])
 
 
 # ---------- settings and fog ----------
@@ -904,9 +954,40 @@ def map_settings():
             doc["vision"] = int(v)
         if "hidden" in d:
             doc["hidden"] = bool(d["hidden"])
+        removed = 0
+        if "cols" in d or "rows" in d:
+            cols, rows = d.get("cols", doc["cols"]), d.get("rows", doc["rows"])
+            if side(cols, 0) == 0 or side(rows, 0) == 0:
+                raise Fail(f"The map can be 1 to {MAX_SIDE} squares on each side.")
+            removed = resize(doc, cols, rows)
         ensure_fog(doc)
         save(doc)
-    return jsonify(vision=doc["vision"], hidden=doc["hidden"])
+    return jsonify(vision=doc["vision"], hidden=doc["hidden"], cols=doc["cols"], rows=doc["rows"], removed=removed)
+
+
+def resize(doc, cols, rows):
+    """Give the board a new size. Tokens are pulled inside it; walls, doors and windows that reach outside are dropped
+    (their number is returned); what was explored stays where it was."""
+    old = dims(doc)
+    if (cols, rows) == old:
+        return 0
+    doc["cols"], doc["rows"] = cols, rows
+    for t in doc["tokens"]:
+        t["x"], t["y"] = min(float(cols), t["x"]), min(float(rows), t["y"])
+    removed = 0
+    for key in SEGS.values():
+        keep = [o for o in doc[key] if max(o["x1"], o["x2"]) <= cols and max(o["y1"], o["y2"]) <= rows]
+        removed += len(doc[key]) - len(keep)
+        doc[key] = keep
+    before = _decode(doc["explored"], (old[0] * PPC, old[1] * PPC))
+    if before is not None:
+        after = Image.new("L", (cols * PPC, rows * PPC), 0)
+        after.paste(before, (0, 0))
+        doc["explored"] = _encode(after)
+    else:
+        doc["explored"] = ""
+    _fog["sig"], _fog["explored"], _fog["key"] = None, None, None
+    return removed
 
 
 @bp.post("/map/fog/reset")
@@ -949,7 +1030,8 @@ def saves_list():
             if d:
                 doc = d["doc"]
                 out.append({"id": d["id"], "name": d["name"], "saved": d["saved"], "tokens": len(doc.get("tokens", [])),
-                            "walls": len(doc.get("walls", [])), "doors": len(doc.get("doors", []))})
+                            "walls": len(doc.get("walls", [])), "doors": len(doc.get("doors", [])),
+                            "windows": len(doc.get("windows", []))})
     out.sort(key=lambda s: -s["saved"])
     return jsonify(saves=out)
 
@@ -968,7 +1050,7 @@ def saves_create():
         if not old and len(list(folder.glob("*.json"))) >= MAX_SAVES:
             raise Fail("There are too many saved maps. Delete some first.")
         sid = old["id"] if old else uuid.uuid4().hex
-        body = {k: doc[k] for k in ("tokens", "walls", "doors", "vision", "explored")}
+        body = {k: doc[k] for k in ("tokens", "walls", "doors", "windows", "vision", "explored", "cols", "rows")}
         tmp = folder / f"{sid}.tmp"
         tmp.write_text(json.dumps({"id": sid, "name": name, "saved": int(time.time()), "doc": body}), encoding="utf-8")
         os.replace(tmp, save_path(sid))
@@ -984,8 +1066,12 @@ def saves_load(sid):
     with _lock:
         doc = load()
         src = d["doc"]
-        for key in ("tokens", "walls", "doors"):
+        for key in ("tokens", "walls", "doors", "windows"):
             doc[key] = src.get(key) if isinstance(src.get(key), list) else []
+        doc["cols"], doc["rows"] = src.get("cols", None), src.get("rows", None)
+        if doc["cols"] is None:
+            del doc["cols"], doc["rows"]            # a save from before the board could be resized
+        migrate(doc)
         doc["vision"] = src.get("vision") if isinstance(src.get("vision"), (int, float)) else 7
         doc["explored"] = src.get("explored") if isinstance(src.get("explored"), str) else ""
         doc["hidden"] = True                 # check it over first; show it to the players when ready

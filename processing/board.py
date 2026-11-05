@@ -27,7 +27,7 @@ import uuid
 
 from flask import Blueprint, Response, abort, jsonify, request
 
-from chat import acting_as, deliver
+from .chat import acting_as, deliver
 from errors import Fail, handle_errors
 
 bp = Blueprint("board", __name__, url_prefix="/api/board")

@@ -6,7 +6,7 @@ import sys
 
 from werkzeug.security import generate_password_hash
 
-from auth import DATA, HASH_FILE
+from processing import DATA, HASH_FILE
 
 DATA.mkdir(exist_ok=True)
 pw = getpass.getpass("New password: ")
