@@ -12,7 +12,7 @@ from pathlib import Path
 
 from flask import Blueprint, Response, abort, jsonify, request, send_file
 
-from auth import DATA
+from . import DATA
 
 bp = Blueprint("music", __name__, url_prefix="/api/music")
 ROOT = Path(os.environ.get("MUSIC_DIR", Path.home() / "Music")).expanduser()

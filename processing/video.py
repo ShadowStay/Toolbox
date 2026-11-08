@@ -12,7 +12,8 @@ from pathlib import Path
 
 from flask import request
 
-from .core import Fail, bp, send_bytes
+from errors import Fail, send_bytes
+from . import bp
 
 MAX_SIDE, MAX_SECONDS, MAX_CLIPS, MAX_TRACKS = 3840, 4 * 3600, 80, 40
 RENDER_TIMEOUT = 3600
@@ -169,7 +170,7 @@ def render_project(state, tmp, exe, probe):
 
 
 @bp.post("/video/render")
-def render():
+def render_video():
     exe, probe = shutil.which("ffmpeg"), shutil.which("ffprobe")
     if not (exe and probe):
         raise Fail("Video export on the server needs ffmpeg installed. Install it, or switch to browser processing in Options.")
