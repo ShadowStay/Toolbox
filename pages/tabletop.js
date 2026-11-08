@@ -361,12 +361,43 @@ window.SheetUtils = {
 
   // ---------- weapons ----------
   // "1k10+2" -> "1d10+2". Anything that is not a dice roll (empty, "-", text) gives null: no preset for that weapon.
-  const DAMAGE = /^\s*(\d{0,3})\s*[kd]\s*(\d{1,4})\s*(?:([+-])\s*(\d{1,6}))?\s*$/i;
-  function damageExpr(text) {
-    const m = DAMAGE.exec(String(text || ""));
-    return m ? `${m[1] || 1}d${m[2]}${m[3] ? m[3] + m[4] : ""}` : null;
+  // A roll or modifier is a sum of terms: whole numbers and dice (3, -2, d4, k4, 1d4, 1k4, -k5, 2k6 + 1 ...).
+  // parseTerms("k100 - k5 + 2") -> {flat: 2, dice: [{sign: 1, n: 1, sides: 100}, {sign: -1, n: 1, sides: 5}]}; null when it is not valid.
+  const TERM = /^\s*([+-])?\s*(?:(\d{0,3})\s*[dk]\s*(\d{1,4})|(\d{1,6}))\s*/i;
+  function parseTerms(text) {
+    let rest = String(text ?? "").trim();
+    const t = { flat: 0, dice: [] };
+    let first = true, count = 0;
+    while (rest) {
+      const m = TERM.exec(rest);
+      if (!m || (!first && !m[1])) return null;
+      const sign = m[1] === "-" ? -1 : 1;
+      if (m[3]) {
+        const n = +(m[2] || 1), sides = +m[3];
+        if (n < 1 || n > 100 || sides < 2) return null;
+        t.dice.push({ sign, n, sides });
+      } else t.flat += sign * +m[4];
+      rest = rest.slice(m[0].length); first = false;
+      if (++count > 12) return null;
+    }
+    return t;
   }
-  const short = (name) => [...name.trim()].slice(0, 5).join("") + ".";
+  // The terms as an expression for the server, with a leading sign: "+1d4-1d5+2" (extra: a number added to the flat part).
+  function tail(t, extra = 0) {
+    const f = t.flat + extra;
+    return t.dice.map((d) => `${d.sign < 0 ? "-" : "+"}${d.n}d${d.sides}`).join("") + (f ? (f > 0 ? "+" : "-") + Math.abs(f) : "");
+  }
+  // ... and as the table writes it: "+ k4 − k5 + 2".
+  function shownTail(t, extra = 0) {
+    const f = t.flat + extra, out = t.dice.map((d) => `${d.sign < 0 ? "−" : "+"} ${d.n === 1 ? "" : d.n}k${d.sides}`);
+    if (f) out.push(`${f < 0 ? "−" : "+"} ${Math.abs(f)}`);
+    return out.join(" ");
+  }
+  // "1k10+2" -> "1d10+2". Anything that is not a dice roll (empty, "-", text) gives null: no preset for that weapon.
+  function damageExpr(text) {
+    const t = parseTerms(text);
+    return t && t.dice.length ? tail(t).replace(/^\+/, "") : null;
+  }
   const num = (v) => { const n = parseFloat(String(v ?? "").replace(",", ".")); return isNaN(n) ? 0 : n; };
   const plus = (n) => (n < 0 ? "−" : "+") + " " + Math.abs(n);
   async function loadWeapons() {
@@ -402,19 +433,26 @@ window.SheetUtils = {
         row.append(...buttons); box.append(hd, row);
         return box;
       };
-      const te = weapons.filter((w) => w.te != null), dmg = weapons.filter((w) => w.expr);
-      p.weapons.hidden = !te.length && !dmg.length;
-      p.weapons.replaceChildren(
-        ...(te.length ? [group("TÉ with a weapon", te.map((w) => button(`${short(w.name)} ${k100(w.te)}`, d100(w.te), w.name + " TÉ", `${w.name}: fegyver nélkül + weapon TÉ + módosítók = ${w.te}`)))] : []),
-        ...(dmg.length ? [group("Sebzés", dmg.map((w) => button(`${short(w.name)} ${w.expr.replace("d", "k")}`, w.expr, w.name, `${w.name}: ${w.dmg}`)))] : []));
+      const items = weapons.filter((w) => w.te != null || w.expr);
+      p.weapons.hidden = !items.length;
+      // One block per weapon: its full name, and under it the TÉ roll and the damage roll side by side (only the rolls themselves).
+      p.weapons.replaceChildren(...items.map((w) => {
+        const box = document.createElement("div"), name = document.createElement("small"), row = document.createElement("div");
+        box.className = "wp"; name.className = "wn"; name.textContent = w.name; name.title = w.name; row.className = "actions";
+        if (w.te != null) row.append(button(k100(w.te), d100(w.te), w.name + " TÉ", `${w.name}: k100 + fegyver nélkül + weapon TÉ + módosítók`));
+        if (w.expr) row.append(button(w.expr.replace(/d/g, "k"), w.expr, w.name + " sebzés", `${w.name}: ${w.dmg}`));
+        box.append(name, row);
+        return box;
+      }));
       paintQuick(p);
     }
   }
   // The k100 button shows k100 + fegyver nélküli TÉ (+ the Modifier box); without a character it is a plain k100.
   function paintQuick(p) {
     const b = p.root.querySelector("[data-die=d100]");
-    b.textContent = k100(unarmed == null ? (p.mod() || null) : unarmed + p.mod());
-    b.title = unarmed == null ? "" : "k100 + fegyver nélküli TÉ" + (p.mod() ? " + the modifier" : "");
+    const t = p.terms();
+    b.textContent = t ? `k100 ${shownTail(t, unarmed ?? 0)}`.trim() : "k100";
+    b.title = unarmed == null ? "" : "k100 + fegyver nélküli TÉ" + (t && (t.flat || t.dice.length) ? " + the modifier" : "");
   }
 
   // ---------- the log ----------
@@ -425,7 +463,9 @@ window.SheetUtils = {
     if (mine.has(r.id)) li.className = "mine";
     big.textContent = r.total;
     who.className = "who"; who.textContent = `${r.name}${r.label ? " · " + r.label : ""} · ${two(d.getHours())}:${two(d.getMinutes())}`;
-    what.textContent = `${r.expr}: [${r.dice.join(", ")}]${mod}`;
+    what.textContent = r.parts
+      ? r.parts.map((x, i) => `${i ? (x.sign < 0 ? " − " : " + ") : (x.sign < 0 ? "−" : "")}${x.n}d${x.sides} [${x.dice.join(", ")}]`).join("") + mod
+      : `${r.expr}: [${r.dice.join(", ")}]${mod}`;
     li.append(big, who, what);
     return li;
   }
@@ -463,12 +503,11 @@ window.SheetUtils = {
   // ---------- my rolls ----------
   const MAX_CUSTOM = 24, crKey = () => "tabletop-rolls:" + (asId || "_");
   let custom = [], customKey = null;                        // [{n: name, r: roll as typed}]
-  function parseRoll(text) {                                // "k100 + 3", "1k10+2", "2d6-1" -> {expr: "1d100+3", shown: "k100 + 3"} | null
-    const m = DAMAGE.exec(String(text || ""));
-    if (!m) return null;
-    const n = +(m[1] || 1), sides = +m[2], mod = m[3] ? (m[3] === "-" ? -1 : 1) * +m[4] : 0;
-    if (n < 1 || n > 100 || sides < 2) return null;
-    return { expr: `${n}d${sides}${mod ? (mod > 0 ? "+" : "-") + Math.abs(mod) : ""}`, shown: `${n === 1 ? "" : n}k${sides}${mod ? ` ${plus(mod)}` : ""}` };
+  function parseRoll(text) {                                // "k100 + 3", "1k10+2", "2d6-1", "k20 + k4" -> {expr: "1d100+3", shown: "k100 + 3"} | null
+    const t = parseTerms(text);
+    if (!t || !t.dice.length) return null;
+    const shown = shownTail(t).replace(/^\+ /, "");
+    return { expr: tail(t).replace(/^\+/, ""), shown: shown.replace(/^− /, "−") };
   }
   function reloadCustom() {
     if (customKey === crKey()) return;
@@ -563,7 +602,7 @@ window.SheetUtils = {
     root.innerHTML = `
       <h2>Dice</h2>
       <p class="hint nomargin" data-as></p>
-      <label class="field">Modifier <input type="text" data-mod value="0" inputmode="numeric" autocomplete="off"></label>
+      <label class="field">Modifier <input type="text" data-mod value="0" placeholder="3, -2, 1k4, k6, -k5" title="A number, or dice: 3, -2, 1k4, 1d4, d4, k6, -k5 ..." autocomplete="off" spellcheck="false"></label>
       <div class="actions">
         <button class="btn" type="button" data-die="d6">k6</button>
         <button class="btn" type="button" data-die="d10">k10</button>
@@ -589,13 +628,15 @@ window.SheetUtils = {
     const p = { root, as: q("[data-as]"), log: q(".rolls"), weapons: q("[data-weapons]"), editing: false,
       crEdit: q("[data-cr-edit]"), crButtons: q("[data-cr-buttons]"), crEditor: q("[data-cr-editor]"), crList: q("[data-cr-list]"), crAdd: q("[data-cr-add]"), say: (t, error) => { sayEl.textContent = t; sayEl.classList.toggle("error", !!error); } };
     panels.push(p);
-    p.mod = () => parseInt(q("[data-mod]").value, 10) || 0;
-    q("[data-mod]").addEventListener("input", () => paintQuick(p));
+    p.terms = () => parseTerms(q("[data-mod]").value);              // null when the Modifier box is not a valid number or dice
+    q("[data-mod]").addEventListener("input", () => { q("[data-mod]").classList.toggle("bad", !p.terms()); paintQuick(p); });
     root.addEventListener("click", (e) => {
       const b = e.target.closest("[data-die]"), w = e.target.closest("[data-expr]");
       if (b) {                                                        // quick dice: plus the Modifier box (the k100 also plus the TÉ shown on it)
-        const add = p.mod() + (b.dataset.die === "d100" && unarmed != null ? unarmed : 0);
-        roll(p, b.dataset.die + (add ? (add > 0 ? "+" : "") + add : ""), b.dataset.die === "d100" && unarmed != null ? "TÉ" : "");
+        const t = p.terms();
+        if (!t) return p.say("The Modifier is not valid. Use a number or dice, like 3, -2, 1k4, d4 or -k5.", true);
+        const te = b.dataset.die === "d100" && unarmed != null;
+        roll(p, b.dataset.die + tail(t, te ? unarmed : 0), te ? "TÉ" : "");
       } else if (w) roll(p, w.dataset.expr, w.dataset.label);       // weapon rolls are complete as they stand: the Modifier box is not added
     });
     q(".custom").addEventListener("submit", (e) => { e.preventDefault(); roll(p, q("[data-custom]").value); });
@@ -638,7 +679,7 @@ window.SheetUtils = {
   // bigger map is simply more play area. Everything on the board (tokens, walls, doors, windows) is stored in squares.
   const CELL = 64, TOK = 56, MARGIN = 0.12;
   let cols = 16, rows = 10;
-  const board = $("#map"), viewport = $("#viewport"), geoG = $("#g-geo"), pv = $("#pv"), fogImg = $("#fog"), cover = $("#mapcover"), segMenu = $("#seg-menu");
+  const board = $("#map"), viewport = $("#viewport"), geoG = $("#g-geo"), areasG = $("#g-areas"), lightsG = $("#g-lights"), dotsG = $("#g-dots"), ghostG = $("#g-ghost"), areaPop = $("#area-pop"), pv = $("#pv"), fogImg = $("#fog"), cover = $("#mapcover"), segMenu = $("#seg-menu");
   const status = $("#map-status"), addSel = $("#map-add");
   const say = (text, error) => { status.textContent = text; status.classList.toggle("error", !!error); };
   async function run(fn) { try { await fn(); } catch (err) { say(err.message || String(err), true); } }
@@ -652,9 +693,9 @@ window.SheetUtils = {
   const isDM = () => window.Role.get() === "dm";
   const num1 = (v) => +v.toFixed(1);
 
-  let data = { tokens: [], walls: [], doors: [], windows: [], hidden: false, vision: 7, cols: 16, rows: 10, fog: null };
+  let data = { tokens: [], walls: [], doors: [], windows: [], lights: [], areas: [], hidden: false, night: false, night_sight: 1, dark_range: 4, vision: 7, cols: 16, rows: 10, fog: null };
   const SEG = { wall: "walls", door: "doors", window: "windows" };                    // the kinds of wall part, and their lists
-  let tool = "move", chain = null, gesture = null;
+  let tool = "move", chain = null, chainStart = null, gesture = null, lightSel = "", areaSel = "", stroke = null, lightDrag = null;
   let sel = { type: "", id: "" };
 
   // ---------- switching between the sheet, the map and the dungeon master's HQ ----------
@@ -684,8 +725,15 @@ window.SheetUtils = {
   // ---------- role ----------
   function applyRole() {
     const dm = isDM();
-    if (!dm) setTool("move");
+    if (!dm) { setTool("move"); showMapTab("tools"); }
   }
+  // The toolbar above the map: Tools, and (dungeon master) Grid. Leaving Tools puts the pointer back to Move.
+  function showMapTab(name) {
+    document.querySelectorAll("[data-mtab]").forEach((t) => t.setAttribute("aria-selected", String(t.dataset.mtab === name)));
+    document.querySelectorAll("[data-mpanel]").forEach((p) => { p.hidden = p.dataset.mpanel !== name; });
+    if (name !== "tools") setTool("move");
+  }
+  document.querySelectorAll("[data-mtab]").forEach((t) => t.addEventListener("click", () => showMapTab(t.dataset.mtab)));
   document.addEventListener("rolechange", () => {
     if (!isDM() && !$("#view-dm").hidden) showView("sheet");     // no longer the dungeon master: leave the HQ
     if ($("#view-map").hidden) return;
@@ -734,7 +782,7 @@ window.SheetUtils = {
     el.setAttribute("role", "button");
     el.innerHTML = '<div class="disc"><div class="layer base"></div><div class="layer grey gl"></div><div class="layer grey gr"></div>' +
       '<div class="tint ep"></div><div class="tint fp"></div><span class="mid"></span></div>' +
-      '<div class="vit"><span class="ep"></span><span class="fp"></span></div><div class="tname"></div><div class="fxb" hidden></div>';
+      '<div class="tlabels"><div class="vit"><span class="ep"></span><span class="fp"></span></div><div class="tname"></div></div><div class="fxb" hidden></div>';
     return el;
   }
   // The portrait (or the initials when there is none) goes into the three layers.
@@ -871,9 +919,10 @@ window.SheetUtils = {
     drawerEl(n).inert = !on;
     tabEl(n).setAttribute("aria-expanded", String(on));
   }
-  const openDrawer = (name) => DRAWERS.forEach((n) => setDrawer(n, n === (DRAWERS.includes(name) ? name : "hp")));
-  const closeDrawer = () => DRAWERS.forEach((n) => setDrawer(n, false));
   const drawerOpen = () => DRAWERS.some((n) => drawerEl(n).classList.contains("open"));
+  const syncStage = () => $("#mapstage").classList.toggle("opened", drawerOpen());     // retracted: the tabs show icons only
+  function openDrawer(name) { DRAWERS.forEach((n) => setDrawer(n, n === (DRAWERS.includes(name) ? name : "hp"))); syncStage(); }
+  function closeDrawer() { DRAWERS.forEach((n) => setDrawer(n, false)); syncStage(); }
   DRAWERS.forEach((n) => {
     tabEl(n).addEventListener("click", () => (drawerEl(n).classList.contains("open") ? closeDrawer() : openDrawer(n)));
     drawerEl(n).querySelector("[data-close]").addEventListener("click", () => { closeDrawer(); tabEl(n).focus(); });
@@ -897,15 +946,27 @@ window.SheetUtils = {
   };
 
   // ---------- panning: the board is dragged around in its window ----------
-  let pan = { x: 0, y: 0 }, panning = null, centered = false;
-  const applyPan = () => { board.style.transform = `translate(${pan.x}px, ${pan.y}px)`; };
+  let pan = { x: 0, y: 0 }, zoom = 1, panning = null, centered = false;
+  const ZMIN = 0.25, ZMAX = 3;
+  const applyPan = () => {
+    board.style.transform = `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`;
+    $("#zoom-label").textContent = Math.round(zoom * 100) + "%";
+  };
   function clampPan() {                                         // part of the board always stays in view
     const keep = 120;
-    pan.x = clamp(pan.x, keep - cols * CELL, viewport.clientWidth - keep);
-    pan.y = clamp(pan.y, keep - rows * CELL, viewport.clientHeight - keep);
+    pan.x = clamp(pan.x, keep - cols * CELL * zoom, viewport.clientWidth - keep);
+    pan.y = clamp(pan.y, keep - rows * CELL * zoom, viewport.clientHeight - keep);
   }
   function centerBoard() {
-    pan = { x: (viewport.clientWidth - cols * CELL) / 2, y: (viewport.clientHeight - rows * CELL) / 2 };
+    pan = { x: (viewport.clientWidth - cols * CELL * zoom) / 2, y: (viewport.clientHeight - rows * CELL * zoom) / 2 };
+    clampPan(); applyPan(); hideSegMenu();
+  }
+  // Zoom keeps the spot under (cx, cy) (viewport pixels; the middle of the window when left out) where it is.
+  function setZoom(z, cx = viewport.clientWidth / 2, cy = viewport.clientHeight / 2) {
+    z = clamp(z, ZMIN, ZMAX);
+    const k = z / zoom;
+    pan.x = cx - (cx - pan.x) * k; pan.y = cy - (cy - pan.y) * k;
+    zoom = z;
     clampPan(); applyPan(); hideSegMenu();
   }
   function sizeBoard() {
@@ -916,11 +977,21 @@ window.SheetUtils = {
     clampPan(); applyPan();
   }
   $("#map-center").addEventListener("click", centerBoard);
+  $("#zoom-in").addEventListener("click", () => setZoom(zoom * 1.25));
+  $("#zoom-out").addEventListener("click", () => setZoom(zoom / 1.25));
+  $("#zoom-label").addEventListener("click", () => setZoom(1));
+  viewport.addEventListener("wheel", (e) => {                   // the wheel zooms around the pointer
+    if (e.target.closest(".segmenu, .mapcover")) return;
+    e.preventDefault();
+    const r = viewport.getBoundingClientRect();
+    setZoom(zoom * Math.exp(-e.deltaY * (e.deltaMode === 1 ? 0.05 : 0.0015)), e.clientX - r.left, e.clientY - r.top);
+  }, { passive: false });
   addEventListener("resize", () => { clampPan(); applyPan(); });
+  new ResizeObserver(() => { if (viewport.clientWidth) { clampPan(); applyPan(); } }).observe(viewport);   // the window changes size when a slider opens
   viewport.addEventListener("pointerdown", (e) => {
-    if (e.target.closest(".dock, .drawer, .corner, .segmenu, .mapcover")) return;
+    if (e.target.closest(".dock, .drawer, .corner, .zoombox, .segmenu, .mapcover")) return;
     const middle = e.button === 1;
-    if (!(middle || (e.button === 0 && tool === "move" && !drag && !e.target.closest(".token, .hit")))) return;
+    if (!(middle || (e.button === 0 && tool === "move" && !drag && !e.target.closest(".token, .hit, .lhit")))) return;
     panning = { sx: e.clientX, sy: e.clientY, ox: pan.x, oy: pan.y };
     board.classList.add("panning");
     hideSegMenu();
@@ -932,27 +1003,99 @@ window.SheetUtils = {
     pan.x = panning.ox + e.clientX - panning.sx; pan.y = panning.oy + e.clientY - panning.sy;
     clampPan(); applyPan();
   });
-  const endPan = () => { panning = null; board.classList.remove("panning"); };
+  function endPan(e) {
+    const p = panning;
+    panning = null;
+    board.classList.remove("panning");
+    if (p && e && e.type === "pointerup" && e.button === 0 && tool === "move" && Math.hypot(e.clientX - p.sx, e.clientY - p.sy) < 4) showAreaInfo(e);   // a click, not a drag
+  }
   viewport.addEventListener("pointerup", endPan);
   viewport.addEventListener("pointercancel", endPan);
 
   // ---------- walls, doors and windows ----------
   let geoSig = "";
+  // The outline of a light's reach, without the parts that lie inside another light's reach: only the outer edge of the joined lit area stays.
+  function lightRing(l) {
+    const TAU = Math.PI * 2, all = data.lights, cover = [];
+    for (const o of all) {
+      if (o === l) continue;
+      const d = Math.hypot(o.x - l.x, o.y - l.y);
+      if (d >= l.r + o.r) continue;                                                      // they do not touch
+      if (d <= o.r - l.r + 1e-9 && (o.r > l.r || all.indexOf(o) < all.indexOf(l))) return "";   // this one lies inside the other
+      if (d <= l.r - o.r) continue;                                                      // the other lies inside this one
+      const mid = Math.atan2(o.y - l.y, o.x - l.x), half = Math.acos(clamp((l.r * l.r + d * d - o.r * o.r) / (2 * l.r * d), -1, 1));
+      cover.push([mid - half, 2 * half]);
+    }
+    if (!cover.length) return `<circle class="lring" cx="${l.x}" cy="${l.y}" r="${l.r}"/>`;
+    const parts = [];
+    for (const [from, len] of cover) {
+      const a = ((from % TAU) + TAU) % TAU;
+      if (a + len > TAU) parts.push([a, TAU], [0, a + len - TAU]); else parts.push([a, a + len]);
+    }
+    parts.sort((p, q) => p[0] - q[0]);
+    const merged = [];
+    for (const v of parts) {
+      const last = merged[merged.length - 1];
+      if (last && v[0] <= last[1] + 1e-9) last[1] = Math.max(last[1], v[1]); else merged.push([...v]);
+    }
+    const free = [];
+    let at = 0;
+    for (const [a, b] of merged) { if (a > at + 1e-9) free.push([at, a]); at = Math.max(at, b); }
+    if (at < TAU - 1e-9) free.push([at, TAU]);
+    if (free.length > 1 && free[0][0] === 0 && Math.abs(free[free.length - 1][1] - TAU) < 1e-9) { const f = free.shift(); free[free.length - 1][1] = f[1] + TAU; }
+    if (!free.length) return "";
+    const pt = (a) => `${(l.x + l.r * Math.cos(a)).toFixed(3)} ${(l.y + l.r * Math.sin(a)).toFixed(3)}`;
+    return `<path class="lring" d="${free.map(([a, b]) => `M${pt(a)} A${l.r} ${l.r} 0 ${b - a > Math.PI ? 1 : 0} 1 ${pt(b)}`).join(" ")}"/>`;
+  }
+
+  // The corners of a piece "x,y,p" of an area (see processing/battlemap.py): f whole tile, q0-q3 a quarter, t0-t3 a diagonal half.
+  function piecePoly(key) {
+    const [x, y, p] = key.split(",");
+    const X = +x, Y = +y;
+    if (p === "f") return [[X, Y], [X + 1, Y], [X + 1, Y + 1], [X, Y + 1]];
+    const k = +p[1], r = k % 2, b = k >> 1;
+    if (p[0] === "q") { const x0 = X + r / 2, y0 = Y + b / 2; return [[x0, y0], [x0 + .5, y0], [x0 + .5, y0 + .5], [x0, y0 + .5]]; }
+    return [[X + r, Y + b], [X + (1 - r), Y + b], [X + r, Y + (1 - b)]];      // the right angle is at the corner (r, b)
+  }
+  const polyPts = (poly) => poly.map((q) => q.join(",")).join(" ");
+  function inPiece(key, px, py) {
+    const [x, y, p] = key.split(",");
+    const u = px - x, v = py - y;
+    if (u < 0 || v < 0 || u > 1 || v > 1) return false;
+    if (p === "f") return true;
+    const k = +p[1], r = k % 2, b = k >> 1;
+    if (p[0] === "q") return u >= r / 2 && u <= r / 2 + .5 && v >= b / 2 && v <= b / 2 + .5;
+    return (r ? 1 - u : u) + (b ? 1 - v : v) <= 1;
+  }
+  const endpointSet = () => new Set([...data.walls, ...data.doors, ...data.windows].flatMap((o) => [o.x1 + "," + o.y1, o.x2 + "," + o.y2]));
+
   function drawGeo() {
-    const sig = JSON.stringify([data.walls, data.doors, data.windows, sel, isDM()]);
+    const dm = isDM();
+    const sig = JSON.stringify([data.walls, data.doors, data.windows, data.lights, data.areas, sel, lightSel, dm, tool, chain]);
     if (sig === geoSig) return;
     geoSig = sig;
     const line = (cls, o, extra = "") => `<line class="${cls}" x1="${o.x1}" y1="${o.y1}" x2="${o.x2}" y2="${o.y2}" ${extra}/>`;
-    const hit = (type, o) => (isDM() ? line("hit", o, `data-t="${type}" data-id="${o.id}"`) : "");     // only the dungeon master clicks them
+    const hit = (type, o) => (dm ? line("hit", o, `data-t="${type}" data-id="${o.id}"`) : "");     // only the dungeon master clicks them
     const isSel = (type, id) => (sel.type === type && sel.id === id ? " sel" : "");
+    areasG.innerHTML = (data.areas || []).map((a) => a.cells.map((c) =>
+      `<polygon class="area" points="${polyPts(piecePoly(c))}" fill="${a.color}" fill-opacity=".38" stroke="${a.color}" stroke-opacity=".6"/>`).join("")).join("");
     geoG.innerHTML =
       data.walls.map((w) => line("wall" + isSel("wall", w.id), w) + hit("wall", w)).join("") +
       data.windows.map((w) => line("window" + isSel("window", w.id), w) + hit("window", w)).join("") +
       data.doors.map((d) => line(`door ${d.open ? "open" : "closed"}${isSel("door", d.id)}`, d) + hit("door", d)).join("");
+    lightsG.innerHTML = (data.lights || []).map((l) =>
+      (dm ? lightRing(l) : "") +
+      `<circle class="lamp${l.id === lightSel ? " sel" : ""}" cx="${l.x}" cy="${l.y}" r=".2"/>` +
+      (dm ? `<circle class="lhit" cx="${l.x}" cy="${l.y}" r=".45" data-lid="${l.id}"/>` : "")).join("");
+    // While drawing walls every end of a wall shows as a dot: click one to connect to it.
+    dotsG.innerHTML = dm && tool === "wall"
+      ? [...endpointSet()].map((k) => { const [x, y] = k.split(","); return `<circle class="wdot${chain && chain.x === +x && chain.y === +y ? " start" : ""}" cx="${x}" cy="${y}" r=".11"/>`; }).join("")
+      : "";
   }
 
   // ---------- refreshing from the server ----------
   let refreshSeq = 0, drawnSeq = 0;
+  let sizeDirty = false, visionDirty = false, nightDirty = false, darkDirty = false;                   // true while the grid boxes hold something typed and not yet applied
   async function refresh() {
     const my = ++refreshSeq, fresh = await api.json("/api/map");
     if (my < drawnSeq) return;                                  // the answer to a later request is already on the board
@@ -961,11 +1104,15 @@ window.SheetUtils = {
     const dm = isDM();
     $("#hidden-badge").hidden = !(dm && data.hidden);
     $("#map-hide").textContent = data.hidden ? "Show map to players" : "Hide map from players";
-    if (document.activeElement !== $("#map-vision")) $("#map-vision").value = data.vision;
+    if (!visionDirty) $("#map-vision").value = data.vision;
+    if (!nightDirty) $("#map-night").value = data.night_sight;
+    if (!darkDirty) $("#map-dark").value = data.dark_range;
+    $("#daynight").textContent = data.night ? "☾ Night" : "☀ Day";
+    $("#time-badge").textContent = data.night ? "☾ Night" : "☀ Day";
+    $("#time-badge").classList.toggle("night", !!data.night);
     cover.hidden = !(data.hidden && !dm);
     if (data.cols !== cols || data.rows !== rows) { cols = data.cols || 16; rows = data.rows || 10; sizeBoard(); }
-    if (document.activeElement !== $("#map-cols")) $("#map-cols").value = cols + 1;           // the size is given in grid lines
-    if (document.activeElement !== $("#map-rows")) $("#map-rows").value = rows + 1;
+    if (!sizeDirty) { $("#map-cols").value = cols + 1; $("#map-rows").value = rows + 1; }   // the size is given in grid lines; boxes the dungeon master is typing in are left alone
     if (!centered && viewport.clientWidth) { centerBoard(); centered = true; }
 
     const ids = new Set(data.tokens.map((t) => t.id));
@@ -976,11 +1123,14 @@ window.SheetUtils = {
       paint(el, t);
     }
     if (SEG[sel.type] && !data[SEG[sel.type]].some((o) => o.id === sel.id)) select("", "");
+    if (lightSel && !data.lights.some((l) => l.id === lightSel)) { lightSel = ""; hideSegMenu(); }
     drawGeo();
+    syncAreaPick();
     renderSide();
 
     if (data.fog) {
-      if (fogImg.dataset.h !== data.fog) { fogImg.dataset.h = data.fog; fogImg.src = "/api/map/fog.png?h=" + data.fog; }
+      const sharp = store.get("tabletop-sharp") === "on", want = data.fog + (sharp ? "s" : "");           // hard or soft edge between light and darkness
+      if (fogImg.dataset.h !== want) { fogImg.dataset.h = want; fogImg.src = "/api/map/fog.png?h=" + data.fog + (sharp ? "&sharp=1" : ""); }
       fogImg.hidden = dm && !$("#fog-preview").checked;
       fogImg.classList.toggle("preview", dm);
     } else fogImg.hidden = true;
@@ -1006,7 +1156,7 @@ window.SheetUtils = {
 
   // The dungeon master clicks a wall, door or window: a little menu next to the click says what it can become.
   const segOf = () => (SEG[sel.type] ? data[SEG[sel.type]].find((o) => o.id === sel.id) : null);
-  function hideSegMenu() { segMenu.hidden = true; }
+  function hideSegMenu() { segMenu.hidden = true; areaPop.hidden = true; }
   function showSegMenu(e) {
     const o = segOf();
     if (!o || !isDM()) return hideSegMenu();
@@ -1069,7 +1219,7 @@ window.SheetUtils = {
     if (!canMove(t)) return;
     busy.add(id);
     // Remember where inside the token the pointer grabbed it, so it does not jump to centre on the pointer.
-    drag = { id, el, r, dx: e.clientX - (r.left + t.x * CELL), dy: e.clientY - (r.top + t.y * CELL), x: t.x, y: t.y, path: [], moved: false };
+    drag = { id, el, r, dx: e.clientX - (r.left + t.x * CELL * zoom), dy: e.clientY - (r.top + t.y * CELL * zoom), x: t.x, y: t.y, path: [], moved: false };
     el.setPointerCapture(e.pointerId);
     e.preventDefault();
   });
@@ -1077,7 +1227,7 @@ window.SheetUtils = {
     if (!drag) return;
     drag.moved = true;
     drag.el.classList.add("drag");
-    const tx = clamp((e.clientX - drag.dx - drag.r.left) / CELL, 0, cols), ty = clamp((e.clientY - drag.dy - drag.r.top) / CELL, 0, rows);
+    const tx = clamp((e.clientX - drag.dx - drag.r.left) / (CELL * zoom), 0, cols), ty = clamp((e.clientY - drag.dy - drag.r.top) / (CELL * zoom), 0, rows);
     const [nx, ny] = isDM() ? [tx, ty] : sweep(drag.x, drag.y, tx, ty);
     const last = drag.path[drag.path.length - 1] || [drag.x, drag.y];
     if (!isDM() && Math.hypot(nx - last[0], ny - last[1]) > 0.25 && drag.path.length < 150) drag.path.push([+drag.x.toFixed(3), +drag.y.toFixed(3)]);   // the way it went, for the server
@@ -1106,31 +1256,47 @@ window.SheetUtils = {
 
   // ---------- drawing walls (dungeon master) ----------
   const drawing = () => tool === "wall";                          // the tool only the dungeon master can use
+  const HINTS = {
+    wall: "Draw walls: click to place a dot, click again to connect it to the next one. Click a dot that is already there to connect to it. Double-click, right-click or Esc ends the chain; clicking the first dot again closes the shape.",
+    light: "Light sources: click to place one. Click a light to change its reach or remove it, drag it to move it.",
+    area: "Areas: set a name, colour and description, then click or drag over the map. Shift-click (or Erase) clears.",
+  };
   function setTool(next) {
     tool = next;
     endChain();
     clearMeasure();
     hideSegMenu();
+    lightSel = ""; stroke = null; lightDrag = null; noGhost();
     $("#measure-opts").hidden = tool !== "measure";
+    $("#light-opts").hidden = tool !== "light";
+    $("#area-opts").hidden = tool !== "area";
+    $("#tool-hint").textContent = HINTS[tool] || "";
+    $("#tool-hint").hidden = !HINTS[tool];
     if (tool === "measure") say("Measure: snaps to tile centres and tokens. Esc clears the line.");
     else if (next === "move") say("");
     board.classList.toggle("drawing", tool !== "move");
     document.querySelectorAll("[data-tool]").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.tool === tool)));
+    drawGeo();
   }
   document.querySelectorAll("[data-tool]").forEach((b) => b.addEventListener("click", () => setTool(b.dataset.tool === "measure" && tool === "measure" ? "move" : b.dataset.tool)));
 
   const snap = (v) => Math.round(v * 2) / 2;
   const cellAt = (e) => {
     const r = board.getBoundingClientRect();
-    return { x: clamp(snap((e.clientX - r.left) / CELL), 0, cols), y: clamp(snap((e.clientY - r.top) / CELL), 0, rows) };
+    return { x: clamp(snap((e.clientX - r.left) / (CELL * zoom)), 0, cols), y: clamp(snap((e.clientY - r.top) / (CELL * zoom)), 0, rows) };
   };
+  const rawAt = (e) => { const r = board.getBoundingClientRect(); return { x: (e.clientX - r.left) / (CELL * zoom), y: (e.clientY - r.top) / (CELL * zoom) }; };
+  const ghost = (html) => { ghostG.innerHTML = html; };
+  function noGhost() { ghostG.innerHTML = ""; }
+  const placing = () => isDM() && (tool === "wall" || tool === "light" || tool === "area");
+
   function showPreview(to) {
     pv.hidden = !chain;
     if (!chain) return;
     pv.setAttribute("x1", chain.x); pv.setAttribute("y1", chain.y);
     pv.setAttribute("x2", to ? to.x : chain.x); pv.setAttribute("y2", to ? to.y : chain.y);
   }
-  function endChain() { chain = null; gesture = null; showPreview(); $("#chain-end").hidden = true; }
+  function endChain() { chain = null; chainStart = null; gesture = null; showPreview(); $("#chain-end").hidden = true; drawGeo(); }
   $("#chain-end").addEventListener("click", endChain);
 
   async function commit(a, b) {
@@ -1138,29 +1304,217 @@ window.SheetUtils = {
     await api.json("/api/map/walls", { x1: a.x, y1: a.y, x2: b.x, y2: b.y });
     await refresh();
   }
-  const afterCommit = (p) => { chain = { x: p.x, y: p.y }; $("#chain-end").hidden = false; showPreview(p); };
+  const afterCommit = (p) => { chain = { x: p.x, y: p.y }; $("#chain-end").hidden = false; showPreview(p); drawGeo(); };
 
+  // --- walls: dots that connect ---
   board.addEventListener("pointerdown", (e) => {
     if (!drawing() || !isDM() || e.button !== 0) return;
     const p = cellAt(e);
-    if (!chain) { chain = p; gesture = { x: p.x, y: p.y }; $("#chain-end").hidden = false; showPreview(p); return; }
-    const from = chain;
-    afterCommit(p);
+    if (!chain) { chain = chainStart = p; gesture = { x: p.x, y: p.y }; $("#chain-end").hidden = false; showPreview(p); drawGeo(); return; }
+    const from = chain, closing = chainStart && p.x === chainStart.x && p.y === chainStart.y;
+    if (closing) endChain(); else afterCommit(p);
     run(() => commit(from, p));
   });
-  board.addEventListener("pointermove", (e) => { if (chain && tool !== "move") showPreview(cellAt(e)); });
   board.addEventListener("pointerup", (e) => {              // dragging from one point to another works too
     if (!gesture || !drawing()) return;
     const p = cellAt(e), from = gesture;
     gesture = null;
     if (Math.hypot(p.x - from.x, p.y - from.y) >= 0.4) { afterCommit(p); run(() => commit(from, p)); }
   });
+
+  // --- lights ---
+  const lightNear = (e) => { const r = rawAt(e); return data.lights.find((l) => Math.hypot(l.x - r.x, l.y - r.y) < 0.5); };
+  function fillLightMenu() {
+    const l = data.lights.find((x) => x.id === lightSel);
+    if (!l) return hideSegMenu();
+    segMenu.innerHTML = `<div class="seg-title">light · reaches ${l.r}</div>` +
+      [["Reach −", "dec"], ["Reach +", "inc"], ["Delete", "del"]].map(([t, a]) => `<button type="button" class="btn small" data-light="${a}">${t}</button>`).join("");
+  }
+  function showLightMenu(e) {
+    fillLightMenu();
+    if (segMenu.hidden && !lightSel) return;
+    segMenu.hidden = false;
+    const r = viewport.getBoundingClientRect();
+    segMenu.style.left = clamp(e.clientX - r.left + 8, 4, Math.max(4, r.width - segMenu.offsetWidth - 4)) + "px";
+    segMenu.style.top = clamp(e.clientY - r.top + 8, 4, Math.max(4, r.height - segMenu.offsetHeight - 4)) + "px";
+  }
+  const lightGhost = (p) => ghost(`<circle class="lring" cx="${p.x}" cy="${p.y}" r="${clamp(parseFloat($("#light-r").value) || 3, 1, 20)}"/><circle class="gdot" cx="${p.x}" cy="${p.y}" r=".2"/>`);
+  board.addEventListener("pointerdown", (e) => {
+    if (tool !== "light" || !isDM() || e.button !== 0) return;
+    const hit = lightNear(e), p = cellAt(e);
+    hideSegMenu();
+    if (hit) {
+      lightSel = hit.id; lightDrag = { id: hit.id, moved: false, sx: e.clientX, sy: e.clientY };
+      board.setPointerCapture(e.pointerId); drawGeo();
+      return;
+    }
+    lightSel = "";
+    run(async () => { await api.json("/api/map/lights", { x: p.x, y: p.y, r: parseFloat($("#light-r").value) || 3 }); await refresh(); });
+  });
+  board.addEventListener("pointerup", (e) => {
+    if (!lightDrag) return;
+    const d = lightDrag, p = cellAt(e);
+    lightDrag = null;
+    noGhost();
+    if (d.moved && Math.hypot(e.clientX - d.sx, e.clientY - d.sy) >= 4) run(async () => { await api.json(`/api/map/lights/${d.id}`, { x: p.x, y: p.y }); await refresh(); });
+    else showLightMenu(e);
+  });
+  segMenu.addEventListener("click", (e) => {
+    const b = e.target.closest("[data-light]"), l = data.lights.find((x) => x.id === lightSel);
+    if (!b || !l) return;
+    run(async () => {
+      if (b.dataset.light === "del") { await api.json(`/api/map/lights/${l.id}/delete`, {}); lightSel = ""; hideSegMenu(); }
+      else await api.json(`/api/map/lights/${l.id}`, { r: clamp(l.r + (b.dataset.light === "inc" ? 0.5 : -0.5), 1, 20) });
+      await refresh();
+      fillLightMenu();
+    });
+  });
+  lightsG.addEventListener("click", (e) => {                 // in the Move tool a light is clicked like a wall
+    const h = e.target.closest(".lhit");
+    if (!h || tool !== "move" || !isDM()) return;
+    select("", "");
+    lightSel = h.dataset.lid; drawGeo(); showLightMenu(e);
+  });
+
+  // --- areas ---
+  // stroke: the pieces under the pointer while it is held down: {pieces: Map, erase}
+  const pieceAt = (e) => {
+    const r = rawAt(e), x = clamp(r.x, 0, cols - 1e-6), y = clamp(r.y, 0, rows - 1e-6), cx = Math.floor(x), cy = Math.floor(y), kind = $("#area-shape").value;
+    if (kind === "f") return { x: cx, y: cy, p: "f" };
+    return { x: cx, y: cy, p: kind + ((y - cy >= .5 ? 2 : 0) + (x - cx >= .5 ? 1 : 0)) };     // the corner (quarter or diagonal half) nearest the pointer
+  };
+  const keyOf = (q) => `${q.x},${q.y},${q.p}`;
+  const erasing = (e) => $("#area-erase").checked || e.shiftKey;
+  function areaGhost(e) {
+    const color = $("#area-color").value, er = stroke ? stroke.erase : erasing(e);
+    const shapes = [...(stroke ? stroke.pieces.keys() : []), keyOf(pieceAt(e))];
+    ghost(shapes.map((k) => `<polygon class="gshape${er ? " erase" : ""}" points="${polyPts(piecePoly(k))}"${er ? "" : ` fill="${color}" fill-opacity=".5" stroke="${color}"`}/>`).join(""));
+  }
+  const areaBrush = () => ({ name: $("#area-name").value.trim(), color: $("#area-color").value, desc: $("#area-desc").value });
+  board.addEventListener("pointerdown", (e) => {
+    if (tool !== "area" || !isDM() || e.button !== 0) return;
+    const er = erasing(e);
+    if (!er && !areaBrush().name) return say("Give the area a name first.", true);
+    stroke = { pieces: new Map(), erase: er };
+    const q = pieceAt(e);
+    stroke.pieces.set(keyOf(q), q);
+    board.setPointerCapture(e.pointerId);
+    areaGhost(e);
+    e.preventDefault();
+  });
+  board.addEventListener("pointerup", () => {
+    if (!stroke) return;
+    const st = stroke;
+    stroke = null;
+    noGhost();
+    run(async () => {
+      const r = await api.json("/api/map/areas/paint", { ...areaBrush(), pieces: [...st.pieces.values()], erase: st.erase });
+      if (r.id) areaSel = r.id;
+      await refresh();
+    });
+  });
+  board.addEventListener("pointercancel", () => { stroke = null; lightDrag = null; noGhost(); });
+
+  // One pointermove for all the placing tools: the ghost of what a click would put down.
+  board.addEventListener("pointermove", (e) => {
+    if (!placing()) return;
+    const p = cellAt(e);
+    if (tool === "wall") {
+      showPreview(p);
+      ghost(`<circle class="gdot${endpointSet().has(p.x + "," + p.y) ? " snap" : ""}" cx="${p.x}" cy="${p.y}" r=".14"/>`);
+    } else if (tool === "light") {
+      if (lightDrag) { lightDrag.moved = true; lightGhost(p); } else lightGhost(p);
+    } else if (tool === "area") {
+      if (stroke) { const q = pieceAt(e), k = keyOf(q); if (!stroke.pieces.has(k) && stroke.pieces.size < 400) stroke.pieces.set(k, q); }
+      areaGhost(e);
+    }
+  });
+  board.addEventListener("pointerleave", () => { if (!stroke && !lightDrag) noGhost(); });
   board.addEventListener("dblclick", (e) => {
     if (drawing()) return endChain();
     const el = e.target.closest(".token");
     if (el && tool === "move") window.TableMap.openToken(el.dataset.id);      // double-click a token: its Ép, Fp and effects
   });
-  board.addEventListener("contextmenu", (e) => { if (tool !== "move") { e.preventDefault(); endChain(); clearMeasure(); } });
+  board.addEventListener("contextmenu", (e) => { if (tool !== "move") { e.preventDefault(); endChain(); clearMeasure(); stroke = null; noGhost(); } });
+
+  // The area panel: pick one to change it, or fill in a new one. Painting with a name that is not there yet makes the area.
+  const pick = $("#area-pick");
+  function syncAreaPick() {
+    const list = data.areas || [], sig = JSON.stringify(list.map((a) => [a.id, a.name]));
+    if (pick.dataset.sig !== sig) {
+      pick.dataset.sig = sig;
+      pick.replaceChildren(new Option("New area…", ""), ...list.map((a) => new Option(a.name, a.id)));
+    }
+    if (areaSel && !list.some((a) => a.id === areaSel)) areaSel = "";
+    pick.value = areaSel;
+    $("#area-del").disabled = !areaSel;
+  }
+  pick.addEventListener("change", () => {
+    areaSel = pick.value;
+    const a = (data.areas || []).find((x) => x.id === areaSel);
+    if (a) { $("#area-name").value = a.name; $("#area-color").value = a.color; $("#area-desc").value = a.desc; }
+    else { $("#area-name").value = ""; $("#area-desc").value = ""; }
+    $("#area-del").disabled = !areaSel;
+  });
+  let areaTimer = 0;
+  ["area-name", "area-color", "area-desc"].forEach((id) => $("#" + id).addEventListener("input", () => {
+    if (!areaSel) return;                                    // a new area is made when something is painted
+    clearTimeout(areaTimer);
+    const mine = areaSel;
+    areaTimer = setTimeout(() => run(async () => {
+      if (!areaBrush().name) return;
+      await api.json("/api/map/areas/" + mine, areaBrush());
+      await refresh();
+    }), 500);
+  }));
+  $("#area-del").addEventListener("click", () => run(async () => {
+    if (!areaSel || !confirm("Delete this area and everything painted with it?")) return;
+    await api.json(`/api/map/areas/${areaSel}/delete`, {});
+    areaSel = ""; $("#area-name").value = ""; $("#area-desc").value = "";
+    await refresh();
+  }));
+
+  // Clicking an area on the map (Move tool) shows its name and description.
+  function showAreaInfo(e) {
+    const r = rawAt(e);
+    let found = null;
+    for (const a of [...(data.areas || [])].reverse()) {
+      if (a.cells.some((c) => inPiece(c, r.x, r.y))) { found = a; break; }
+    }
+    if (!found) { areaPop.hidden = true; return; }
+    areaPop.replaceChildren();
+    const head = document.createElement("strong"), sw = document.createElement("i"), nm = document.createElement("span");
+    sw.style.background = found.color; nm.textContent = found.name;
+    head.append(sw, nm);
+    areaPop.append(head);
+    if (found.desc) { const d = document.createElement("p"); d.textContent = found.desc; areaPop.append(d); }
+    areaPop.hidden = false;
+    const v = viewport.getBoundingClientRect();
+    areaPop.style.left = clamp(e.clientX - v.left + 10, 4, Math.max(4, v.width - areaPop.offsetWidth - 4)) + "px";
+    areaPop.style.top = clamp(e.clientY - v.top + 10, 4, Math.max(4, v.height - areaPop.offsetHeight - 4)) + "px";
+  }
+
+  // The time of day, and how far a character sees.
+  document.addEventListener("tt-sharp", () => { if (data.fog) refresh(); });           // the settings dialog switched hard / soft light edges
+  $("#daynight").addEventListener("click", () => run(async () => { await api.json("/api/map/settings", { night: !data.night }); await refresh(); }));
+  for (const [id, key, mark] of [["map-night", "night_sight", () => { nightDirty = true; }], ["map-dark", "dark_range", () => { darkDirty = true; }]]) {
+    const box = $("#" + id);
+    box.addEventListener("input", mark);
+    box.addEventListener("change", () => run(async () => {
+      try { await api.json("/api/map/settings", { [key]: +box.value }); }
+      finally { nightDirty = darkDirty = false; }
+      await refresh();
+    }));
+  }
+  document.addEventListener("keydown", (e) => {
+    if ($("#view-map").hidden || e.target.closest("input, select, textarea")) return;
+    if (e.key === "Escape") { lightSel = ""; stroke = null; lightDrag = null; noGhost(); drawGeo(); }
+    else if ((e.key === "Delete" || e.key === "Backspace") && lightSel && tool === "light") {
+      e.preventDefault();
+      const id = lightSel;
+      run(async () => { await api.json(`/api/map/lights/${id}/delete`, {}); lightSel = ""; hideSegMenu(); await refresh(); });
+    }
+  });
 
   // ---------- measuring distances (everybody) ----------
   // Click or drag from one spot to another. Each end snaps to the centre of a tile, or to the centre of a token when the
@@ -1170,7 +1524,7 @@ window.SheetUtils = {
   let ms = null;                                              // {a, b, fixed, drag}: the points are {x, y, name?} in tile units
   const spot = (e) => {
     const r = board.getBoundingClientRect();
-    const x = clamp((e.clientX - r.left) / CELL, 0, cols), y = clamp((e.clientY - r.top) / CELL, 0, rows);
+    const x = clamp((e.clientX - r.left) / (CELL * zoom), 0, cols), y = clamp((e.clientY - r.top) / (CELL * zoom), 0, rows);
     const reach = Math.max(0.5, TOK / 2 / CELL);                                        // a token's radius, in tiles
     let best = null, near = reach;
     for (const t of data.tokens) {
@@ -1270,10 +1624,13 @@ window.SheetUtils = {
 
   // ---------- map settings (dungeon master) ----------
   const vision = $("#map-vision");
+  vision.addEventListener("input", () => { visionDirty = true; });
   vision.addEventListener("change", () => run(async () => {
-    await api.json("/api/map/settings", { vision: +vision.value });
+    try { await api.json("/api/map/settings", { vision: +vision.value }); }
+    finally { visionDirty = false; }
     await refresh();
   }));
+  ["#map-cols", "#map-rows"].forEach((id) => $(id).addEventListener("input", () => { sizeDirty = true; }));
   // The size is typed as grid lines (a map of 17 x 11 grid lines is 16 x 10 squares).
   $("#map-size-go").addEventListener("click", () => run(async () => {
     const x = parseInt($("#map-cols").value, 10), y = parseInt($("#map-rows").value, 10);
@@ -1281,6 +1638,7 @@ window.SheetUtils = {
     if (x > 61 || y > 61) throw new Error("A map can have at most 61 grid lines each way.");
     if ((x - 1 < cols || y - 1 < rows) && !confirm("A smaller map pulls tokens back inside it and removes walls, doors and windows that stick out. Go on?")) return;
     const r = await api.json("/api/map/settings", { cols: x - 1, rows: y - 1 });
+    sizeDirty = false;
     await refresh();
     say(`The map is now ${r.cols + 1} × ${r.rows + 1} grid lines (${r.cols} × ${r.rows} squares).` + (r.removed ? ` ${r.removed} wall part${r.removed === 1 ? "" : "s"} outside it removed.` : ""));
   }));
@@ -1405,6 +1763,7 @@ window.SheetUtils = {
     $("#token-title").textContent = t.name;
     body.innerHTML =
       (stats ? `<div class="sgs tok-stats">${M.statLine(t, "hp", "Ép")}${M.statLine(t, "fp", "Fp")}</div>` : "") +
+      (t.kind === "character" ? `<label class="check tok-dark"><input type="checkbox" data-dark${t.dark ? " checked" : ""}${t.editable ? "" : " disabled"}> Darkvision (sees further at night and in the dark)</label>` : "") +
       `<h3 class="tok-sub">Effects</h3>` +
       `<ul class="fxlist" aria-label="Effects">${(t.effects || []).map((e) => effectRow(e, t.editable)).join("")}</ul>` +
       (mine ? "" : '<p class="hint nomargin">No effects.</p>') +
@@ -1428,8 +1787,9 @@ window.SheetUtils = {
   }
 
   body.addEventListener("change", (e) => {
-    const stat = e.target.closest("input[data-f]"), row = e.target.closest("[data-fx]");
-    if (stat) run(async () => { await M.setStat(id, stat.dataset.f, stat.value); render(true); });
+    const stat = e.target.closest("input[data-f]"), row = e.target.closest("[data-fx]"), dv = e.target.closest("[data-dark]");
+    if (dv) run(async () => { await M.api.json(`/api/map/tokens/${id}/darkvision`, { on: dv.checked }); await M.refresh(); render(true); });
+    else if (stat) run(async () => { await M.setStat(id, stat.dataset.f, stat.value); render(true); });
     else if (row) run(() => saveEffects(readEffects()));
   });
   body.addEventListener("click", (e) => {
@@ -1633,10 +1993,41 @@ window.SheetUtils = {
   const fld = (k) => sheet.querySelector(`[data-k="${k}"]`);
   const isDM = () => Role.get() === "dm";
 
-  // The attack table: a few rows of name, attacks per round, TÉ, damage and a description of the attack.
-  $("#dm-attacks").innerHTML = Array.from({ length: 6 }, (_, i) =>
-    "<tr>" + [["n", "Támadás"], ["t", "Tám/kör"], ["te", "TÉ"], ["s", "Sebzés"], ["d", "Leírás"]].map(([c, label]) =>
-      `<td><input type="text" data-k="a.${i}.${c}" aria-label="${label}, row ${i + 1}" autocomplete="off" spellcheck="false"></td>`).join("") + "</tr>").join("");
+  // The attack table grows and shrinks: "+ Add attack" adds a row, ✕ removes one. A row is name, attacks per round, TÉ, damage and a
+  // description, stored as a.<row>.<column> in the enemy's data like before (so older enemies open as they were).
+  const ACOLS = [["n", "Támadás"], ["t", "Tám/kör"], ["te", "TÉ"], ["s", "Sebzés"], ["d", "Leírás"]], MAX_ATTACKS = 30;
+  const atkBody = $("#dm-attacks");
+  const attackRow = (i) => "<tr>" + ACOLS.map(([c, label]) =>
+    `<td><input type="text" data-k="a.${i}.${c}" aria-label="${label}, attack ${i + 1}" autocomplete="off" spellcheck="false"></td>`).join("") +
+    `<td class="xcol"><button class="btn small" type="button" data-attack-del="${i}" title="Remove this attack" aria-label="Remove attack ${i + 1}">✕</button></td></tr>`;
+  function renderAttacks(n) {
+    atkBody.innerHTML = Array.from({ length: n }, (_, i) => attackRow(i)).join("");
+    $("#dm-attacks-empty").hidden = n > 0;
+    $("#dm-attack-add").disabled = n >= MAX_ATTACKS;
+  }
+  const attackCount = (d) => Object.entries(d).reduce((n, [k, v]) => { const m = /^a\.(\d+)\./.exec(k); return m && String(v).trim() ? Math.max(n, +m[1] + 1) : n; }, 0);
+  const readAttacks = () => [...atkBody.rows].map((tr) => Object.fromEntries(ACOLS.map(([c]) => [c, tr.querySelector(`[data-k$=".${c}"]`).value])));
+  function writeAttacks(rows) {
+    renderAttacks(rows.length);
+    rows.forEach((r, i) => ACOLS.forEach(([c]) => { fld(`a.${i}.${c}`).value = r[c] || ""; }));
+  }
+  renderAttacks(0);
+  $("#dm-attack-add").addEventListener("click", () => {
+    const rows = readAttacks();
+    if (rows.length >= MAX_ATTACKS) return;
+    rows.push({});
+    writeAttacks(rows);
+    atkBody.rows[rows.length - 1].querySelector("input").focus();
+    mark();
+  });
+  atkBody.addEventListener("click", (e) => {
+    const b = e.target.closest("[data-attack-del]");
+    if (!b) return;
+    const rows = readAttacks();
+    rows.splice(+b.dataset.attackDel, 1);
+    writeAttacks(rows);
+    mark();
+  });
 
   // ---------- portrait ----------
   let portrait = "";
@@ -1667,6 +2058,7 @@ window.SheetUtils = {
     return d;
   };
   const fill = (d) => {
+    renderAttacks(attackCount(d));
     sheet.querySelectorAll("[data-k]").forEach((el) => { el.value = d[el.dataset.k] || ""; });
     portrait = d.portrait || "";
     showPortrait();
@@ -1718,32 +2110,14 @@ window.SheetUtils = {
   });
 
   // ---------- healing ----------
-  // Full HP, Heal FP and Heal HP (with the amount from the box). Damage is just typing the new number into Akt. Ép / Akt. Fp.
+  // Full heal puts Akt. Ép and Akt. Fp back to their maximum. Damage is just typing the new number into Akt. Ép / Akt. Fp.
   const parse = (v) => { const n = parseFloat(String(v).replace(",", ".")); return isNaN(n) ? null : n; };
   const num = (k) => parse(fld(k).value);
-  const put = (k, v) => { fld(k).value = String(v); };
-  const HEAL = { ep: ["hp.curep", "hp.maxep", "Ép"], fp: ["hp.curfp", "hp.maxfp", "Fp"] };
-  function hp(kind) {
-    if (kind === "full") {
-      for (const [c, m] of [["hp.curep", "hp.maxep"], ["hp.curfp", "hp.maxfp"]]) if (num(m) != null) put(c, num(m));
-      mark();
-      return say("Back to full HP.");
-    }
-    const [curKey, maxKey, label] = HEAL[kind];
-    const amount = parse($("#dm-amount").value);
-    if (!(amount > 0)) throw new Error("Type how much to heal, as a number above 0.");
-    const max = num(maxKey);
-    let now = num(curKey);
-    if (now == null) now = max == null ? 0 : max;        // no current value yet: start from full
-    now += amount;
-    if (max != null) now = Math.min(now, max);           // healing stops at the maximum
-    put(curKey, now);
-    mark();
-    say(`Healed ${amount}: ${now} ${label}.`);
-  }
   sheet.addEventListener("click", (e) => {
-    const b = e.target.closest("[data-hp]");
-    if (b) run(async () => hp(b.dataset.hp));
+    if (!e.target.closest('[data-hp="full"]')) return;
+    for (const [c, m] of [["hp.curep", "hp.maxep"], ["hp.curfp", "hp.maxfp"]]) if (num(m) != null) fld(c).value = String(num(m));
+    mark();
+    say("Back to full HP.");
   });
 
   // ---------- the bar above the sheet ----------
@@ -1896,11 +2270,8 @@ window.SheetUtils = {
   const blank = "<span></span>";
 
   const ATTRS = [["str", "Erő"], ["spd", "Gyorsaság"], ["dex", "Ügyesség"], ["sta", "Állóképesség"], ["hea", "Egészség"], ["bea", "Szépség"], ["int", "Intelligencia"], ["wil", "Akaraterő"], ["ast", "Asztrál"]];
-  const SIDE = [["str", "Sebzés járulék"], ["spd", "Páncélban"], ["dex", "Páncélban"]];     // boxes beside the first three stats
   const attrs = `<div class="attrs">${
     ATTRS.map(([k, l], i) => `<button type="button" class="an" data-calc="${k}" aria-expanded="false" title="Click to show the calculation" style="grid-row:${i + 1};grid-column:1"><span>${l}</span><small class="acalc" data-acalc="${k}" hidden></small></button><div class="acell" style="grid-row:${i + 1};grid-column:2"><input type="text" id="a-${k}" aria-label="${l}" data-k="attr.${k}" autocomplete="off" inputmode="numeric"><span class="tot" data-tot="${k}" hidden></span></div><span class="rm" data-rm="${k}" style="grid-row:${i + 1};grid-column:3" title="Faj módosító"></span>`).join("")
-  }${
-    SIDE.map(([k, l], i) => `<label class="side" style="grid-row:${i + 1};grid-column:4"><span>${l}</span><input type="text" data-k="attr.${k}.x" autocomplete="off"></label>`).join("")
   }</div>`;
 
   // The title is a button: clicking it shows the calculation and the −1 / +1 HM buttons (which also show whenever there is HM to spend).
@@ -1912,7 +2283,7 @@ window.SheetUtils = {
     <div class="p1">
       <div class="a-left">
         ${card("", attrs)}
-        ${card("Ψ képzettség", fi("psi.type", "Iskola típusa") + fi("psi.use", "Használat foka") + fi("psi.lvl", "Használat szintje") + pair(f("psi.cur", "Akt. Ψp"), f("psi.max", "Max. Ψp")) + f("psi.per", "Ψp / Szint"))}
+        ${card('<button type="button" class="psi-open" id="psi-open" title="Click to show the Ψ tables">Ψ képzettség</button>', fi("psi.type", "Iskola típusa") + fi("psi.use", "Használat foka") + fi("psi.lvl", "Használat szintje") + pair(f("psi.cur", "Akt. Ψp"), f("psi.max", "Max. Ψp")) + f("psi.per", "Ψp / Szint"))}
         ${card("Ψ pajzsok", `<div class="pz">${pz("pz.a", "Asztrál")}${pz("pz.m", "Mentál")}</div>`)}
         ${card("Mana-pontok", pair(f("mana.per", "Mp/Szint"), f("mana.max", "Max. Mp")) + f("mana.cur", "Akt. Mp") + area("mana.other", "Egyéb módosítók", 4))}
       </div>
@@ -1954,6 +2325,28 @@ window.SheetUtils = {
     document.querySelectorAll("[data-page]").forEach((x) => x.setAttribute("aria-selected", String(x === t)));
     sheet.querySelectorAll("[data-p]").forEach((p) => (p.hidden = p.dataset.p !== t.dataset.page));
   }));
+
+  // ---------- Ψ tables: click the "Ψ képzettség" title ----------
+  // Two popups side by side: on the left how long it takes to win back 1 Ψ, on the right how each way of using Ψ works.
+  const PSI_METHODS = [["Ψ alkalmazás módja", "1. szinten", "további szinteken"], ["Pyarroni Af", "4", "+3"], ["Pyarroni Mf", "5", "+4"], ["Slant-út", "6", "+5"], ["Kyr metódus", "7", "+6"]];
+  const PSI_REST = [["Tevékenység", "1 Ψ visszanyeréséhez szükséges idő"], ["Meditáció", "2 perc"], ["Alvás", "10 perc"], ["Pihenés (üldögélés)", "20 perc"], ["Könnyű séta, léptetés lovon", "30 perc"], ["Utazás, ügetés vagy vágta", "60 perc"]];
+  const psiTable = (rows) => `<table class="psi-table"><thead><tr>${rows[0].map((c) => `<th>${c}</th>`).join("")}</tr></thead><tbody>${rows.slice(1).map((r) => `<tr>${r.map((c) => `<td>${c}</td>`).join("")}</tr>`).join("")}</tbody></table>`;
+  let psiDialog = null;
+  function openPsi() {
+    if (!psiDialog) {
+      psiDialog = document.createElement("dialog");
+      psiDialog.id = "psi-dialog";
+      psiDialog.className = "psi-pop";
+      psiDialog.setAttribute("aria-label", "Ψ tables");
+      psiDialog.innerHTML = `
+        <section class="psi-panel" aria-label="Ψ visszanyerés">${psiTable(PSI_REST)}<p class="psi-note">Teljes pihenés után, alvás természetes ébredéssel, a Ψ pontok maximumra töltődnek.</p></section>
+        <section class="psi-panel" aria-label="Ψ alkalmazás módja"><button class="drawer-close psi-x" type="button" data-psi-close aria-label="Close" title="Close">✕</button>${psiTable(PSI_METHODS)}</section>`;
+      document.body.append(psiDialog);
+      psiDialog.addEventListener("click", (e) => { if (e.target === psiDialog || e.target.closest("[data-psi-close]")) psiDialog.close(); });
+    }
+    psiDialog.showModal();
+  }
+  sheet.addEventListener("click", (e) => { if (e.target.closest("#psi-open")) openPsi(); });
 
   // ---------- calculated values ----------
   // Pressing "Apply class & calculate" fills "Fegyver nélkül" (KÉ/TÉ/VÉ/CÉ) and Max. Ép / Max. Fp as
@@ -2036,13 +2429,12 @@ window.SheetUtils = {
     if (text === "-") return ["Alap is “-”: the class has no such value."];
     const base = toNum(baseKey), hm = spentMap()[stat] || 0;
     const parts = [`Alap ${base}${hm ? ` (${base - hm} + ${hm} HM)` : ""}`];
-    let total = base, bonus = false;
+    let total = base;
     for (const st of stats) {
       const x = Math.max(0, eff(st) - 10);
-      if (x > 0) { parts.push(`${NAME[st]} ${x}`); total += x; bonus = true; }
+      if (x > 0) { parts.push(`${NAME[st]} ${x}`); total += x; }
     }
     const lines = [`${parts.join(" + ")} = ${total}`];
-    if (bonus) lines.push("A stat adds how far it is above 10 (race modifier included).");
     const mod = toNum(stat + ".mod");
     if (mod) lines.push(`Módosítók ${mod > 0 ? "+" : "−"}${Math.abs(mod)} is added to every weapon below.`);
     const typed = fld(stat + ".wpn").value.trim();
@@ -2532,8 +2924,9 @@ window.SheetUtils = {
   $("#apply-class").addEventListener("click", () => run(async () => applyClass()));
 
   // ---------- page settings ----------
-  const dlg = $("#tt-settings"), setHm = $("#set-hm");
-  $("#tt-settings-open").addEventListener("click", () => { setHm.checked = settings.showHm; dlg.showModal(); });
+  const dlg = $("#tt-settings"), setHm = $("#set-hm"), setSharp = $("#set-sharp");
+  $("#tt-settings-open").addEventListener("click", () => { setHm.checked = settings.showHm; setSharp.checked = store.get("tabletop-sharp") === "on"; dlg.showModal(); });
+  setSharp.addEventListener("change", () => { store.set("tabletop-sharp", setSharp.checked ? "on" : "off"); document.dispatchEvent(new Event("tt-sharp")); });
   setHm.addEventListener("change", () => { settings.showHm = setHm.checked; store.set(SETTINGS, JSON.stringify(settings)); refreshCalc(); });
   $("#tt-settings-close").addEventListener("click", () => dlg.close());
   dlg.addEventListener("click", (e) => {                     // a click on the backdrop closes it

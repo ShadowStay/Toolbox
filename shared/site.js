@@ -164,8 +164,9 @@
         <button class="nav-expand" type="button" data-act="expand" aria-label="Open the sidebar" title="Open the sidebar">»</button>
         ${groups ? `<ul>${items}</ul>` : ""}
         <div class="nav-foot">
-          <button class="leave" type="button" data-act="options">Options</button>
-          ${groups ? '<button class="leave" type="button" data-act="logout">Seal the tower</button>' : '<a class="leave" href="/login">Sign in</a>'}
+          <button class="leave" type="button" data-act="options" title="Options"><span class="ico" aria-hidden="true">⚙</span><span class="lbl">Options</span></button>
+          ${groups ? '<button class="leave" type="button" data-act="logout" title="Seal the tower"><span class="ico" aria-hidden="true">🔒</span><span class="lbl">Seal the tower</span></button>'
+                   : '<a class="leave" href="/login" title="Sign in"><span class="ico" aria-hidden="true">🔑</span><span class="lbl">Sign in</span></a>'}
         </div>
       </div>`;
   }

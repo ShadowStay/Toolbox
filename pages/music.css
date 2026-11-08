@@ -1,0 +1,42 @@
+/* Music: search bar, library tabs, track rows, album grid and the playlist picker. */
+.page { padding-bottom: 9rem; }
+.mbar { display: flex; gap: .6rem; margin-top: 1.2rem; }
+.mbar input { flex: 1; min-width: 0; }
+a.tab { display: inline-block; text-decoration: none; color: var(--moon); }
+.panel-less h2, #view h2 { margin: 1.5rem 0 .6rem; font-size: 1.2rem; }
+.head { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; margin: 1.2rem 0 .6rem; }
+.head h2 { margin: 0 auto 0 0; font-size: 1.4rem; }
+
+.rows { list-style: none; margin: 0; padding: 0; }
+.row { display: flex; align-items: center; gap: .6rem; padding: .35rem .5rem; border-radius: .5rem; cursor: pointer; }
+.row:hover, .row.on { background: #8a5bd833; }
+.row.on .rt b { color: var(--candle); }
+.rt { flex: 1; min-width: 0; display: grid; }
+.rt b, .rt small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rt small, .dur { font-size: .82rem; color: #c9a2ffcc; }
+.dur { font-variant-numeric: tabular-nums; }
+.ib { min-width: 2rem; height: 2rem; font: inherit; color: var(--orchid); background: none; border: 0; border-radius: .4rem; cursor: pointer; opacity: .7; }
+.ib:hover { background: #8a5bd833; opacity: 1; }
+.ib[aria-pressed="true"] { color: var(--candle); opacity: 1; }
+.ib:disabled { opacity: .35; cursor: wait; }
+
+.cov { flex: none; display: block; width: 3rem; height: 3rem; overflow: hidden; border-radius: .4rem; background: linear-gradient(135deg, var(--violet), var(--dusk)); }
+.cov img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.cov.sq { width: 100%; height: auto; aspect-ratio: 1; border-radius: .6rem; }
+
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(9.5rem, 1fr)); gap: 1rem; }
+.card { display: grid; gap: .15rem; align-content: start; text-decoration: none; color: var(--moon); }
+.card b, .card small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.card small { color: #c9a2ffcc; }
+.card:hover .cov { box-shadow: 0 0 0 2px var(--candle); }
+
+#pick { width: min(24rem, 92vw); padding: 1.25rem; color: var(--moon); background: var(--dusk); border: 1px solid var(--amethyst); border-radius: .7rem; }
+#pick::backdrop { background: #000a; }
+#pick h3, #pick h4 { margin: 0 0 .6rem; }
+#pick h4 { margin-top: 1rem; font-size: .75rem; letter-spacing: .12em; text-transform: uppercase; color: var(--orchid); }
+#pick .btn { display: block; width: 100%; margin-bottom: .4rem; text-align: left; }
+
+@media (max-width: 760px) {
+  .dur { display: none; }
+  .tabs { flex-wrap: nowrap; overflow-x: auto; }
+}

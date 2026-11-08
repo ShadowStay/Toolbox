@@ -85,6 +85,13 @@
           <input type="checkbox" role="switch" id="set-hm" checked>
         </label>
       </fieldset>
+      <fieldset>
+        <legend>Map</legend>
+        <label class="switch-row">
+          <span><strong>Sharp light edges</strong><small>A hard line between what is lit or in view and the dark, instead of a softened edge. Only changes how you see the map.</small></span>
+          <input type="checkbox" role="switch" id="set-sharp">
+        </label>
+      </fieldset>
       <div class="opt-actions"><button class="opt-done" type="button" id="tt-settings-close">Done</button></div>
     </dialog>
     <div id="view-map" hidden aria-label="Tabletop map">
@@ -98,40 +105,81 @@
           <button class="btn" type="button" id="map-remove" disabled>Remove selected</button>
         </div>
       </div>
-      <!-- Tools on the left; what the dungeon master shows the players on the right. -->
-      <div class="maptools">
-        <div class="toolgroup" role="group" aria-label="Map tools">
-          <button class="btn" type="button" data-tool="move" aria-pressed="true" title="Move tokens, and drag the empty map to pan it">Move</button>
-          <button class="btn dm-only" type="button" data-tool="wall" aria-pressed="false" title="Draw walls: click or drag from one grid point to another. Click a wall afterwards to turn it into a door or a window.">Draw walls</button>
-          <button class="btn" type="button" data-tool="measure" aria-pressed="false" title="Measure a distance: click or drag from one spot to another">📏 Measure</button>
-          <button class="btn small" type="button" id="chain-end" hidden>Finish wall</button>
-        </div>
-        <div class="toolgroup right dm-only" role="group" aria-label="What the players see">
-          <button class="btn" type="button" id="map-hide">Hide map from players</button>
-          <label class="check"><input type="checkbox" id="fog-preview" checked> Show the players' fog of war</label>
-        </div>
+      <!-- The toolbar is a small set of tabs, like the sheet and the map above it: Tools, and (dungeon master) Grid. -->
+      <div class="tabs maptabs" role="tablist" aria-label="Map toolbar">
+        <button class="tab" role="tab" data-mtab="tools" aria-selected="true">Tools</button>
+        <button class="tab dm-only" role="tab" data-mtab="grid" aria-selected="false">Grid</button>
       </div>
-      <div class="measure-opts" id="measure-opts" hidden>
-        <label class="field">1 tile = <input type="text" id="measure-scale" inputmode="decimal" autocomplete="off" placeholder="optional"></label>
-        <label class="field">Unit <input type="text" id="measure-unit" maxlength="6" autocomplete="off" value="m"></label>
-      </div>
-      <div class="dmbar dm-only">
-        <label class="field vis">Player sight (squares) <input type="number" id="map-vision" min="1" max="20" value="7"></label>
-        <div class="field sizeset">
-          <span>Map size (grid lines)</span>
-          <div class="sizerow">
-            <input type="number" id="map-cols" min="2" max="61" value="17" aria-label="Grid lines across (x)"><i>×</i>
-            <input type="number" id="map-rows" min="2" max="61" value="11" aria-label="Grid lines down (y)">
-            <button class="btn" type="button" id="map-size-go">Set size</button>
+      <div class="panel mappanel" data-mpanel="tools" role="tabpanel">
+        <div class="maptools">
+          <div class="toolgroup" role="group" aria-label="Map tools">
+            <button class="btn" type="button" data-tool="move" aria-pressed="true" title="Move tokens, and drag the empty map to pan it">Move</button>
+            <button class="btn dm-only" type="button" data-tool="wall" aria-pressed="false" title="Draw walls: place dots that connect, or connect two dots that are already there. Click a wall afterwards to turn it into a door or a window.">Draw walls</button>
+            <button class="btn dm-only" type="button" data-tool="light" aria-pressed="false" title="Place light sources">💡 Light</button>
+            <button class="btn dm-only" type="button" data-tool="area" aria-pressed="false" title="Colour in named areas of the map">🎨 Areas</button>
+            <button class="btn" type="button" data-tool="measure" aria-pressed="false" title="Measure a distance: click or drag from one spot to another">📏 Measure</button>
+            <button class="btn small" type="button" id="chain-end" hidden>Finish wall</button>
+          </div>
+          <div class="toolgroup right dm-only" role="group" aria-label="What the players see">
+            <button class="btn" type="button" id="daynight" title="Switch between day and night">☀ Day</button>
+            <button class="btn" type="button" id="map-hide">Hide map from players</button>
+            <label class="check"><input type="checkbox" id="fog-preview" checked> Show the players' fog of war</label>
           </div>
         </div>
-        <button class="btn" type="button" id="fog-reset">Reset explored area</button>
+        <p class="hint tool-hint" id="tool-hint" hidden></p>
+        <div class="light-opts dm-only" id="light-opts" hidden>
+          <label class="field">New light reaches (squares) <input type="number" id="light-r" min="1" max="20" step="0.5" value="3"></label>
+          <span class="hint">Click the map to place a light. Click a light to change or remove it; drag it to move it. Lit ground is seen from twice the day sight away.</span>
+        </div>
+        <div class="area-opts dm-only" id="area-opts" hidden>
+          <label class="field">Area <select id="area-pick"><option value="">New area…</option></select></label>
+          <label class="field">Name <input type="text" id="area-name" maxlength="40" autocomplete="off" placeholder="e.g. The Armoury"></label>
+          <label class="field">Colour <input type="color" id="area-color" value="#8a5bd8"></label>
+          <label class="field">Paint with
+            <select id="area-shape">
+              <option value="f">Whole tile</option>
+              <option value="q">Half grid (a quarter of a tile)</option>
+              <option value="t">Diagonal (half a tile)</option>
+            </select>
+          </label>
+          <label class="field wide">Description (optional) <textarea id="area-desc" rows="2" maxlength="500" placeholder="Shown to anyone who clicks the area"></textarea></label>
+          <div class="actions">
+            <label class="check"><input type="checkbox" id="area-erase"> Erase</label>
+            <button class="btn small" type="button" id="area-del" disabled>Delete this area</button>
+          </div>
+          <span class="hint">Click or drag over the map to colour it. With Diagonal and Half grid, the part of the tile nearest your pointer is painted. Shift-click erases.</span>
+        </div>
+        <div class="measure-opts" id="measure-opts" hidden>
+          <label class="field">1 tile = <input type="text" id="measure-scale" inputmode="decimal" autocomplete="off" placeholder="optional"></label>
+          <label class="field">Unit <input type="text" id="measure-unit" maxlength="6" autocomplete="off" value="m"></label>
+        </div>
+      </div>
+      <div class="panel mappanel dm-only" data-mpanel="grid" role="tabpanel" hidden>
+        <div class="gridbar">
+          <label class="field vis">Day sight (squares) <input type="number" id="map-vision" min="1" max="20" value="7"></label>
+          <label class="field vis">Night sight (squares) <input type="number" id="map-night" min="1" max="20" value="1"></label>
+          <label class="field vis">Darkvision (squares) <input type="number" id="map-dark" min="1" max="20" value="4"></label>
+          <div class="field sizeset">
+            <span>Map size (grid lines)</span>
+            <div class="sizerow">
+              <input type="number" id="map-cols" min="2" max="61" value="17" aria-label="Grid lines across (x)"><i>×</i>
+              <input type="number" id="map-rows" min="2" max="61" value="11" aria-label="Grid lines down (y)">
+              <button class="btn" type="button" id="map-size-go">Set size</button>
+            </div>
+          </div>
+          <button class="btn" type="button" id="fog-reset">Reset explored area</button>
+        </div>
       </div>
       <p class="status" id="map-status" role="status" aria-live="polite"></p>
+      <div class="mapstage" id="mapstage">
       <div class="viewport" id="viewport">
         <div class="mapboard" id="map" aria-label="Map board">
           <svg class="geo" id="geo" viewBox="0 0 16 10" preserveAspectRatio="none" aria-hidden="true">
+            <g id="g-areas"></g>
             <g id="g-geo"></g>
+            <g id="g-lights"></g>
+            <g id="g-dots"></g>
+            <g id="g-ghost"></g>
             <line class="pv" id="pv" hidden></line>
             <line class="measure" id="m-line" hidden></line>
           </svg>
@@ -143,7 +191,15 @@
         <button class="btn small corner saveicon dm-only" type="button" id="saves-open" title="Save or load maps" aria-label="Save or load maps">💾</button>
         <button class="btn small corner centericon" type="button" id="map-center" title="Centre the map" aria-label="Centre the map">⌖</button>
         <div class="segmenu" id="seg-menu" role="menu" hidden></div>
-        <!-- Three little sliders that pop out over the right edge of the map, one at a time. -->
+        <div class="areapop" id="area-pop" role="status" hidden></div>
+        <div class="timebadge" id="time-badge" aria-live="polite"></div>
+        <div class="zoombox" role="group" aria-label="Zoom">
+          <button class="btn small" type="button" id="zoom-out" title="Zoom out" aria-label="Zoom out">−</button>
+          <button class="btn small" type="button" id="zoom-label" title="Back to 100%" aria-label="Zoom level, click for 100%">100%</button>
+          <button class="btn small" type="button" id="zoom-in" title="Zoom in" aria-label="Zoom in">+</button>
+        </div>
+      </div>
+      <!-- Outside the map, on its right: the tabs, and the sliders that come out of them one at a time. The tabs ride along like folder tabs. -->
         <div class="dock" role="tablist" aria-label="Combat, Ép and Fp, dice">
           <button class="dock-tab" type="button" role="tab" data-drawer="init" aria-expanded="false" aria-controls="drawer-init" title="Combat and initiative">
             <span class="ti" aria-hidden="true">⚔</span><span class="tt" id="tab-init-text">Combat</span><small id="tab-init-sub" hidden></small>
@@ -155,6 +211,7 @@
             <span class="ti" aria-hidden="true">🎲</span><span class="tt">Dice</span>
           </button>
         </div>
+        <div class="drawers">
         <aside class="drawer" id="drawer-init" data-drawer="init" aria-label="Combat and initiative" inert>
           <div class="drawer-body">
             <div class="drawer-head"><h2>Combat</h2><button class="drawer-close" type="button" data-close aria-label="Close" title="Close">✕</button></div>
@@ -177,6 +234,7 @@
             <div class="dice" id="dice-map" aria-label="Dice roller"></div>
           </div>
         </aside>
+        </div>
       </div>
       <p class="empty-note" id="map-empty" hidden>Nobody is on the map.</p>
     </div>
@@ -230,10 +288,7 @@
             <label class="f"><span>Max. Fp</span><input type="text" data-k="hp.maxfp" inputmode="numeric" autocomplete="off"></label>
           </div>
           <div class="hurt">
-            <label class="f"><span>Amount</span><input type="text" id="dm-amount" value="1" inputmode="numeric" autocomplete="off"></label>
-            <button class="btn" type="button" data-hp="full" title="Set Akt. Ép and Akt. Fp to their maximum">Full HP</button>
-            <button class="btn" type="button" data-hp="fp" title="Add the amount to Akt. Fp (not above Max. Fp)">Heal FP</button>
-            <button class="btn" type="button" data-hp="ep" title="Add the amount to Akt. Ép (not above Max. Ép)">Heal HP</button>
+            <button class="btn" type="button" data-hp="full" title="Set Akt. Ép and Akt. Fp to their maximum">Full heal</button>
           </div>
         </section>
         <section class="card dm-combat">
@@ -249,11 +304,12 @@
           <label class="f"><span>Tám./kör</span><input type="text" data-k="tam" inputmode="numeric" autocomplete="off"></label>
         </section>
         <section class="card dm-attacks">
-          <h3>Támadások</h3>
           <div class="tbl attacks"><table>
-            <thead><tr><th>Támadás</th><th>Tám/kör</th><th>TÉ</th><th>Sebzés</th><th>Leírás</th></tr></thead>
+            <thead><tr><th>Támadás</th><th>Tám/kör</th><th>TÉ</th><th>Sebzés</th><th>Leírás</th><th class="xcol" aria-label="Remove"></th></tr></thead>
             <tbody id="dm-attacks"></tbody>
           </table></div>
+          <p class="hint" id="dm-attacks-empty" hidden>No attacks yet.</p>
+          <div class="actions"><button class="btn small" type="button" id="dm-attack-add">+ Add attack</button></div>
         </section>
         <section class="card dm-notes">
           <label class="f"><span>Különleges képességek</span><textarea data-k="abilities" rows="5" spellcheck="false"></textarea></label>

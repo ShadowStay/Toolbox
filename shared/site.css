@@ -145,6 +145,9 @@ a { color: var(--orchid); }
   transition: background .2s, color .2s;
 }
 .leave:hover { background: #8a5bd833; color: #fff; }
+.leave { display: flex; align-items: center; gap: .8rem; }
+.leave .ico { flex: none; width: 1.3rem; text-align: center; color: var(--candle); }
+.leave .lbl { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 [hidden] { display: none !important; }
 
@@ -287,9 +290,10 @@ html[data-motion="off"] .spell:focus-visible { transform: none; }
 @media (min-width: 761px) {
   html[data-nav="closed"] .nav-panel:not(.peek) { padding: 1.75rem .55rem; }
   html[data-nav="closed"] .nav-panel:not(.peek) .nav-head { justify-content: center; }
-  html[data-nav="closed"] .nav-panel:not(.peek) :is(.brand-text, .nav-toggle, .lbl, .nav-foot, li.group) { display: none; }
+  html[data-nav="closed"] .nav-panel:not(.peek) :is(.brand-text, .nav-toggle, .lbl, li.group) { display: none; }
   html[data-nav="closed"] .nav-panel:not(.peek) .nav-expand { display: grid; }
   html[data-nav="closed"] .nav-panel:not(.peek) li a { justify-content: center; padding: .55rem 0; }
+  html[data-nav="closed"] .nav-panel:not(.peek) .leave { justify-content: center; padding: .55rem 0; }
   html[data-nav="closed"] .nav-panel:not(.peek) { cursor: pointer; }
   html[data-nav="closed"] .nav-panel.peek .nav-toggle { display: none; }      /* only an opened sidebar has the « button */
   html[data-nav="open"] .nav-expand { display: none; }
@@ -342,7 +346,7 @@ html[data-motion="off"] .spell:focus-visible { transform: none; }
 .opt-done:hover { filter: brightness(1.12); }
 
 /* ---------- Added: signed-out link, notes, sign-in-only content ---------- */
-a.leave { display: block; text-align: center; text-decoration: none; }
+a.leave { text-decoration: none; }
 
 /* ---------- Rules several pages used to repeat ---------- */
 .btn:disabled { opacity: .45; cursor: default; }

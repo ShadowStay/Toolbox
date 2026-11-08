@@ -10,7 +10,19 @@ snapped to half a cell). Older maps stored tokens as 0..1 fractions of a 16 x 10
                                                          closed. Only the dungeon master opens or closes it.
   windows {id, x1, y1, x2, y2}                           a wall part turned into a window: blocks movement, but lets sight
                                                          through, seen only half as far behind it as it would be without it
-  vision  how many cells a player character can see      hidden  true = players see nothing (the DM is arranging)
+  vision  how many cells a player character can see by day (the "day sight")      hidden  true = players see nothing (the DM is arranging)
+  lights  {id, x, y, r}    a light source: the area around it (radius r, stopped by walls) is lit, and lit areas are seen from
+                           twice the day sight away
+  areas   {id, name, color, desc, cells: ["x,y,p", ...]}   named, coloured parts of the map. A piece p of the square (x, y) is
+                           "f" (the whole square), "q0".."q3" (a quarter: top left, top right, bottom left, bottom right) or
+                           "t0".."t3" (a diagonal half: the triangle whose right angle is at that same corner)
+  night   true = it is night. night_sight / dark_range: how far a character sees in the dark without / with darkvision (1 / 4)
+
+Light: by day everything outside a building is lit. A building is any space closed in by walls, doors and windows (the walls
+are rasterised and the open space that cannot be reached from the edge of the map is "inside"); inside, only light sources and
+the spots next to windows and open doors are lit. At night only light sources are lit. A character sees: its own surroundings
+(night_sight squares, or dark_range with darkvision), plus lit ground by day sight (day only: the ground lit by the sun) and
+lit ground around light sources up to twice the day sight away, always in line of sight.
 
 Players cannot walk through walls, windows or closed doors (the server stops a dragged token at the first one); the dungeon
 master can move tokens through anything.
@@ -26,7 +38,7 @@ token sees in a circle around it, stopped by walls and closed doors; what has be
 is stored; enemies are only sent while in view; walls and doors only once seen. The fog itself is a small PNG.
 
   GET  /api/map                       everything the caller may see (see roles.py: players get the filtered version)
-  GET  /api/map/fog.png               the fog overlay (black = unexplored, dim = explored, clear = in view)
+  GET  /api/map/fog.png               the fog overlay (black = unexplored, dim = explored, clear = in view); ?sharp=1 for hard edges
   POST /api/map/tokens                {kind, ref, count?}  add (players: characters only; DM: up to 20 enemies at once)
   POST /api/map/tokens/<id>           {x, y}       move, in cells (players: characters only, stopped by walls). -> {x, y} where it ended up
   POST /api/map/tokens/<id>/delete                 take off the map (players: characters only)
@@ -43,7 +55,13 @@ is stored; enemies are only sent while in view; walls and doors only once seen. 
   POST /api/map/<walls|doors|windows>/<id>/delete   DM
   POST /api/map/<walls|doors|windows>/<id>/convert  {to: "wall" | "door" | "window"}   DM turns that part into something else
   POST /api/map/doors/<id>/toggle     DM opens / closes a door
-  POST /api/map/settings              {vision?, hidden?, cols?, rows?}   DM (cols / rows = the board size in squares)
+  POST /api/map/settings              {vision?, hidden?, cols?, rows?, night?, night_sight?, dark_range?}   DM (cols / rows = the board size in squares)
+  POST /api/map/lights                {x, y, r?}   DM adds a light source          POST /api/map/lights/<id>  {x?, y?, r?}  change it
+  POST /api/map/lights/<id>/delete    DM
+  POST /api/map/areas/paint           {name, color, desc, pieces: [{x, y, p}], erase?}   DM paints (or, with erase, clears) pieces. An area
+                                      with that name is changed, or made.
+  POST /api/map/areas/<id>            {name?, color?, desc?}   DM          POST /api/map/areas/<id>/delete   DM
+  POST /api/map/tokens/<id>/darkvision {on}   switch a character's darkvision on or off (DM, or whoever has the sheet open)
   POST /api/map/fog/reset             forget what was explored   DM
   GET  /api/map/saves                 DM    -> {saves: [{id, name, saved, tokens, walls, doors, windows}]}
   POST /api/map/saves                 DM    {name} save the map now (same name = replace)
@@ -79,6 +97,11 @@ SEGS = {"wall": "walls", "door": "doors", "window": "windows"}
 MARGIN = 0.12                                 # how close to a wall a player's token may come, in cells
 KINDS = {"character": characters, "enemy": enemies}
 MAX_TOKENS, MAX_SEGS, MAX_SAVES = 200, 1500, 100
+NIGHT_SIGHT, DARK_RANGE, OPEN_R = 1, 4, 3      # defaults: sight at night, darkvision range, how far the day shines in through a window or open door
+IN = 6                                         # pixels per cell when working out which space is inside a building
+MAX_LIGHTS, MAX_AREAS, MAX_PIECES = 80, 60, 20000
+PIECE = re.compile(r"^(?:f|[qt][0-3])$")
+COLOR = re.compile(r"^#[0-9a-fA-F]{6}$")
 HEX = re.compile(r"^[0-9a-f]{32}$")
 _lock = threading.RLock()
 _cache = {}                                   # sheet path -> (mtime_ns, summary), so polling does not re-read every sheet
@@ -92,7 +115,7 @@ class _FogStore:
 
     def _cur(self):
         return self._all.setdefault(campaigns.current_id(), {"sig": None, "key": None, "explored": None, "vis": None,
-                                                              "known": None, "png": b"", "hash": ""})
+                                                              "known": None, "png": b"", "hash": "", "isig": None, "indoor": None, "png_sharp": b""})
 
     def __getitem__(self, key):
         return self._cur()[key]
@@ -122,10 +145,14 @@ def load():
     except (OSError, ValueError):
         doc = {}
     doc = doc if isinstance(doc, dict) else {}
-    for key in ("tokens", "walls", "doors", "windows"):
+    for key in ("tokens", "walls", "doors", "windows", "lights", "areas"):
         if not isinstance(doc.get(key), list):
             doc[key] = []
     migrate(doc)
+    doc["night"] = doc.get("night") is True
+    for key, default in (("night_sight", NIGHT_SIGHT), ("dark_range", DARK_RANGE)):
+        v = doc.get(key)
+        doc[key] = v if isinstance(v, (int, float)) and not isinstance(v, bool) and 1 <= v <= 20 else default
     if isinstance(doc.get("vision"), bool) or not isinstance(doc.get("vision"), (int, float)):
         doc["vision"] = 7
     if not isinstance(doc.get("hidden"), bool):
@@ -230,7 +257,7 @@ def view_polygon(px, py, radius, segs):
     goes through a window carries on, but only half of what it had left: behind a window you see half as far."""
     near = [s for s in segs if max(s[0], s[2]) >= px - radius and min(s[0], s[2]) <= px + radius
             and max(s[1], s[3]) >= py - radius and min(s[1], s[3]) <= py + radius]
-    angles = {math.radians(k) for k in range(0, 360, 4)}
+    angles = {math.radians(k) for k in range(-180, 180, 4)}      # the same range atan2 gives, so the sorted rays go once round
     for x1, y1, x2, y2, _kind in near:
         for x, y in ((x1, y1), (x2, y2)):
             a = math.atan2(y - py, x - px)
@@ -283,21 +310,104 @@ def _encode(im):
     return base64.b64encode(buf.getvalue()).decode()
 
 
+def _pts(poly):
+    return [(x * PPC, y * PPC) for x, y in poly]
+
+
+def _shape(size, px, py, radius, segs):
+    im = Image.new("L", size, 0)
+    ImageDraw.Draw(im).polygon(_pts(view_polygon(px, py, radius, segs)), fill=255)
+    return im
+
+
+def indoor_mask(doc):
+    """255 where a point is inside a building: space closed in by walls, doors (open or shut) and windows, that cannot be
+    reached from the edge of the map without crossing one. Worked out on a coarse grid, then scaled to the fog's size."""
+    cols, rows = dims(doc)
+    segs = [seg_of(o) for key in SEGS.values() for o in doc[key]]
+    sig = hashlib.md5(json.dumps([segs, cols, rows]).encode()).hexdigest()
+    if _fog["isig"] == sig:
+        return _fog["indoor"]
+    W, H = cols * IN, rows * IN
+    wall = Image.new("L", (W + 1, H + 1), 0)
+    d = ImageDraw.Draw(wall)
+    for x1, y1, x2, y2 in segs:
+        d.line([(x1 * IN, y1 * IN), (x2 * IN, y2 * IN)], fill=255, width=2)
+    free = np.asarray(wall) == 0
+    reach = np.zeros_like(free)
+    reach[0, :] = reach[-1, :] = reach[:, 0] = reach[:, -1] = True
+    reach &= free
+    while True:                                  # flood in from the edge, one pixel further each round
+        n = reach.copy()
+        n[1:, :] |= reach[:-1, :]; n[:-1, :] |= reach[1:, :]; n[:, 1:] |= reach[:, :-1]; n[:, :-1] |= reach[:, 1:]
+        n &= free
+        if (n == reach).all():
+            break
+        reach = n
+    inside = (free & ~reach).astype(np.uint8) * 255
+    im = Image.fromarray(inside).crop((0, 0, W, H)).resize((cols * PPC, rows * PPC), Image.NEAREST)
+    _fog["isig"], _fog["indoor"] = sig, im
+    return im
+
+
+def _is_in(img, x, y):
+    return img.getpixel((min(img.width - 1, max(0, int(x * PPC))), min(img.height - 1, max(0, int(y * PPC))))) > 127
+
+
+def openings(doc, indoor):
+    """Windows and open doors that have a building on one side: (x, y, segment) with the point just inside, where daylight comes in."""
+    out = []
+    for key in ("windows", "doors"):
+        for o in doc[key]:
+            if key == "doors" and not o.get("open"):
+                continue
+            x1, y1, x2, y2 = seg_of(o)
+            ln = math.hypot(x2 - x1, y2 - y1)
+            if ln < 1e-9:
+                continue
+            mx, my, nx, ny = (x1 + x2) / 2, (y1 + y2) / 2, -(y2 - y1) / ln, (x2 - x1) / ln
+            a, b = _is_in(indoor, mx + nx * .3, my + ny * .3), _is_in(indoor, mx - nx * .3, my - ny * .3)
+            if a != b:
+                k = 1 if a else -1
+                out.append((mx + nx * k * .08, my + ny * k * .08, (x1, y1, x2, y2)))
+    return out
+
+
 def ensure_fog(doc):
-    """Bring the fog up to date with the characters, walls and doors. Returns True when doc["explored"] changed
-    (the caller then saves the document)."""
+    """Bring the fog up to date with the characters, walls, doors, lights and the time of day. Returns True when
+    doc["explored"] changed (the caller then saves the document)."""
     cols, rows = dims(doc)
     FW, FH = cols * PPC, rows * PPC
-    chars = sorted((round(t["x"], 3), round(t["y"], 3)) for t in doc["tokens"]
+    chars = sorted((round(t["x"], 3), round(t["y"], 3), bool(t.get("dark"))) for t in doc["tokens"]
                    if t.get("kind") == "character" and summary("character", t.get("ref")) is not None)
-    segs, radius = blockers(doc), max(1, min(20, float(doc["vision"])))
-    sig = hashlib.md5(json.dumps([chars, segs, radius, cols, rows]).encode()).hexdigest()
+    segs, day_sight = blockers(doc), max(1, min(20, float(doc["vision"])))
+    night, dark, ns = doc["night"], float(doc["dark_range"]), float(doc["night_sight"])
+    lights = [(l["x"], l["y"], l["r"]) for l in doc["lights"]]
+    sig = hashlib.md5(json.dumps([chars, segs, day_sight, cols, rows, night, dark, ns, lights, doc["doors"], doc["windows"]]).encode()).hexdigest()
     if _fog["sig"] == sig:
         return False
-    vis = Image.new("L", (FW, FH), 0)
+    size = (FW, FH)
+    indoor = indoor_mask(doc)
+    ambient = None                                # the ground the sun lights: everything outside a building, and the spots a window or open door lights
+    if not night:
+        ambient = ImageChops.invert(indoor)
+        da = ImageDraw.Draw(ambient)
+        for sx, sy, own in openings(doc, indoor):
+            da.polygon(_pts(view_polygon(sx, sy, OPEN_R, [g for g in segs if g[:4] != own])), fill=255)
+    pools = None                                  # the ground the light sources light
+    if lights:
+        pools = Image.new("L", size, 0)
+        dp = ImageDraw.Draw(pools)
+        for lx, ly, lr in lights:
+            dp.polygon(_pts(view_polygon(lx, ly, lr, segs)), fill=255)
+    vis = Image.new("L", size, 0)
     draw = ImageDraw.Draw(vis)
-    for px, py in chars:
-        draw.polygon([(x * PPC, y * PPC) for x, y in view_polygon(px, py, radius, segs)], fill=255)
+    for px, py, dv in chars:
+        draw.polygon(_pts(view_polygon(px, py, dark if dv else ns, segs)), fill=255)             # what is close enough to see in the dark
+        if ambient is not None:
+            vis.paste(255, mask=ImageChops.darker(_shape(size, px, py, day_sight, segs), ambient))  # lit by the sun, within day sight
+        if pools is not None:
+            vis.paste(255, mask=ImageChops.darker(_shape(size, px, py, min(40.0, day_sight * 2), segs), pools))   # lit by a light source, from twice as far
     if _fog["key"] != doc["explored"] or _fog["explored"] is None or _fog["explored"].size != (FW, FH):
         _fog["explored"], _fog["key"] = _decode(doc["explored"], (FW, FH)) or Image.new("L", (FW, FH), 0), doc["explored"]
     old = _fog["explored"]
@@ -308,12 +418,16 @@ def ensure_fog(doc):
     _fog["explored"], _fog["key"] = new, doc["explored"]
     v, e = np.asarray(vis) > 127, np.asarray(new) > 127
     alpha = np.where(v, 0, np.where(e, 150, 255)).astype(np.uint8)
-    alpha_im = Image.fromarray(alpha).filter(ImageFilter.GaussianBlur(1.2))
-    dark = Image.new("L", (FW, FH), 8)
-    png = io.BytesIO()
-    Image.merge("RGBA", (dark, dark, dark, alpha_im)).save(png, "PNG", optimize=True)
-    _fog.update(sig=sig, vis=vis, known=ImageChops.lighter(vis, new), png=png.getvalue(),
-                hash=hashlib.md5(png.getvalue()).hexdigest()[:10])
+    dark_im = Image.new("L", (FW, FH), 8)
+
+    def picture(a):
+        out = io.BytesIO()
+        Image.merge("RGBA", (dark_im, dark_im, dark_im, a)).save(out, "PNG", optimize=True)
+        return out.getvalue()
+    sharp = Image.fromarray(alpha)                                            # a hard edge between light and darkness
+    soft = picture(sharp.filter(ImageFilter.GaussianBlur(1.2)))               # the default: a softened edge
+    _fog.update(sig=sig, vis=vis, known=ImageChops.lighter(vis, new), png=soft, png_sharp=picture(sharp),
+                hash=hashlib.md5(soft).hexdigest()[:10])
     return changed
 
 
@@ -430,6 +544,7 @@ def token_view(t, role, numbers, shared):
     else:
         out["ref"] = t["ref"]                                  # a character's id is no secret; it lets the page mark yours
         out["editable"] = role == "dm" or not locked or t["ref"] in characters.unlocked_ids()
+        out["dark"] = bool(t.get("dark"))                      # darkvision switched on
     return out
 
 
@@ -446,7 +561,8 @@ def map_get():
         if ensure_fog(doc) or pruned:
             save(doc)
         out = {"role": role, "vision": doc["vision"], "hidden": doc["hidden"], "cols": doc["cols"], "rows": doc["rows"],
-               "tokens": [], "walls": [], "doors": [], "windows": [], "fog": None, "combat": None}
+               "night": doc["night"], "night_sight": doc["night_sight"], "dark_range": doc["dark_range"],
+               "tokens": [], "walls": [], "doors": [], "windows": [], "lights": [], "areas": [], "fog": None, "combat": None}
         if role != "dm" and doc["hidden"]:
             return jsonify(out)
         numbers, shared = enemy_numbers(keep), {}
@@ -460,6 +576,8 @@ def map_get():
         out["combat"] = combat_view(doc.get("combat"), role, {v["id"]: v for v in out["tokens"]})
         for key in ("walls", "doors", "windows"):
             out[key] = [o for o in doc[key] if role == "dm" or seg_known(seg_of(o))]
+        out["lights"] = [l for l in doc["lights"] if role == "dm" or _lit(_fog["known"], l["x"], l["y"])]
+        out["areas"] = areas_view(doc, role)
         out["fog"] = _fog["hash"]
         return jsonify(out)
 
@@ -470,7 +588,7 @@ def map_fog():
         doc = load()
         if ensure_fog(doc):
             save(doc)
-        png = _fog["png"]
+        png = _fog["png_sharp"] if request.args.get("sharp") == "1" else _fog["png"]
     return Response(png, mimetype="image/png", headers={"Cache-Control": "no-store"})
 
 
@@ -940,6 +1058,190 @@ def door_toggle(oid):
         return jsonify(open=door["open"])
 
 
+# ---------- light sources ----------
+def radius_of(v):
+    if isinstance(v, bool) or not isinstance(v, (int, float)) or not 1 <= v <= 20:
+        raise Fail("A light reaches 1 to 20 squares.")
+    return round(v * 2) / 2
+
+
+@bp.post("/map/lights")
+def light_add():
+    need_dm()
+    d = request.get_json(silent=True) or {}
+    with _lock:
+        doc = load()
+        cols, rows = dims(doc)
+        if len(doc["lights"]) >= MAX_LIGHTS:
+            raise Fail("There are too many light sources on the map.")
+        oid = uuid.uuid4().hex
+        doc["lights"].append({"id": oid, "x": cell(d.get("x"), cols), "y": cell(d.get("y"), rows), "r": radius_of(d.get("r", 3))})
+        ensure_fog(doc)
+        save(doc)
+    return jsonify(id=oid)
+
+
+@bp.post("/map/lights/<oid>")
+def light_change(oid):
+    need_dm()
+    d = request.get_json(silent=True) or {}
+    with _lock:
+        doc = load()
+        cols, rows = dims(doc)
+        light = find(doc["lights"], oid)
+        if not light:
+            raise Fail("That light is gone.")
+        if "x" in d:
+            light["x"] = cell(d["x"], cols)
+        if "y" in d:
+            light["y"] = cell(d["y"], rows)
+        if "r" in d:
+            light["r"] = radius_of(d["r"])
+        ensure_fog(doc)
+        save(doc)
+    return jsonify(ok=True)
+
+
+@bp.post("/map/lights/<oid>/delete")
+def light_remove(oid):
+    need_dm()
+    with _lock:
+        doc = load()
+        doc["lights"] = [o for o in doc["lights"] if o.get("id") != oid]
+        ensure_fog(doc)
+        save(doc)
+    return jsonify(ok=True)
+
+
+@bp.post("/map/tokens/<tid>/darkvision")
+def map_darkvision(tid):
+    on = bool((request.get_json(silent=True) or {}).get("on"))
+    with _lock:
+        doc = load()
+        t = find(doc["tokens"], tid)
+        if not t or t["kind"] != "character":
+            raise Fail("Only a character on the map has darkvision.")
+        may_change(t, doc)
+        t["dark"] = on
+        ensure_fog(doc)
+        save(doc)
+    return jsonify(on=on)
+
+
+# ---------- areas ----------
+def piece_centre(key):
+    """The middle of a piece "x,y,p" in cells (for the triangles, their centre of gravity)."""
+    x, y, p = key.split(",")
+    x, y = int(x), int(y)
+    if p == "f":
+        return x + .5, y + .5
+    k = int(p[1])
+    right, bottom = k % 2, k // 2
+    if p[0] == "q":
+        return x + .25 + .5 * right, y + .25 + .5 * bottom
+    return x + (2 / 3 if right else 1 / 3), y + (2 / 3 if bottom else 1 / 3)
+
+
+def areas_view(doc, role):
+    """Areas as the caller may see them: the DM all of it, players only the pieces they have seen or explored."""
+    out = []
+    for a in doc["areas"]:
+        cells = a["cells"] if role == "dm" else [c for c in a["cells"] if _lit(_fog["known"], *piece_centre(c))]
+        if cells:
+            out.append({"id": a["id"], "name": a["name"], "color": a["color"], "desc": a["desc"], "cells": cells})
+    return out
+
+
+def clean_text(v, limit, lines=False):
+    keep = r"[\x00-\x08\x0b-\x1f\x7f]" if lines else r"[\x00-\x1f\x7f]"
+    return re.sub(keep, "", str(v or "")).strip()[:limit]
+
+
+def area_fields(d, need_name=True):
+    name = clean_text(d.get("name"), 40)
+    if need_name and not name:
+        raise Fail("Give the area a name.")
+    color = d.get("color", "#8a5bd8")
+    if not isinstance(color, str) or not COLOR.match(color):
+        raise Fail("Pick a colour for the area.")
+    return name, color.lower(), clean_text(d.get("desc"), 500, lines=True)
+
+
+@bp.post("/map/areas/paint")
+def area_paint():
+    need_dm()
+    d = request.get_json(silent=True) or {}
+    erase = bool(d.get("erase"))
+    raw = d.get("pieces") if isinstance(d.get("pieces"), list) else []
+    if len(raw) > 400:
+        raise Fail("That is too many pieces at once.")
+    with _lock:
+        doc = load()
+        cols, rows = dims(doc)
+        keys = []
+        for q in raw:
+            ok = isinstance(q, dict) and isinstance(q.get("x"), int) and isinstance(q.get("y"), int) and not isinstance(q.get("x"), bool) \
+                and 0 <= q["x"] < cols and 0 <= q["y"] < rows and isinstance(q.get("p"), str) and PIECE.match(q["p"])
+            if not ok:
+                raise Fail("That piece is not on the map.")
+            k = f'{q["x"]},{q["y"]},{q["p"]}'
+            if k not in keys:
+                keys.append(k)
+        areas, gone = doc["areas"], set(keys)
+        if erase:
+            for a in areas:
+                a["cells"] = [c for c in a["cells"] if c not in gone]
+            doc["areas"] = [a for a in areas if a["cells"]]
+            aid = None
+        else:
+            name, color, desc = area_fields(d)
+            area = next((a for a in areas if a["name"].casefold() == name.casefold()), None)
+            if not area:
+                if len(areas) >= MAX_AREAS:
+                    raise Fail("There are too many areas. Delete some first.")
+                area = {"id": uuid.uuid4().hex, "name": name, "color": color, "desc": desc, "cells": []}
+                areas.append(area)
+            area.update(name=name, color=color, desc=desc)
+            for a in areas:
+                if a is not area:
+                    a["cells"] = [c for c in a["cells"] if c not in gone]
+            have = set(area["cells"])
+            area["cells"] += [k for k in keys if k not in have]
+            doc["areas"] = [a for a in areas if a["cells"] or a is area]
+            if sum(len(a["cells"]) for a in doc["areas"]) > MAX_PIECES:
+                raise Fail("The areas are too big. Delete some first.")
+            aid = area["id"]
+        save(doc)
+    return jsonify(id=aid)
+
+
+@bp.post("/map/areas/<oid>")
+def area_change(oid):
+    need_dm()
+    d = request.get_json(silent=True) or {}
+    with _lock:
+        doc = load()
+        area = find(doc["areas"], oid)
+        if not area:
+            raise Fail("That area is gone.")
+        name, color, desc = area_fields({**area, **d})
+        if any(a is not area and a["name"].casefold() == name.casefold() for a in doc["areas"]):
+            raise Fail("Another area already has that name.")
+        area.update(name=name, color=color, desc=desc)
+        save(doc)
+    return jsonify(ok=True)
+
+
+@bp.post("/map/areas/<oid>/delete")
+def area_remove(oid):
+    need_dm()
+    with _lock:
+        doc = load()
+        doc["areas"] = [a for a in doc["areas"] if a.get("id") != oid]
+        save(doc)
+    return jsonify(ok=True)
+
+
 # ---------- settings and fog ----------
 @bp.post("/map/settings")
 def map_settings():
@@ -954,6 +1256,14 @@ def map_settings():
             doc["vision"] = int(v)
         if "hidden" in d:
             doc["hidden"] = bool(d["hidden"])
+        if "night" in d:
+            doc["night"] = bool(d["night"])
+        for key, label in (("night_sight", "Night sight"), ("dark_range", "Darkvision")):
+            if key in d:
+                v = d[key]
+                if isinstance(v, bool) or not isinstance(v, (int, float)) or not 1 <= v <= 20:
+                    raise Fail(f"{label} must be between 1 and 20 squares.")
+                doc[key] = int(v)
         removed = 0
         if "cols" in d or "rows" in d:
             cols, rows = d.get("cols", doc["cols"]), d.get("rows", doc["rows"])
@@ -962,7 +1272,8 @@ def map_settings():
             removed = resize(doc, cols, rows)
         ensure_fog(doc)
         save(doc)
-    return jsonify(vision=doc["vision"], hidden=doc["hidden"], cols=doc["cols"], rows=doc["rows"], removed=removed)
+    return jsonify(vision=doc["vision"], hidden=doc["hidden"], cols=doc["cols"], rows=doc["rows"], removed=removed,
+                   night=doc["night"], night_sight=doc["night_sight"], dark_range=doc["dark_range"])
 
 
 def resize(doc, cols, rows):
@@ -979,6 +1290,10 @@ def resize(doc, cols, rows):
         keep = [o for o in doc[key] if max(o["x1"], o["x2"]) <= cols and max(o["y1"], o["y2"]) <= rows]
         removed += len(doc[key]) - len(keep)
         doc[key] = keep
+    doc["lights"] = [l for l in doc["lights"] if l["x"] <= cols and l["y"] <= rows]
+    for a in doc["areas"]:
+        a["cells"] = [c for c in a["cells"] if int(c.split(",")[0]) < cols and int(c.split(",")[1]) < rows]
+    doc["areas"] = [a for a in doc["areas"] if a["cells"]]
     before = _decode(doc["explored"], (old[0] * PPC, old[1] * PPC))
     if before is not None:
         after = Image.new("L", (cols * PPC, rows * PPC), 0)
@@ -1050,7 +1365,7 @@ def saves_create():
         if not old and len(list(folder.glob("*.json"))) >= MAX_SAVES:
             raise Fail("There are too many saved maps. Delete some first.")
         sid = old["id"] if old else uuid.uuid4().hex
-        body = {k: doc[k] for k in ("tokens", "walls", "doors", "windows", "vision", "explored", "cols", "rows")}
+        body = {k: doc[k] for k in ("tokens", "walls", "doors", "windows", "lights", "areas", "vision", "night", "night_sight", "dark_range", "explored", "cols", "rows")}
         tmp = folder / f"{sid}.tmp"
         tmp.write_text(json.dumps({"id": sid, "name": name, "saved": int(time.time()), "doc": body}), encoding="utf-8")
         os.replace(tmp, save_path(sid))
@@ -1066,8 +1381,10 @@ def saves_load(sid):
     with _lock:
         doc = load()
         src = d["doc"]
-        for key in ("tokens", "walls", "doors", "windows"):
+        for key in ("tokens", "walls", "doors", "windows", "lights", "areas"):
             doc[key] = src.get(key) if isinstance(src.get(key), list) else []
+        for key in ("night", "night_sight", "dark_range"):
+            doc[key] = src.get(key)                  # load() puts a default in when a save from before had none
         doc["cols"], doc["rows"] = src.get("cols", None), src.get("rows", None)
         if doc["cols"] is None:
             del doc["cols"], doc["rows"]            # a save from before the board could be resized

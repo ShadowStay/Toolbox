@@ -15,8 +15,8 @@ html:not([data-role="dm"]) .dm-only { display: none !important; }
 .dmbar { padding: .8rem 1rem; background: #22123bcc; border: 1px solid #8a5bd855; border-radius: .6rem; }
 .toolgroup { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; }
 .mapbar .field { min-width: 15rem; }
-.dmbar .field.vis { min-width: 9rem; }
-.dmbar input[type="number"] { width: 100%; font: inherit; color: var(--moon); background: #140b22; border: 1px solid #8a5bd877; border-radius: .4rem; padding: .45rem .6rem; }
+.gridbar .field.vis { min-width: 9rem; }
+.gridbar input[type="number"] { width: 100%; font: inherit; color: var(--moon); background: #140b22; border: 1px solid #8a5bd877; border-radius: .4rem; padding: .45rem .6rem; }
 .mapnote { margin: .75rem 0 0; }
 .empty-note { margin-top: 1rem; color: #d9cbf2; }
 
@@ -54,7 +54,7 @@ html:not([data-role="dm"]) .dm-only { display: none !important; }
 #rolebar { margin-top: 1rem; }
 #rolebar.role-bar { margin-top: 1rem; }
 
-.measure-opts { display: flex; flex-wrap: wrap; gap: .75rem; }
+.measure-opts { display: flex; flex-wrap: wrap; gap: .75rem; margin-top: .7rem; }
 .measure-opts input { width: 9rem; }
 .measure-opts #measure-unit { width: 4rem; }
 /* The measuring line, its two ends and the distance label (never shared: everybody measures for themselves) */
@@ -73,16 +73,19 @@ html:not([data-role="dm"]) .dm-only { display: none !important; }
 .geo .door.sel { stroke: var(--candle); filter: drop-shadow(0 0 4px #e9c776); }
 .geo .hit { stroke: transparent; stroke-width: 16px; pointer-events: stroke; cursor: pointer; }
 .geo .pv { stroke: var(--candle); stroke-width: 3px; stroke-dasharray: 6 6; opacity: .9; }
-.drawing .geo .hit, .drawing .token { pointer-events: none; }
+.drawing .geo .hit, .drawing .geo .lhit, .drawing .token { pointer-events: none; }
 
 /* fog of war: black where nobody has been, dim where they were, clear in view */
 .fog { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; image-rendering: auto; }
 .fog.preview { opacity: .5; }
 
 .token {
-  position: absolute; z-index: 3; width: var(--tok); display: grid; justify-items: center; gap: .15rem;
+  position: absolute; z-index: 3; width: var(--tok); height: var(--tok);
   transform: translate(-50%, -50%); cursor: grab; touch-action: none; outline: none;
 }
+/* The token's box is exactly its circle, so the point it stands on (what it sees from, what walls stop, what is measured) is the
+   middle of the circle. The numbers and the name hang below it without counting towards the box. */
+.tlabels { position: absolute; left: 50%; top: 100%; display: grid; justify-items: center; gap: .15rem; margin-top: .15rem; transform: translateX(-50%); pointer-events: none; }
 .token.drag { cursor: grabbing; z-index: 5; }
 .token.drag .disc { transform: scale(1.08); box-shadow: 0 8px 22px #000a, 0 0 0 3px var(--ring); }
 .token.mine .disc { box-shadow: 0 0 0 3px #7be3a6, 0 0 14px #7be3a699; }   /* the character you play */
@@ -184,7 +187,9 @@ html:not([data-role="dm"]) .dm-only { display: none !important; }
 label.btn { cursor: pointer; }
 
 .table { display: grid; grid-template-columns: minmax(0, 1fr) 15rem; gap: 1.25rem; align-items: start; }
-.sheet-wrap { min-width: 0; }
+.sheet-wrap { min-width: 0; container: sw / inline-size; }
+#view-sheet { container: sheetview / inline-size; }
+#view-dm { container: dmview / inline-size; }
 .sheet {
   --fs-s: .85rem; --fs-t: 1rem; --fs-i: .92rem; --h: 2.1rem; --gap: .75rem;
   padding: 1.25rem; background: #22123bcc; border: 1px solid #8a5bd855; border-top: 0; border-radius: 0 0 .6rem .6rem;
@@ -238,16 +243,13 @@ label.btn { cursor: pointer; }
 .f.in { grid-template-columns: 8.5rem 1fr; align-items: center; gap: .5rem; font-size: var(--fs-t); color: var(--moon); }
 
 /* the nine main stats: one box per row, all boxes the same size and in line; three side boxes next to the first rows */
-.attrs { display: grid; grid-template-columns: 1fr 4.5rem 2.4rem 8rem; grid-auto-rows: 3rem; gap: .4rem .6rem; align-items: stretch; }
+.attrs { display: grid; grid-template-columns: 1fr 4.5rem 2.4rem; grid-auto-rows: 3rem; gap: .4rem .6rem; align-items: stretch; }
 .attrs > .an { align-self: center; }
 .acell { position: relative; }
 .acell input { height: 100%; text-align: center; }
 /* the end result (typed value + race modifier) sits over the box; click into the box to edit the typed value */
 .acell .tot { position: absolute; inset: 1px; display: grid; place-items: center; font-size: var(--fs-i); font-weight: 600; color: var(--moon); background: #140b22; border-radius: .25rem; pointer-events: none; font-variant-numeric: tabular-nums; }
 .acell:focus-within .tot { display: none; }
-.side { display: grid; grid-template-rows: auto 1fr; padding: .2rem .5rem 0; font-size: var(--fs-s); color: #d9cbf2; background: #140b22; border: 1px solid #8a5bd866; border-radius: .3rem; }
-.side input { height: 100%; padding: 0; background: none; border: 0; text-align: center; }
-.side:focus-within { outline: 2px solid var(--candle); outline-offset: 1px; }
 
 .ident .nm { text-align: center; }
 .ident .nm input { text-align: center; font-size: var(--fs-t); }
@@ -317,16 +319,16 @@ label.btn { cursor: pointer; }
 .rolls small.who { font-weight: 600; color: var(--orchid); }
 .rolls li.mine { border-left-color: var(--candle); }
 
-@media (max-width: 1200px) {
+@container sheetview (max-width: 70rem) {
   .table { grid-template-columns: 1fr; }
   .dice { position: static; }
 }
-@media (max-width: 1000px) {
+@container sw (max-width: 50rem) {
   .p1 { grid-template-columns: 1fr; grid-template-areas: "left" "hp" "ident" "ke" "te" "ve" "ce" "hm" "armor" "arms"; }
 }
-@media (max-width: 640px) {
+@container sw (max-width: 36rem) {
   .two, .armor { grid-template-columns: 1fr; }
-  .attrs { grid-template-columns: 1fr 4rem 2.2rem 6.5rem; }
+  .attrs { grid-template-columns: 1fr 4rem 2.2rem; }
 }
 
 /* calculated boxes and HM buttons */
@@ -406,16 +408,19 @@ html[data-role="dm"] .viewtabs .tabset { margin-left: .75rem; }
 .ident .btn.small { display: block; margin: .55rem auto 0; }
 
 /* Full HP / Heal FP / Heal HP with the amount to heal */
-.hurt { display: grid; grid-template-columns: 5rem repeat(3, auto); gap: .5rem; align-items: end; }
+.hurt { display: flex; flex-wrap: wrap; gap: .5rem; }
 .hurt .btn { height: var(--h); }
 
 /* attacks: name, attacks per round, TÉ, damage, and a wide description */
 .tbl.attacks { min-width: 30rem; }
 .tbl.attacks td:nth-child(2), .tbl.attacks th:nth-child(2), .tbl.attacks td:nth-child(3), .tbl.attacks th:nth-child(3) { width: 4.5rem; }
 .tbl.attacks td:nth-child(4), .tbl.attacks th:nth-child(4) { width: 6rem; }
-.tbl.attacks td:first-child input, .tbl.attacks td:last-child input { text-align: left; }
+.tbl.attacks td:first-child input, .tbl.attacks td:nth-last-child(2) input { text-align: left; }
 .tbl.attacks td:first-child, .tbl.attacks th:first-child { width: 20%; }
-.tbl.attacks th:last-child { text-align: left; }
+.tbl.attacks th:nth-last-child(2) { text-align: left; }
+.tbl.attacks .xcol { width: 2.6rem; text-align: center; }
+.dm-attacks .actions { margin-top: .6rem; }
+.dm-attacks .hint { margin: .4rem 0 0; }
 
 /* how many to put on the map */
 .charbar .count { display: inline-flex; align-items: center; gap: .3rem; color: #d9cbf2; }
@@ -429,33 +434,38 @@ html[data-role="dm"] .viewtabs .tabset { margin-left: .75rem; }
 .settings-col h3 { margin: 0; }
 .settings-col .actions { display: flex; flex-wrap: wrap; gap: .5rem; }
 
-@media (max-width: 1100px) {
+@container dmview (max-width: 60rem) {
   .dm-grid { grid-template-columns: 1fr 1fr; grid-template-areas: "ident hp" "combat combat" "attacks attacks" "notes notes"; }
 }
-@media (max-width: 640px) {
+@container dmview (max-width: 38rem) {
   .dm-grid { grid-template-columns: 1fr; grid-template-areas: "ident" "hp" "combat" "attacks" "notes"; }
-  .hurt { grid-template-columns: 1fr 1fr; }
 }
 
 
 /* ===================== The map: a board you can drag around, with three little sliders ===================== */
 .maptools { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .6rem 1.5rem; margin-top: 1rem; }
 .toolgroup.right { margin-left: auto; justify-content: flex-end; }
-.dmbar .field.sizeset { min-width: 0; }
+.gridbar .field.sizeset { min-width: 0; }
 .sizerow { display: flex; align-items: center; gap: .4rem; }
 .sizerow i { font-style: normal; color: var(--orchid); }
-.dmbar .sizerow input[type="number"] { width: 5rem; }
+.gridbar .sizerow input[type="number"] { width: 5rem; }
+
+/* the toolbar above the map: Tools / Grid, tabs like the ones of the sheet */
+.maptabs { margin-top: 1rem; }
+.mappanel { padding: .8rem 1rem; }
+.mappanel .maptools { margin-top: 0; }
+.gridbar { display: flex; flex-wrap: wrap; align-items: end; gap: 1rem 1.5rem; }
 
 /* The window onto the board. The board itself is cols x rows squares of a fixed size (64 px) and is moved with the
    pointer; tokens have one fixed size too, so a bigger map simply means more play area. */
 .viewport {
-  position: relative; height: min(72vh, 54rem); min-height: 22rem; margin-top: .5rem; overflow: hidden;
+  position: relative; flex: 1 1 auto; min-width: 0; height: min(72vh, 54rem); min-height: 22rem; overflow: hidden;
   background: #0e0718; border: 1px solid #8a5bd877; border-radius: .6rem; box-shadow: inset 0 0 40px #0008;
   touch-action: none; user-select: none;
 }
 .mapboard {
   --cell: 64px; --tok: 56px;
-  position: absolute; left: 0; top: 0; cursor: grab; will-change: transform;
+  position: absolute; left: 0; top: 0; transform-origin: 0 0; cursor: grab; will-change: transform;
   background-color: #1a0f2e;
   background-image:
     linear-gradient(#8a5bd833 1px, transparent 1px), linear-gradient(90deg, #8a5bd833 1px, transparent 1px),
@@ -482,22 +492,30 @@ html[data-role="dm"] .viewtabs .tabset { margin-left: .75rem; }
 .segmenu .btn { text-align: left; }
 .segmenu .seg-title { padding: 0 .3rem .15rem; font-size: .7rem; letter-spacing: .1em; text-transform: uppercase; color: var(--orchid); }
 
-/* the three tabs at the right edge, and the sliders that come out of them */
-.dock { position: absolute; top: .6rem; right: 0; z-index: 30; display: grid; gap: .5rem; justify-items: end; }
+/* The map, and next to it (outside it) the dock of tabs and the sliders. A slider opens to the right of the map, which gets narrower;
+   the tabs sit on its left edge like the tabs of a folder and travel with it. Retracted, the tabs are icons only. */
+.mapstage { --dw: min(22rem, 42vw); display: flex; align-items: stretch; margin-top: .5rem; }
+.dock { flex: none; display: flex; flex-direction: column; align-items: flex-end; gap: .45rem; padding-top: .6rem; margin-left: .4rem; }
 .dock-tab {
-  display: flex; flex-direction: column; align-items: center; gap: .4rem; width: 2.4rem; min-height: 4.6rem; max-height: 12rem; padding: .5rem 0; overflow: hidden;
+  display: flex; flex-direction: column; align-items: center; gap: .4rem; width: 2.4rem; padding: .35rem 0; overflow: hidden;
   font: inherit; font-size: .85rem; font-weight: 600; color: var(--moon); cursor: pointer;
-  background: #22123bf2; border: 1px solid var(--candle); border-right: 0; border-radius: .5rem 0 0 .5rem;
+  background: #22123bf2; border: 1px solid var(--candle); border-radius: .5rem;
 }
 .dock-tab:hover, .dock-tab[aria-expanded="true"] { background: #3a1f6b; }
-/* The icon stays upright in a box of its own; only the words are turned, so the two can never run into each other. */
+/* The icon stays upright in a box of its own; the words (shown only while a slider is open) are turned. */
 .dock-tab .ti { flex: none; display: grid; place-items: center; width: 1.7rem; height: 1.7rem; font-size: 1.05rem; line-height: 1; writing-mode: horizontal-tb; }
-.dock-tab .tt, .dock-tab small { flex: 0 1 auto; min-height: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; writing-mode: vertical-rl; line-height: 1.25; }
+.dock-tab .tt, .dock-tab small { display: none; flex: 0 1 auto; min-height: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; writing-mode: vertical-rl; line-height: 1.25; }
 .dock-tab small { max-height: 5.5rem; font-size: .7rem; font-weight: 500; color: var(--candle); }
+.mapstage.opened .dock { margin-left: .5rem; gap: .35rem; }
+.mapstage.opened .dock-tab { min-height: 4.6rem; max-height: 12rem; padding: .5rem 0; border-right: 0; border-radius: .5rem 0 0 .5rem; margin-right: -1px; position: relative; z-index: 2; }
+.mapstage.opened .dock-tab .tt { display: block; }
+.mapstage.opened .dock-tab small:not([hidden]) { display: block; }
+.mapstage.opened .dock-tab[aria-expanded="true"] { background: #1a0e33; }
 
-.drawer { position: absolute; top: 0; right: 2.4rem; bottom: 0; z-index: 29; width: min(22rem, calc(100% - 3.4rem)); transform: translateX(calc(100% + 2.4rem)); transition: transform .2s ease; }
-.drawer.open { transform: none; }
-.drawer-body { display: grid; align-content: start; gap: .7rem; height: 100%; padding: .8rem; overflow: auto; background: #1a0e33f7; border-left: 1px solid var(--candle); box-shadow: -10px 0 30px #000a; }
+.drawers { flex: none; display: flex; }
+.drawer { flex: none; display: flex; width: 0; overflow: hidden; transition: width .2s ease; }
+.drawer.open { width: var(--dw); }
+.drawer-body { flex: none; display: grid; align-content: start; gap: .7rem; width: var(--dw); padding: .8rem; overflow: auto; background: #1a0e33; border: 1px solid var(--candle); border-radius: 0 .6rem .6rem 0; }
 .drawer-body h2 { margin: 0; font-size: 1rem; font-weight: 600; color: var(--candle); }
 .drawer-head { display: flex; align-items: center; justify-content: space-between; gap: .5rem; }
 .drawer-close { padding: .2rem .5rem; font: inherit; color: var(--orchid); cursor: pointer; background: none; border: 1px solid #8a5bd855; border-radius: .35rem; }
@@ -506,3 +524,69 @@ html[data-role="dm"] .viewtabs .tabset { margin-left: .75rem; }
 .drawer .dice { position: static; max-height: none; overflow: visible; padding: 0; background: none; border: 0; }
 .drawer .rolls { max-height: min(18rem, 40vh); }
 @media (prefers-reduced-motion: reduce) { .drawer { transition: none; } }
+@media (max-width: 800px) {              /* narrow screens: the tabs run along the map, the slider opens under it */
+  .mapstage { flex-direction: column; }
+  .dock { flex-direction: row; justify-content: flex-start; padding-top: 0; margin: .45rem 0 0; }
+  .mapstage.opened .dock { margin: .45rem 0 0; }
+  .dock-tab, .mapstage.opened .dock-tab { flex-direction: row; width: auto; min-height: 0; max-height: none; padding: .35rem .7rem; border-right: 1px solid var(--candle); border-radius: .5rem .5rem 0 0; margin: 0; }
+  .dock-tab .tt, .dock-tab small { writing-mode: horizontal-tb; }
+  .drawers { display: block; }
+  .drawer { display: block; width: auto; height: 0; }
+  .drawer.open { width: auto; height: auto; max-height: 34rem; }
+  .drawer-body { width: auto; max-height: 34rem; border-radius: 0 0 .6rem .6rem; }
+}
+
+/* zoom buttons in the corner of the map */
+.zoombox { position: absolute; left: 3.1rem; bottom: .5rem; z-index: 27; display: flex; align-items: center; gap: .2rem; padding: .15rem; background: #22123bf2; border: 1px solid #8a5bd877; border-radius: .4rem; }
+.zoombox .btn { min-width: 2rem; padding: .2rem .45rem; }
+#zoom-label { min-width: 3.4rem; font-variant-numeric: tabular-nums; }
+
+/* weapon rolls: the full name, and the TÉ roll and the damage roll next to each other under it */
+.dice .weapons .wp { display: grid; gap: .25rem; }
+.dice .weapons .wn { display: block; font-size: .85rem; font-weight: 600; color: var(--moon); overflow-wrap: anywhere; }
+.dice input.bad { border-color: #ff9fb3; }
+
+/* Ψ tables popup: two panels side by side, the rest times on the left, the ways of using Ψ on the right */
+.psi-open { padding: 0; font: inherit; font-weight: 600; color: var(--candle); text-align: left; cursor: pointer; background: none; border: 0; text-decoration: underline dotted; text-underline-offset: 3px; }
+.psi-open:hover { color: #fff; }
+.psi-pop { width: auto; max-width: 96vw; padding: 0; color: var(--moon); background: transparent; border: 0; overflow: visible; }
+.psi-pop[open] { display: flex; flex-wrap: wrap; justify-content: center; align-items: flex-start; gap: 1rem; }
+.psi-pop::backdrop { background: #000a; }
+.psi-panel { position: relative; max-width: 100%; padding: 1rem 1.1rem; background: var(--dusk); border: 1px solid var(--candle); border-radius: .7rem; box-shadow: 0 20px 60px #000a; }
+.psi-table { border-collapse: collapse; font-size: .92rem; }
+.psi-table th, .psi-table td { padding: .4rem .7rem; text-align: left; border: 1px solid #8a5bd877; }
+.psi-table thead th { color: var(--candle); background: #140b22; }
+.psi-table td + td, .psi-table th + th { text-align: center; }
+.psi-note { max-width: 24rem; margin: .8rem 0 0; font-size: .88rem; color: #d9cbf2; }
+.psi-x { position: absolute; top: -.9rem; right: -.9rem; background: var(--dusk); }
+
+/* light sources, areas, wall dots and the ghost of what is about to be placed */
+.geo circle, .geo polygon, .geo path { vector-effect: non-scaling-stroke; }
+.geo .area { stroke-width: 1px; stroke-linejoin: round; }
+.geo .lamp { fill: #ffd87a; stroke: #7a4a00; stroke-width: 2px; filter: drop-shadow(0 0 5px #ffb43a); }
+.geo .lglow { fill: #ffd87a; opacity: .13; }
+.geo .lring { fill: none; stroke: #ffd87a; stroke-width: 1.5px; stroke-dasharray: 5 5; opacity: .75; }
+.geo .lamp.sel { stroke: #fff; stroke-width: 3px; }
+.geo .lhit { fill: transparent; pointer-events: all; cursor: pointer; }
+.geo .wdot { fill: #cdb8ff; stroke: #140b22; stroke-width: 2px; opacity: .95; }
+.geo .wdot.start { fill: var(--candle); }
+.geo .gdot { fill: var(--candle); stroke: #fff; stroke-width: 2px; opacity: .9; }
+.geo .gdot.snap { fill: #7be3a6; }
+.geo .gshape { stroke-width: 2px; stroke-dasharray: 4 3; opacity: .85; }
+.geo .gshape.erase { fill: #ff6b8b55; stroke: #ff6b8b; }
+.drawing { cursor: crosshair; }
+.tool-hint { margin: .7rem 0 0; }
+.light-opts, .area-opts { display: flex; flex-wrap: wrap; align-items: end; gap: .7rem 1.2rem; margin-top: .8rem; }
+.area-opts .field.wide { flex: 1 1 18rem; }
+.area-opts textarea { width: 100%; resize: vertical; }
+.area-opts input[type="color"] { width: 4rem; height: 2.3rem; padding: .15rem; cursor: pointer; }
+.light-opts input[type="number"] { width: 6rem; }
+.areapop { position: absolute; z-index: 29; max-width: min(20rem, 80%); padding: .55rem .75rem; background: var(--dusk); border: 1px solid var(--candle); border-radius: .5rem; box-shadow: 0 8px 24px #000a; pointer-events: none; }
+.areapop strong { display: flex; align-items: center; gap: .45rem; }
+.areapop i { flex: none; width: .8rem; height: .8rem; border-radius: .2rem; border: 1px solid #fff8; }
+.areapop p { margin: .3rem 0 0; font-size: .9rem; color: #d9cbf2; white-space: pre-wrap; overflow-wrap: anywhere; }
+.timebadge { position: absolute; top: .5rem; left: .5rem; z-index: 26; padding: .15rem .6rem; font-size: .85rem; font-weight: 600; pointer-events: none; background: #22123bf2; border: 1px solid #8a5bd877; border-radius: 1rem; }
+.timebadge:empty { display: none; }
+.timebadge.night { color: #bcd2ff; border-color: #6e8bd8; }
+.fieldgroup { display: contents; }
+.tok-dark { margin: 0 0 .6rem; }
