@@ -12,7 +12,7 @@ from pathlib import Path
 
 from flask import request
 
-from errors import Fail, send_bytes
+from .errors import Fail, send_bytes
 from . import bp
 
 MAX_SIDE, MAX_SECONDS, MAX_CLIPS, MAX_TRACKS = 3840, 4 * 3600, 80, 40

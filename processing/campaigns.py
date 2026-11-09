@@ -32,7 +32,7 @@ import uuid
 from flask import jsonify, request
 
 from . import DATA
-from errors import Fail
+from .errors import Fail
 from . import bp
 from .roles import need_dm
 

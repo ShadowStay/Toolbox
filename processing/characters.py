@@ -34,7 +34,7 @@ from werkzeug.security import check_password_hash, generate_password_hash
 
 from . import BASE, _secret
 from . import campaigns
-from errors import Fail
+from .errors import Fail
 from . import bp
 from .roles import current_role
 

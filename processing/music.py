@@ -1,6 +1,9 @@
-"""Music library. Scans MUSIC_DIR into SQLite (data/music.db), streams files with HTTP Range, extracts artwork lazily
-(cached as small JPEGs in data/art/), and keeps playlists, likes, history and resume state on the server.
-Set MUSIC_DIR to the folder on the Pi that holds your cloud-storage music. Needs: pip install mutagen (Pillow is already used)."""
+"""Music library, built on the cloud storage (storage.py). The library is every file inside the cloud storage's root-level
+"music" folder (sub-folders included), so music is added, renamed, moved and deleted with the Cloud Storage page. Nothing is
+copied: tracks are streamed straight from the storage blobs (data/storage/blobs/<id>) with HTTP Range support.
+This module only keeps its own index (data/music.db): tags, playlists, likes, history and the resume point, plus small cached
+artwork in data/art/. The page rescans the storage index whenever it opens (cheap: only new files are read).
+Needs: pip install mutagen (Pillow is already used)."""
 import base64
 import io
 import os
@@ -8,28 +11,27 @@ import re
 import sqlite3
 import threading
 import time
+import uuid
+from contextlib import contextmanager
 from pathlib import Path
 
 from flask import Blueprint, Response, abort, jsonify, request, send_file
 
 from . import DATA
+from .errors import Fail, handle_errors
+from .storage import BLOBS, _lock as storage_lock, conn as storage_conn
 
 bp = Blueprint("music", __name__, url_prefix="/api/music")
+handle_errors(bp, "The server could not do that.")
 
-
-ROOT = Path(os.environ.get(
-    "MUSIC_DIR",
-    str(Path(__file__).resolve().parent.parent / "data" / "storage" / "blobs")
-)).expanduser()
-
-
-DB, ART = DATA / "music.db", DATA / "art"
+FOLDER = os.environ.get("MUSIC_FOLDER", "music")          # root-level folder of the cloud storage
+DB, ART, TMP = DATA / "music.db", DATA / "art", DATA / "music-tmp"
 MIME = {".mp3": "audio/mpeg", ".flac": "audio/flac", ".m4a": "audio/mp4", ".mp4": "audio/mp4",
         ".ogg": "audio/ogg", ".oga": "audio/ogg", ".opus": "audio/ogg", ".wav": "audio/wav"}
 SCHEMA = """
 PRAGMA journal_mode=WAL;
 CREATE TABLE IF NOT EXISTS tracks(id INTEGER PRIMARY KEY, path TEXT UNIQUE, title TEXT, artist TEXT, album TEXT, genre TEXT,
-  no INTEGER, dur REAL, size INTEGER, mtime REAL, s TEXT);
+  no INTEGER, dur REAL, size INTEGER, mtime REAL, s TEXT, ext TEXT DEFAULT '');
 CREATE TABLE IF NOT EXISTS playlists(id INTEGER PRIMARY KEY, name TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS pl_tracks(pl INTEGER, pos INTEGER, track INTEGER, PRIMARY KEY(pl, pos));
 CREATE TABLE IF NOT EXISTS likes(track INTEGER PRIMARY KEY, ts REAL);
@@ -39,7 +41,7 @@ CREATE INDEX IF NOT EXISTS tr_album ON tracks(album, no);
 CREATE INDEX IF NOT EXISTS h_track ON history(track);
 """
 _ready = False
-scan_state = {"running": False, "seen": 0, "error": ""}
+scan_state = {"running": False, "seen": 0, "error": "", "at": 0}
 _scan_lock = threading.Lock()
 
 
@@ -50,6 +52,10 @@ def db():
     c.row_factory = sqlite3.Row
     if not _ready:
         c.executescript(SCHEMA)
+        try:                                               # a database made by an earlier version
+            c.execute("ALTER TABLE tracks ADD COLUMN ext TEXT DEFAULT ''")
+        except sqlite3.OperationalError:
+            pass
         _ready = True
     return c
 
@@ -64,6 +70,44 @@ def q(sql, p=()):
         return rows, cur.lastrowid
     finally:
         c.close()
+
+
+# ---------- the cloud storage's music folder ----------
+def ensure_folder():
+    """Make sure the "music" folder exists in the cloud storage, so it is there to upload into."""
+    with storage_lock, storage_conn() as s:
+        if not s.execute("SELECT 1 FROM items WHERE parent='' AND is_dir=1 AND name=? COLLATE NOCASE", (FOLDER,)).fetchone():
+            s.execute("INSERT INTO items(id, parent, name, is_dir, created) VALUES(?,?,?,1,?)",
+                      (uuid.uuid4().hex, "", FOLDER, time.time()))
+
+
+def library():
+    """Every file below the music folder, straight from the storage index: [(item id, file name)]."""
+    with storage_conn() as s:
+        root = s.execute("SELECT id FROM items WHERE parent='' AND is_dir=1 AND name=? COLLATE NOCASE", (FOLDER,)).fetchone()
+        if not root:
+            return []
+        return [(r["id"], r["name"]) for r in s.execute(
+            "WITH RECURSIVE t(id) AS (SELECT id FROM items WHERE parent=? UNION ALL "
+            "SELECT i.id FROM items i JOIN t ON i.parent=t.id) "
+            "SELECT i.id, i.name FROM items i JOIN t ON i.id=t.id WHERE i.is_dir=0", (root["id"],))]
+
+
+@contextmanager
+def named(fid, ext):
+    """Storage blobs have no file extension, which tag readers use as a hint: give them a short-lived symlink that has one."""
+    blob = BLOBS / fid
+    link = TMP / (uuid.uuid4().hex + ext)
+    try:
+        TMP.mkdir(parents=True, exist_ok=True)
+        os.symlink(blob, link)
+    except OSError:
+        link = blob
+    try:
+        yield link
+    finally:
+        if link != blob:
+            link.unlink(missing_ok=True)
 
 
 # ---------- metadata ----------
@@ -83,14 +127,15 @@ def tag(f, k):
     return ""
 
 
-def meta(p):
+def meta(fid, name, ext):
     import mutagen
-    try:
-        f = mutagen.File(p, easy=True)
-    except Exception:
-        f = None
+    with named(fid, ext) as p:
+        try:
+            f = mutagen.File(p, easy=True)
+        except Exception:
+            f = None
     g = (lambda k: tag(f, k)) if f is not None else (lambda k: "")
-    title, artist, album, genre = g("title") or p.stem, g("artist") or g("albumartist"), g("album"), g("genre")
+    title, artist, album, genre = g("title") or Path(name).stem, g("artist") or g("albumartist"), g("album"), g("genre")
     m = re.match(r"\d+", g("tracknumber"))
     dur = getattr(getattr(f, "info", None), "length", 0) or 0
     return title, artist, album, genre, int(m.group()) if m else 0, dur
@@ -98,32 +143,29 @@ def meta(p):
 
 def scan_body():
     try:
-        if not ROOT.is_dir():
-            scan_state["error"] = f"MUSIC_DIR not found: {ROOT}"
-            return
         scan_state["error"] = ""
+        ensure_folder()
         c = db()
-        known = {r["path"]: (r["mtime"], r["size"]) for r in c.execute("SELECT path, mtime, size FROM tracks")}
+        known = {r["path"]: r["ext"] for r in c.execute("SELECT path, ext FROM tracks")}
         found = set()
-        for dp, _, names in os.walk(ROOT):
-            for n in names:
-                p = Path(dp, n)
-                if p.suffix.lower() not in MIME:
-                    continue
-                rel, st = str(p.relative_to(ROOT)), p.stat()
-                found.add(rel)
-                scan_state["seen"] += 1
-                if known.get(rel) == (st.st_mtime, st.st_size):
-                    continue
-                t = meta(p)
-                s = " ".join((t[0], t[1], t[2], t[3])).lower()
-                c.execute("""INSERT INTO tracks(path,title,artist,album,genre,no,dur,size,mtime,s) VALUES(?,?,?,?,?,?,?,?,?,?)
-                    ON CONFLICT(path) DO UPDATE SET title=excluded.title, artist=excluded.artist, album=excluded.album,
-                    genre=excluded.genre, no=excluded.no, dur=excluded.dur, size=excluded.size, mtime=excluded.mtime, s=excluded.s""",
-                          (rel, *t, st.st_size, st.st_mtime, s))
-                if scan_state["seen"] % 200 == 0:
-                    c.commit()
-        c.executemany("DELETE FROM tracks WHERE path=?", [(r,) for r in known if r not in found])
+        for fid, name in library():
+            ext = Path(name).suffix.lower()
+            blob = BLOBS / fid
+            if ext not in MIME or not blob.is_file():
+                continue
+            found.add(fid)
+            scan_state["seen"] += 1
+            if known.get(fid) == ext:                      # storage ids never change, so a known id is already indexed
+                continue
+            t = meta(fid, name, ext)
+            s = " ".join(t[:4]).lower()
+            c.execute("""INSERT INTO tracks(path,title,artist,album,genre,no,dur,size,mtime,s,ext) VALUES(?,?,?,?,?,?,?,?,?,?,?)
+                ON CONFLICT(path) DO UPDATE SET title=excluded.title, artist=excluded.artist, album=excluded.album,
+                genre=excluded.genre, no=excluded.no, dur=excluded.dur, size=excluded.size, s=excluded.s, ext=excluded.ext""",
+                      (fid, *t, blob.stat().st_size, time.time(), s, ext))
+            if scan_state["seen"] % 100 == 0:
+                c.commit()
+        c.executemany("DELETE FROM tracks WHERE path=?", [(k,) for k in known if k not in found])
         c.commit()
         c.close()
     except Exception as e:
@@ -136,7 +178,7 @@ def start_scan():
     with _scan_lock:
         if scan_state["running"]:
             return
-        scan_state.update(running=True, seen=0)
+        scan_state.update(running=True, seen=0, at=time.time())
     threading.Thread(target=scan_body, daemon=True).start()
 
 
@@ -149,7 +191,7 @@ def scan():
 @bp.get("/status")
 def status():
     n = q("SELECT COUNT(*) n FROM tracks")[0][0]["n"]
-    if not n and not scan_state["running"] and not scan_state["error"]:
+    if not scan_state["running"] and (not n or time.time() - scan_state["at"] > 30):   # picks up new cloud uploads
         start_scan()
     return jsonify(count=n, **scan_state)
 
@@ -216,8 +258,7 @@ def browse(kind):
 
 @bp.get("/search")
 def search():
-    text = request.args.get("q", "")
-    w, p = where(text)
+    w, p = where(request.args.get("q", ""))
     if not w:
         return jsonify(tracks=[], albums=[], artists=[], playlists=[])
     cond = "WHERE " + " AND ".join(w)
@@ -240,27 +281,27 @@ def search():
 
 
 # ---------- files and artwork ----------
-def path_of(tid):
-    r = q("SELECT path FROM tracks WHERE id=?", (tid,))[0]
-    p = ROOT / r[0]["path"] if r else None
-    if not p or not p.is_file():
-        abort(404)
-    return p
+def blob_of(tid):
+    r = q("SELECT path, ext FROM tracks WHERE id=?", (tid,))[0]
+    if not r or not (BLOBS / r[0]["path"]).is_file():
+        abort(404, "That song is no longer in the cloud storage.")
+    return r[0]["path"], r[0]["ext"]
 
 
 @bp.get("/file/<int:tid>")
 def file(tid):
-    p = path_of(tid)
-    resp = send_file(p, mimetype=MIME.get(p.suffix.lower(), "application/octet-stream"), conditional=True, max_age=86400)
+    fid, ext = blob_of(tid)
+    resp = send_file(BLOBS / fid, mimetype=MIME.get(ext, "application/octet-stream"), conditional=True, max_age=86400)
     resp.cache_control.private, resp.cache_control.public = True, False
     return resp
 
 
-def cover(p):
+def cover(fid, ext):
     import mutagen
     from mutagen.flac import Picture
     try:
-        f = mutagen.File(p)
+        with named(fid, ext) as p:
+            f = mutagen.File(p)
         if f is not None:
             if getattr(f, "pictures", None):
                 return f.pictures[0].data                                   # FLAC
@@ -274,10 +315,6 @@ def cover(p):
                     return Picture(base64.b64decode(t["metadata_block_picture"][0])).data
     except Exception:
         pass
-    for n in ("cover", "folder", "front"):                                  # a picture next to the files
-        for e in (".jpg", ".jpeg", ".png"):
-            if (p.parent / (n + e)).is_file():
-                return (p.parent / (n + e)).read_bytes()
     return None
 
 
@@ -288,7 +325,7 @@ def art(tid):
         abort(404)
     if not f.exists():
         ART.mkdir(parents=True, exist_ok=True)
-        data = cover(path_of(tid))
+        data = cover(*blob_of(tid))
         try:
             from PIL import Image
             im = Image.open(io.BytesIO(data)).convert("RGB")
@@ -302,7 +339,15 @@ def art(tid):
 
 # ---------- playlists, likes, history, state ----------
 def body():
-    return request.get_json(silent=True) or {}
+    d = request.get_json(silent=True)
+    return d if isinstance(d, dict) else {}
+
+
+def pl_name(d):
+    name = str(d.get("name", "")).strip()[:100]
+    if not name:
+        raise Fail("Enter a name.")
+    return name
 
 
 @bp.get("/playlists")
@@ -321,12 +366,9 @@ def append(c, pid, ids):
 @bp.post("/playlists")
 def playlist_new():
     b = body()
-    name = str(b.get("name", "")).strip()[:100]
-    if not name:
-        abort(400)
     c = db()
     try:
-        pid = c.execute("INSERT INTO playlists(name) VALUES(?)", (name,)).lastrowid
+        pid = c.execute("INSERT INTO playlists(name) VALUES(?)", (pl_name(b),)).lastrowid
         append(c, pid, b.get("ids", []))
         c.commit()
     finally:
@@ -336,10 +378,7 @@ def playlist_new():
 
 @bp.patch("/playlists/<int:pid>")
 def playlist_rename(pid):
-    name = str(body().get("name", "")).strip()[:100]
-    if not name:
-        abort(400)
-    q("UPDATE playlists SET name=? WHERE id=?", (name, pid))
+    q("UPDATE playlists SET name=? WHERE id=?", (pl_name(body()), pid))
     return "", 204
 
 
@@ -381,8 +420,7 @@ def like(tid):
 
 @bp.post("/history")
 def history():
-    tid = int(body().get("id", 0))
-    q("INSERT INTO history(track, ts) VALUES(?,?)", (tid, time.time()))
+    q("INSERT INTO history(track, ts) VALUES(?,?)", (int(body().get("id", 0)), time.time()))
     q("DELETE FROM history WHERE id < (SELECT MAX(id) - 5000 FROM history)")
     return "", 204
 

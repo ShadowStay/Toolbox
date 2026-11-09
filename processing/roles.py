@@ -25,7 +25,7 @@ from itsdangerous import BadSignature, URLSafeTimedSerializer
 from werkzeug.security import check_password_hash, generate_password_hash
 
 from . import DATA, _secret
-from errors import Fail
+from .errors import Fail
 from . import bp
 
 COOKIE = "spells_role"

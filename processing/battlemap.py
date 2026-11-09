@@ -86,7 +86,7 @@ from flask import Response, abort, jsonify, request
 from PIL import Image, ImageChops, ImageDraw, ImageFilter
 
 from . import campaigns, characters, enemies
-from errors import Fail
+from .errors import Fail
 from . import bp
 from .rolls import make_roll
 from .roles import current_role, need_dm

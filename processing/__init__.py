@@ -14,7 +14,7 @@ from pathlib import Path
 
 from flask import Blueprint
 
-from errors import handle_errors
+from .errors import handle_errors
 
 BASE = Path(__file__).parent.parent.resolve()
 DATA = BASE / "data"

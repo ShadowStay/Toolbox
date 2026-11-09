@@ -17,7 +17,7 @@ import time
 from flask import jsonify, request
 
 from .campaigns import current_id
-from errors import Fail
+from .errors import Fail
 from . import bp
 from .roles import current_role
 

@@ -27,7 +27,7 @@ import pymupdf
 from flask import jsonify, request
 
 from . import image as imaging
-from errors import Fail, send_bytes
+from .errors import Fail, send_bytes
 from . import bp
 
 EXT = {

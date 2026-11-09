@@ -39,7 +39,7 @@ from urllib.parse import quote
 from flask import Blueprint, Response, abort, jsonify, request, send_file
 
 from . import DATA
-from errors import Fail, handle_errors
+from .errors import Fail, handle_errors
 
 bp = Blueprint("storage", __name__, url_prefix="/api/storage")
 

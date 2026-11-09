@@ -19,7 +19,7 @@ from flask import jsonify, request
 
 from . import campaigns
 from .characters import ID, MAX_SHEETS, clean, portrait_response
-from errors import Fail
+from .errors import Fail
 from . import bp
 from .roles import need_dm
 

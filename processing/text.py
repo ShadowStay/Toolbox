@@ -10,7 +10,7 @@ from urllib.parse import quote, unquote
 
 from flask import jsonify, request
 
-from errors import Fail
+from .errors import Fail
 from . import bp
 
 MAX_TEXT = 50_000_000
