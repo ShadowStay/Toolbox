@@ -2,6 +2,7 @@
 .page { padding-bottom: 9rem; }
 .mbar { display: flex; gap: .6rem; margin-top: 1.2rem; }
 .mbar input { flex: 1; min-width: 0; }
+.mbar a.btn { display: inline-flex; align-items: center; text-decoration: none; }
 a.tab { display: inline-block; text-decoration: none; color: var(--moon); }
 .panel-less h2, #view h2 { margin: 1.5rem 0 .6rem; font-size: 1.2rem; }
 .head { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; margin: 1.2rem 0 .6rem; }

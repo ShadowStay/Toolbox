@@ -15,7 +15,14 @@ from flask import Blueprint, Response, abort, jsonify, request, send_file
 from . import DATA
 
 bp = Blueprint("music", __name__, url_prefix="/api/music")
-ROOT = Path(os.environ.get("MUSIC_DIR", Path.home() / "Music")).expanduser()
+
+
+ROOT = Path(os.environ.get(
+    "MUSIC_DIR",
+    str(Path(__file__).resolve().parent.parent / "data" / "storage" / "blobs")
+)).expanduser()
+
+
 DB, ART = DATA / "music.db", DATA / "art"
 MIME = {".mp3": "audio/mpeg", ".flac": "audio/flac", ".m4a": "audio/mp4", ".mp4": "audio/mp4",
         ".ogg": "audio/ogg", ".oga": "audio/ogg", ".opus": "audio/ogg", ".wav": "audio/wav"}
