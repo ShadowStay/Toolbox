@@ -14,11 +14,12 @@
 
   <main class="page wide">
     <h1 class="tool-title">Music</h1>
-    <p class="tool-intro">Your library, streamed from the tower. Download songs to this device to play them offline.</p>
+    <p class="tool-intro">Your library, streamed from the tower. Upload songs here, or download them to this device to play offline.</p>
 
     <div class="mbar">
       <input type="text" id="q" placeholder="Search songs, artists, albums, genres, playlists" autocomplete="off" spellcheck="false" aria-label="Search">
-      <a class="btn small" href="/cloud-storage" title="Upload songs into the “music” folder">Add music</a>
+      <button class="btn small" id="upload" type="button">Upload</button>
+      <input type="file" id="up" multiple hidden accept=".mp3,.flac,.m4a,.mp4,.ogg,.oga,.opus,.wav,audio/*">
       <button class="btn small" id="scan" type="button">Rescan</button>
     </div>
     <nav class="tabs" id="mnav" aria-label="Library">

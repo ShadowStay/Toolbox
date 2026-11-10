@@ -1,6 +1,7 @@
 // Page script for pages/music.html. A small hash-routed app (#/songs?album=...). Playback lives in shared/player.js,
 // so music keeps playing while you move between these views. Lists load 100 rows at a time as you scroll, and
 // artwork is only requested for rows that scroll into view (loading="lazy").
+// Songs are uploaded from here into the server's data/music folder, and can be downloaded or deleted from the "⋯" menu.
 (function () {
   const P = window.Player, $ = (s) => document.querySelector(s), view = $("#view"), status = $("#status");
   const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -9,7 +10,11 @@
   const guard = (fn) => async (...a) => { try { await fn(...a); } catch (e) { say(e.message || String(e), true); } };
   async function api(path, method, body) {
     const r = await fetch("/api/music" + path, body === undefined ? { method } : { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
-    if (!r.ok) throw new Error(r.status === 401 ? "Session ended. Reload to sign in." : "Server error " + r.status);
+    if (!r.ok) {
+      let msg = "";
+      try { msg = (await r.json()).error; } catch { /* not JSON */ }
+      throw new Error(r.status === 401 ? "Session ended. Reload to sign in." : msg || "Server error " + r.status);
+    }
     return r.status === 204 ? null : r.json();
   }
   const art = (id) => (id ? `<img loading="lazy" decoding="async" src="/api/music/art/${id}" alt="" onerror="this.style.visibility='hidden'">` : "");
@@ -23,7 +28,7 @@
     <span class="dur">${fmt(t.dur)}</span>
     ${cur.pl ? '<button class="ib" data-a="up" aria-label="Move up">▲</button><button class="ib" data-a="down" aria-label="Move down">▼</button><button class="ib" data-a="rm" aria-label="Remove from playlist">✕</button>' : ""}
     <button class="ib" data-a="like" aria-pressed="${!!t.liked}" aria-label="Like">♥</button>
-    <button class="ib" data-a="dl" aria-pressed="${P.dl.has(t.id)}" aria-label="Download to this device" title="Download for offline">⬇</button>
+    <button class="ib" data-a="dl" aria-pressed="${P.dl.has(t.id)}" aria-label="Download to this device" title="Keep on this device for offline listening">⬇</button>
     <button class="ib" data-a="more" aria-label="More">⋯</button></li>`;
   const rows = (items, start = 0) => items.map((t, k) => row(t, start + k)).join("");
   const KEY = { albums: "album", artists: "artist", genres: "genre" };
@@ -45,7 +50,7 @@
       busy = true;
       try {
         const d = await api(path + "?" + new URLSearchParams({ ...params, offset: n, limit }));
-        if (!n && !d.items.length) into.innerHTML = '<p class="hint">Nothing here yet.</p>';
+        if (!n && !d.items.length) into.innerHTML = '<p class="hint">Nothing here yet. Press Upload to add songs.</p>';
         else into.insertAdjacentHTML("beforeend", render(d.items, n));
         n += d.items.length; more = d.more;
       } catch (e) { say(e.message + (navigator.onLine ? "" : " You are offline: open Downloads."), true); more = false; }
@@ -78,7 +83,7 @@
     },
     downloads() {
       cur.list = P.dl.list();
-      view.innerHTML = `<div class="head"><h2>Downloaded on this device</h2><button class="btn primary small" data-a="playall">Play</button></div>
+      view.innerHTML = `<div class="head"><h2>Kept on this device</h2><button class="btn primary small" data-a="playall">Play</button></div>
         ${cur.list.length ? `<ul class="rows">${rows(cur.list)}</ul>` : '<p class="hint">Tap ⬇ on a song to keep it here for offline listening.</p>'}`;
     },
     async search(p) {
@@ -100,7 +105,7 @@
     cur.pl = p.pl ? +p.pl : 0; cur.name = p.name || "";
     const tools = cur.pl ? '<button class="btn small" data-a="rename">Rename</button><button class="btn small" data-a="delete">Delete</button>' : "";
     view.innerHTML = `<div class="head"><h2>${esc(title)}</h2><button class="btn primary small" data-a="playall">Play</button>
-      <button class="btn small" data-a="shuffle">Shuffle</button><button class="btn small" data-a="dlall">Download all</button>${tools}</div><ul class="rows"></ul>`;
+      <button class="btn small" data-a="shuffle">Shuffle</button><button class="btn small" data-a="dlall">Keep all on this device</button>${tools}</div><ul class="rows"></ul>`;
     cur.ul = view.querySelector(".rows");
     paged(path, p, cur.pl ? 5000 : limit, cur.ul, (items, start) => { cur.list.push(...items); return rows(items, start); });
   }
@@ -136,7 +141,7 @@
     if (a === "playall" && cur.list.length) P.play(cur.list, 0);
     else if (a === "shuffle" && cur.list.length) { P.state.shuffle = true; P.play(cur.list, Math.floor(Math.random() * cur.list.length)); }
     else if (a === "dlall") {
-      for (const x of cur.list) if (!P.dl.has(x.id)) { say(`Downloading ${x.title}…`); await P.dl.add(x); }
+      for (const x of cur.list) if (!P.dl.has(x.id)) { say(`Saving ${x.title}…`); await P.dl.add(x); }
       say("All songs are on this device.");
     } else if (a === "like" && t) {
       t.liked = !t.liked; syncRows();
@@ -160,17 +165,51 @@
     const d = $("#pick"), pls = (await api("/playlists")).items;
     d.innerHTML = `<h3>${esc(t.title)}</h3><button class="btn" data-q>Add to queue</button><h4>Add to playlist</h4>
       ${pls.map((p) => `<button class="btn" data-p="${p.id}">${esc(p.name)}</button>`).join("")}
-      <button class="btn primary" data-n>New playlist…</button><button class="btn" data-c>Close</button>`;
+      <button class="btn primary" data-n>New playlist…</button>
+      <h4>File</h4><button class="btn" data-file>Download the file</button><button class="btn" data-rm>Delete from the library</button>
+      <button class="btn" data-c>Close</button>`;
     d.onclick = guard(async (e) => {
       const x = e.target.closest("button");
       if (!x) return;
       if (x.dataset.q !== undefined) P.enqueue(t);
       else if (x.dataset.p) await api(`/playlists/${x.dataset.p}/tracks`, "POST", { ids: [t.id] });
       else if (x.dataset.n !== undefined) { const n = prompt("Playlist name"); if (!n?.trim()) return; await api("/playlists", "POST", { name: n, ids: [t.id] }); }
+      else if (x.dataset.file !== undefined) location.href = "/api/music/download/" + t.id;
+      else if (x.dataset.rm !== undefined) {
+        if (!confirm(`Delete “${t.title}” from the music folder? This cannot be undone.`)) return;
+        if (P.dl.has(t.id)) await P.dl.remove(t.id);
+        await api(`/track/${t.id}`, "DELETE");
+        d.close();
+        say(`Deleted “${t.title}”.`);
+        route();
+        return;
+      }
       d.close();
     });
     d.showModal();
   }
+
+  // ---------- upload ----------
+  $("#upload").addEventListener("click", () => $("#up").click());
+  $("#up").addEventListener("change", guard(async (e) => {
+    const files = [...e.target.files];
+    e.target.value = "";
+    let done = 0;
+    const failed = [];
+    for (const [i, f] of files.entries()) {
+      say(`Uploading ${f.name} (${i + 1} of ${files.length})…`);
+      const fd = new FormData();
+      fd.append("file", f, f.name);
+      try {
+        const r = await fetch("/api/music/upload", { method: "POST", body: fd, credentials: "same-origin" });
+        if (r.status === 401) return location.reload();
+        if (r.ok) done++;
+        else failed.push(`${f.name}: ${(await r.json().catch(() => ({}))).error || "upload failed (" + r.status + ")"}`);
+      } catch { failed.push(`${f.name}: the connection was lost`); }
+    }
+    say((done ? `Uploaded ${done} song${done === 1 ? "" : "s"}. ` : "") + failed.join(" "), failed.length > 0);
+    if (done) route();
+  }));
 
   // ---------- search, scan, player events ----------
   let timer;

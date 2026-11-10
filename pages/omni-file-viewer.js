@@ -530,11 +530,15 @@
     async open(e) {
       const url = (e.url ||= URL.createObjectURL(e.file));
       const root = el("div", "mediaview"), player = el(tag);
+      let live = true;
       player.controls = true;
+      player.addEventListener("error", () => {
+        // destroy() empties the source, which makes browsers fire an error too: ignore that one.
+        if (live && player.getAttribute("src")) say("This browser can't play that file.", true);
+      });
       player.src = url;
-      player.addEventListener("error", () => say("This browser can't play that file.", true));
       root.append(player);
-      return { root, meta: "", tools: [], exports: [], destroy: () => { player.pause(); player.removeAttribute("src"); player.load(); } };
+      return { root, meta: "", tools: [], exports: [], destroy: () => { live = false; player.pause(); player.removeAttribute("src"); player.load(); } };
     },
   });
   kinds.audio = media("audio", "Audio");
