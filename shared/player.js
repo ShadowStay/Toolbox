@@ -1,16 +1,20 @@
 // Persistent music player, loaded on every page for signed-in users (see app.py). One <audio> element plays the queue,
 // the Media Session API gives lock-screen / notification controls (background playback), and a small floating player sits
-// bottom-right. Position, queue and settings are saved in localStorage so another page picks up where this one stopped;
-// the current track and position are also synced to the server so other devices can resume.
+// bottom-right (hidden while the Player tab of the Music page is open). Position, queue and settings are saved in
+// localStorage so another page picks up where this one stopped; the current track and position are also synced to the
+// server so other devices can resume.
+//   Repeat: click once = repeat this song, twice = repeat the playlist, a third time = off.   (S.repeat: 2 = song, 1 = playlist, 0 = off)
+//   Shuffle: reorders the queue (the current song moves to the front); switching it off restores the original order.
 (function () {
   if (window.Player) return;
   const ls = (k, v) => {
     try { if (v === undefined) return JSON.parse(localStorage.getItem(k)); localStorage.setItem(k, JSON.stringify(v)); } catch { /* storage unavailable */ }
     return null;
   };
-  const S = Object.assign({ q: [], i: -1, t: 0, playing: false, closed: false, shuffle: false, repeat: 0, ts: 0 }, ls("mp-state"));
+  const S = Object.assign({ q: [], o: [], i: -1, t: 0, playing: false, closed: false, shuffle: false, repeat: 0, ts: 0 }, ls("mp-state"));
   const audio = new Audio();
   audio.preload = "auto";
+  { const v = ls("mp-vol"); audio.volume = typeof v === "number" && v >= 0 && v <= 1 ? v : 1; }
   const subs = [], emit = (e) => subs.forEach((f) => f(e));
   const cur = () => S.q[S.i];
   const slim = (t) => ({ id: t.id, title: t.title, artist: t.artist, album: t.album, dur: t.dur });
@@ -22,10 +26,47 @@
   // ---------- persistence ----------
   function save() {
     const a = Math.max(0, S.i - 50);                       // keep a window of the queue, not thousands of tracks
-    ls("mp-state", { ...S, q: S.q.slice(a, a + 300).map(slim), i: S.i - a, t: audio.currentTime || 0, playing: !audio.paused, ts: Date.now() });
+    ls("mp-state", { ...S, q: S.q.slice(a, a + 300).map(slim), i: S.i - a, o: S.shuffle ? S.o.slice(0, 1000).map(slim) : [],
+      t: audio.currentTime || 0, playing: !audio.paused, ts: Date.now() });
   }
   const payload = () => JSON.stringify({ cur: slim(cur()), t: audio.currentTime || 0, ts: Date.now() });
   const sync = () => { if (cur()) fetch("/api/music/state", { method: "PUT", headers: json, body: payload() }).catch(() => {}); };
+
+  // ---------- shuffle and repeat ----------
+  // Shuffle on: remember the order (S.o), put the current song first and shuffle the rest. Off: put the old order back.
+  function shuffleNow() {
+    const here = cur();
+    S.o = S.q.slice();
+    const rest = S.q.filter((_, k) => k !== S.i);
+    for (let k = rest.length - 1; k > 0; k--) {
+      const j = Math.floor(Math.random() * (k + 1));
+      [rest[k], rest[j]] = [rest[j], rest[k]];
+    }
+    S.q = here ? [here, ...rest] : rest;
+    S.i = here ? 0 : -1;
+  }
+  function unshuffleNow() {
+    const here = cur();
+    if (S.o.length) {
+      const k = here ? S.o.findIndex((t) => t.id === here.id) : -1;
+      if (k >= 0 || !here) { S.q = S.o.slice(); S.i = k; }
+    }
+    S.o = [];
+  }
+  function toggleShuffle() {
+    S.shuffle = !S.shuffle;
+    if (S.shuffle) shuffleNow(); else unshuffleNow();
+    save(); ui(); emit("mode");
+  }
+  function cycleRepeat() {
+    S.repeat = { 0: 2, 2: 1, 1: 0 }[S.repeat] ?? 0;       // off -> this song -> playlist -> off
+    save(); ui(); emit("mode");
+  }
+  function setVolume(v) {
+    audio.volume = Math.min(1, Math.max(0, +v || 0));
+    ls("mp-vol", audio.volume);
+    emit("mode");
+  }
 
   // ---------- playback ----------
   function load(i, play, at) {
@@ -39,11 +80,9 @@
   }
   function next(auto) {
     if (!S.q.length) return;
-    if (auto && S.repeat === 2) { audio.currentTime = 0; audio.play(); return; }
-    let n = S.shuffle && S.q.length > 1 ? S.i + 1 + Math.floor(Math.random() * (S.q.length - 1)) : S.i + 1;
-    n %= S.q.length;
-    if (auto && !S.shuffle && S.i + 1 >= S.q.length && S.repeat === 0) { audio.pause(); return; }
-    load(n, true);
+    if (auto && S.repeat === 2) { audio.currentTime = 0; audio.play(); return; }              // repeat this song
+    if (auto && S.i + 1 >= S.q.length && S.repeat === 0) { audio.pause(); return; }          // end of the playlist, repeat off
+    load((S.i + 1) % S.q.length, true);                                                       // repeat playlist wraps around
   }
   function prev() {
     if (audio.currentTime > 3 || S.i <= 0) audio.currentTime = 0; else load(S.i - 1, true);
@@ -114,7 +153,7 @@
   const style = document.createElement("style");
   style.textContent = `
 #mp{position:fixed;right:1rem;bottom:1rem;z-index:50;width:20rem;display:grid;grid-template-columns:3rem 1fr;gap:.4rem .7rem;align-items:center;padding:.6rem;color:var(--moon,#f1e9ff);background:var(--dusk,#22123b);border:1px solid var(--amethyst,#8a5bd8);border-radius:.8rem;box-shadow:0 12px 40px #000a;font:.9rem system-ui,sans-serif}
-#mp[hidden]{display:none}
+#mp[hidden],html.pl-full #mp{display:none}
 #mp img{width:3rem;height:3rem;border-radius:.4rem;object-fit:cover;background:var(--violet,#4b2a85);cursor:pointer}
 #mp .mp-t{min-width:0;display:grid;cursor:pointer}
 #mp .mp-t b,#mp .mp-t span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -130,7 +169,7 @@
   const root = document.createElement("div");
   root.id = "mp"; root.hidden = true;
   root.innerHTML = `<img alt="" onerror="this.style.visibility='hidden'" data-a="open"><div class="mp-t" data-a="open"><b></b><span></span></div>
-<div class="mp-c"><button data-a="shuf" title="Shuffle" aria-label="Shuffle">⇄</button><button data-a="prev" aria-label="Previous">⏮</button>
+<div class="mp-c"><button data-a="shuf" title="Shuffle the playlist" aria-label="Shuffle">⇄</button><button data-a="prev" aria-label="Previous">⏮</button>
 <button class="big" data-a="pp" aria-label="Play or pause">▶</button><button data-a="next" aria-label="Next">⏭</button>
 <button data-a="rep" title="Repeat" aria-label="Repeat">↻</button><button data-a="x" title="Close" aria-label="Close">✕</button></div>
 <input type="range" min="0" max="1000" value="0" aria-label="Seek">`;
@@ -150,6 +189,7 @@
     pp.textContent = audio.paused ? "▶" : "❚❚";
     shuf.setAttribute("aria-pressed", String(S.shuffle));
     rep.textContent = S.repeat === 2 ? "↻1" : "↻";
+    rep.title = ["Repeat: off", "Repeat: playlist", "Repeat: this song"][S.repeat];
     rep.setAttribute("aria-pressed", String(S.repeat > 0));
   }
   root.addEventListener("click", (e) => {
@@ -157,10 +197,10 @@
     if (a === "pp") toggle();
     else if (a === "next") next(false);
     else if (a === "prev") prev();
-    else if (a === "shuf") { S.shuffle = !S.shuffle; save(); ui(); }
-    else if (a === "rep") { S.repeat = (S.repeat + 1) % 3; save(); ui(); }
+    else if (a === "shuf") toggleShuffle();
+    else if (a === "rep") cycleRepeat();
     else if (a === "x") { audio.pause(); S.closed = true; save(); ui(); }
-    else if (a === "open" && location.pathname !== "/music") location.href = "/music";
+    else if (a === "open") location.href = "/music#/player";
   });
   bar.addEventListener("input", () => { dragging = true; });
   bar.addEventListener("change", () => { dragging = false; const d = audio.duration || cur()?.dur; if (d) audio.currentTime = (bar.value / 1000) * d; });
@@ -171,9 +211,24 @@
   });
 
   window.Player = {
-    audio, state: S, cur, dl, toggle, prev, next: () => next(false), on: (f) => subs.push(f),
-    play(list, i) { S.q = list.slice(); S.closed = false; load(i, true); },
-    enqueue(t) { S.q.push(t); S.closed = false; if (S.i < 0 || (audio.paused && !audio.src)) load(S.q.length - 1, true); else { save(); ui(); } },
+    audio, state: S, cur, dl, toggle, prev, next: () => next(false),
+    on: (f) => { subs.push(f); return () => { const k = subs.indexOf(f); if (k >= 0) subs.splice(k, 1); }; },   // returns the way to stop listening
+    queue: () => S.q,
+    jump(i) { if (S.q[i]) { S.closed = false; load(i, true); } },
+    seek(frac) { const d = audio.duration || cur()?.dur; if (d) audio.currentTime = Math.min(1, Math.max(0, frac)) * d; },
+    volume: () => audio.volume,
+    setVolume,
+    toggleShuffle, cycleRepeat,
+    play(list, i) {
+      S.q = list.slice(); S.closed = false; S.o = [];
+      if (S.shuffle) { S.i = i; shuffleNow(); i = 0; }       // shuffle is on: the song picked plays first, the rest is shuffled
+      load(i, true);
+    },
+    enqueue(t) {
+      S.q.push(t); if (S.shuffle) S.o.push(t);
+      S.closed = false;
+      if (S.i < 0 || (audio.paused && !audio.src)) load(S.q.length - 1, true); else { save(); ui(); }
+    },
   };
 
   // ---------- restore on page load ----------
@@ -182,6 +237,6 @@
     load(S.i, was, S.t);
   }
   fetch("/api/music/state").then((r) => (r.ok ? r.json() : null)).then((d) => {   // another device played more recently
-    if (d && d.cur && d.ts > S.ts + 2000 && audio.paused) { S.q = [d.cur]; S.closed = false; load(0, false, d.t); }
+    if (d && d.cur && d.ts > S.ts + 2000 && audio.paused) { S.q = [d.cur]; S.o = []; S.closed = false; load(0, false, d.t); }
   }).catch(() => {});
 })();

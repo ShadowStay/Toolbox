@@ -76,6 +76,7 @@
     albums: () => grid("albums", "Albums"),
     artists: () => grid("artists", "Artists"),
     genres: () => grid("genres", "Genres"),
+    player: () => playerView(),
     async playlists() {
       const d = await api("/playlists");
       view.innerHTML = `<div class="head"><h2>Playlists</h2><button class="btn primary small" data-a="newpl">New playlist</button></div>
@@ -114,8 +115,82 @@
     paged("/browse/" + kind, {}, 60, view.querySelector(".grid"), (items) => cards(items, kind));
   }
 
+  // ---------- the Player tab: a big player (the whole screen on a phone) ----------
+  // Controls: shuffle (reorders the playlist), previous, play/pause, next, repeat (once = this song, twice = the playlist,
+  // again = off), a seek bar and a volume slider, and the queue underneath. Everything is driven by shared/player.js.
+  function playerView() {
+    document.documentElement.classList.add("pl-full");           // hides the little floating player
+    view.innerHTML = `<section class="pv" aria-label="Music player">
+      <button class="btn small pv-back" type="button" data-pv="back">‹ Library</button>
+      <div class="pv-art" aria-hidden="true"></div>
+      <div class="pv-info"><b id="pv-title"></b><span id="pv-artist"></span></div>
+      <div class="pv-seek"><span id="pv-cur">0:00</span><input type="range" id="pv-bar" min="0" max="1000" value="0" aria-label="Seek"><span id="pv-dur">0:00</span></div>
+      <div class="pv-ctl">
+        <button type="button" data-pv="shuf" aria-label="Shuffle the playlist" title="Shuffle the playlist">⇄</button>
+        <button type="button" data-pv="prev" aria-label="Previous" title="Previous">⏮</button>
+        <button type="button" class="pv-play" data-pv="pp" aria-label="Play or pause">▶</button>
+        <button type="button" data-pv="next" aria-label="Next" title="Next">⏭</button>
+        <button type="button" data-pv="rep" aria-label="Repeat" title="Repeat">↻</button>
+      </div>
+      <p class="pv-mode" id="pv-mode" aria-live="polite"></p>
+      <label class="pv-vol"><span aria-hidden="true">🔈</span><input type="range" id="pv-vol" min="0" max="100" aria-label="Volume"><span aria-hidden="true">🔊</span></label>
+      <div class="pv-q"><h2>Up next</h2><ol id="pv-list"></ol></div>
+    </section>`;
+    const q = (s) => view.querySelector(s), A = P.audio;
+    let dragging = false, shownId = null;
+
+    const paintTime = () => {
+      const d = A.duration || P.cur()?.dur || 0;
+      q("#pv-cur").textContent = fmt(dragging ? (q("#pv-bar").value / 1000) * d : A.currentTime);
+      q("#pv-dur").textContent = fmt(d);
+      if (!dragging && d) q("#pv-bar").value = (A.currentTime / d) * 1000;
+    };
+    function paint() {
+      const t = P.cur(), S = P.state;
+      q("#pv-title").textContent = t ? t.title : "Nothing playing";
+      q("#pv-artist").textContent = t ? [t.artist, t.album].filter(Boolean).join(" · ") : "Pick a song in the library and it shows up here.";
+      const id = t ? t.id : null;
+      if (id !== shownId) { shownId = id; q(".pv-art").innerHTML = t ? art(t.id) : "♫"; }
+      q(".pv-play").textContent = A.paused ? "▶" : "❚❚";
+      q('[data-pv="shuf"]').setAttribute("aria-pressed", String(S.shuffle));
+      const rep = q('[data-pv="rep"]');
+      rep.textContent = S.repeat === 2 ? "↻1" : "↻";
+      rep.setAttribute("aria-pressed", String(S.repeat > 0));
+      q("#pv-mode").textContent = `Repeat: ${["off", "playlist", "this song"][S.repeat]} · Shuffle: ${S.shuffle ? "on" : "off"}`;
+      if (document.activeElement !== q("#pv-vol")) q("#pv-vol").value = Math.round(P.volume() * 100);
+      const list = P.queue(), from = Math.max(0, S.i);
+      q("#pv-list").innerHTML = list.slice(from, from + 100).map((x, k) =>
+        `<li><button type="button" class="${from + k === S.i ? "on" : ""}" data-pv="jump" data-j="${from + k}"><b>${esc(x.title)}</b><small>${esc(x.artist || "")}</small></button></li>`).join("")
+        || '<li class="hint">The queue is empty.</li>';
+      paintTime();
+    }
+
+    q(".pv").addEventListener("click", (e) => {
+      const b = e.target.closest("[data-pv]");
+      if (!b) return;
+      const a = b.dataset.pv;
+      if (a === "back") location.hash = "#/home";
+      else if (a === "pp") P.toggle();
+      else if (a === "prev") P.prev();
+      else if (a === "next") P.next();
+      else if (a === "shuf") P.toggleShuffle();
+      else if (a === "rep") P.cycleRepeat();
+      else if (a === "jump") P.jump(+b.dataset.j);
+    });
+    q("#pv-bar").addEventListener("input", () => { dragging = true; paintTime(); });
+    q("#pv-bar").addEventListener("change", (e) => { dragging = false; P.seek(e.target.value / 1000); });
+    q("#pv-vol").addEventListener("input", (e) => P.setVolume(e.target.value / 100));
+
+    const off = P.on((e) => { if (e === "track" || e === "state" || e === "mode") paint(); });
+    const events = ["timeupdate", "loadedmetadata", "durationchange"];
+    events.forEach((n) => A.addEventListener(n, paintTime));
+    stop = () => { off(); events.forEach((n) => A.removeEventListener(n, paintTime)); };
+    paint();
+  }
+
   async function route() {
     stop(); stop = () => {}; say("");
+    document.documentElement.classList.remove("pl-full");
     const [name, qs] = location.hash.slice(2).split("?"), p = Object.fromEntries(new URLSearchParams(qs || ""));
     const key = VIEWS[name] ? name : "home";
     document.querySelectorAll("#mnav a").forEach((a) => a.setAttribute("aria-selected", String(a.getAttribute("href") === "#/" + key)));
