@@ -1,6 +1,7 @@
 """The whole web app: page serving, home-page SEO and the password gate. The API lives in processing/.
 Password gate: without a valid session cookie every request is answered with the login page (or a 401 for /api/), except
-POST /login and the public home page with its assets (PUBLIC_PATHS). Only a scrypt hash of the password is stored
+POST /login and the public home page with its assets (PUBLIC_PATHS), and the share links of cloud storage (/s/, see
+processing/share.py). Only a scrypt hash of the password is stored
 (data/password.hash); set it with set_password.py."""
 import hashlib
 import hmac
@@ -17,6 +18,7 @@ from werkzeug.security import check_password_hash
 
 import processing
 from processing import BASE, HASH_FILE, _secret
+from processing import share as share_links      # SHARE
 
 PAGES_DIR = BASE / "pages"      # pages/index.*  = home page, pages/<category>/<page>.{html,js,css}
 SHARED_DIR = BASE / "shared"    # site.css, site.js
@@ -87,7 +89,7 @@ def _register_failure(ip: str) -> None:
 
 # Reachable without signing in, so search engines can read the home page. Everything else needs the password.
 PUBLIC_PATHS = {"/", "/index.css", "/index.js", "/robots.txt", "/sitemap.xml"}
-PUBLIC_PREFIXES = ("/shared/", "/images/")
+PUBLIC_PREFIXES = ("/shared/", "/images/", "/s/")      # SHARE: /s/ = share links of cloud storage (24 hours, processing/share.py)
 
 
 def init_auth(app):
@@ -132,8 +134,8 @@ def init_auth(app):
 
 
 init_auth(app)
-for blueprint in (processing.bp, processing.chat.bp, processing.board.bp, processing.storage.bp, processing.music.bp):
-    app.register_blueprint(blueprint)      # chat/board: the Live page; storage: cloud storage; music: the music library
+for blueprint in (processing.bp, processing.chat.bp, processing.board.bp, processing.storage.bp, processing.music.bp, share_links.bp):   # SHARE
+    app.register_blueprint(blueprint)      # chat/board: the Live page; storage: cloud storage; music: the music library; share_links: public share links
 SAFE = re.compile(r"^[A-Za-z0-9_-]+$")
 ASSET = re.compile(r"^[A-Za-z0-9_-]+\.(?:js|css)$")
 
@@ -143,7 +145,7 @@ TOOLS = {
     "image-tools": ("❖", "Layered image editor: transform, crop, filters, grid arrangement, tile split, format conversion."),
     "omni-file-viewer": ("❂", "Viewer, converter and merger for images, PDF, DOCX, spreadsheets, text, audio and video."),
     "calculator": ("∑", "Expressions, unit conversion, equations and linear systems."),
-    "cloud-storage": ("☁", "Shared file storage, 500 GB, resumable uploads."),
+    "cloud-storage": ("☁", "Shared file storage, 500 GB, resumable uploads, share links with QR code and barcode."),
     "music": ("♫", "Stream your music library, offline downloads, playlists and a mini player on every page."),
     "fortune-wheel": ("✺", "Random pick from a list of entries."),
     "live": ("☄", "Chat room with voice, screen sharing and a drawing board."),
@@ -261,7 +263,7 @@ def safe_headers(resp):
 
 @app.route("/robots.txt")
 def robots():
-    return Response(f"User-agent: *\nAllow: /\nDisallow: /api/\n\nSitemap: {origin()}/sitemap.xml\n", mimetype="text/plain")
+    return Response(f"User-agent: *\nAllow: /\nDisallow: /api/\nDisallow: /s/\n\nSitemap: {origin()}/sitemap.xml\n", mimetype="text/plain")   # SHARE: /s/ kept out of search engines
 
 
 @app.route("/sitemap.xml")
