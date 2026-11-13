@@ -16,7 +16,7 @@
     <h1 class="tool-title">Printing</h1>
     <details class="tool-about">
       <summary>About</summary>
-      <p>Sends files to the printer connected to the server (through CUPS). PDF, images (PNG, JPEG, WebP, GIF, BMP, TIFF) and text files are printed directly; Word, Excel, PowerPoint and OpenDocument files too when LibreOffice is installed on the server. Everything is converted to PDF on the server first, 50 MB at most per file. Files can also be taken from cloud storage.</p>
+      <p>Sends files to the printer connected to the server (through CUPS). PDF, images (PNG, JPEG, WebP, GIF, BMP, TIFF) and text files are printed directly; Word, Excel, PowerPoint and OpenDocument files too when LibreOffice is installed on the server. Files are converted to PDF on the server (50 MB at most each) and laid out on sheets as the preview shows: by default a document page fills one whole sheet and a picture is never enlarged. Files can also be taken from cloud storage.</p>
     </details>
 
     <section class="stage-box" aria-labelledby="printer-title">
@@ -34,17 +34,75 @@
     </label>
 
     <section class="stage-box" id="queue-box" hidden aria-labelledby="queue-title">
-      <h2 class="ctitle" id="queue-title">Ready to print</h2>
+      <h2 class="ctitle" id="queue-title">Files</h2>
       <ul class="queue" id="queue"></ul>
-      <div class="fields spaced">
-        <label class="field">Copies <input type="number" id="copies" min="1" max="99" value="1"></label>
-        <label class="field">Pages (empty = all) <input type="text" id="pages" placeholder="1-3,5" autocomplete="off" spellcheck="false"></label>
-      </div>
-      <div class="options"><label class="check"><input type="checkbox" id="fit" checked> Shrink to fit the paper</label></div>
-      <p class="hint nomargin">Copies and pages apply to every file in the list. The page range is checked against each document.</p>
-      <div class="actions spaced-top">
-        <button class="btn primary" type="button" id="print">Print</button>
-        <button class="btn" type="button" id="clear">Clear list</button>
+    </section>
+
+    <section class="stage-box" id="layout-box" hidden aria-labelledby="layout-title">
+      <h2 class="ctitle" id="layout-title">Preview and layout</h2>
+      <div class="layout">
+        <div class="previewcol">
+          <div class="paperbox"><img id="sheet-img" alt="Preview of the printed sheet" hidden><p class="hint nomargin" id="sheet-wait">Select a file.</p></div>
+          <div class="sheetnav">
+            <button class="btn small" type="button" id="prev" aria-label="Previous sheet">◀</button>
+            <span id="sheet-label"></span>
+            <button class="btn small" type="button" id="next" aria-label="Next sheet">▶</button>
+          </div>
+          <p class="hint nomargin" id="sheet-info"></p>
+        </div>
+
+        <div class="opts">
+          <div class="fields">
+            <label class="field">Paper
+              <select id="paper"><option value="a4">A4</option><option value="letter">Letter</option><option value="a5">A5</option><option value="legal">Legal</option></select>
+            </label>
+            <label class="field">Orientation
+              <select id="orient"><option value="auto">Automatic</option><option value="portrait">Portrait</option><option value="landscape">Landscape</option></select>
+            </label>
+            <label class="field">Size
+              <select id="scale">
+                <option value="auto">Automatic (pictures never enlarged, pages fill the sheet)</option>
+                <option value="shrink">Shrink to fit, never enlarge</option>
+                <option value="fit">Fit to page</option>
+                <option value="fill">Fill the page (crops the edges)</option>
+                <option value="actual">Actual size (100%)</option>
+                <option value="custom">Custom zoom</option>
+              </select>
+            </label>
+            <label class="field" id="zoom-wrap" hidden>Zoom (%) <input type="number" id="zoom" min="10" max="500" value="100"></label>
+            <label class="field">Margins (mm) <input type="number" id="margin" min="0" max="50" step="1" placeholder="Automatic"></label>
+            <label class="field">Pages per sheet
+              <select id="nup"><option value="1">1 (one page, one sheet)</option><option value="2">2</option><option value="4">4</option></select>
+            </label>
+          </div>
+
+          <div class="field">Placement
+            <div class="grid9" id="place" role="radiogroup" aria-label="Placement on the sheet">
+              <button type="button" role="radio" data-p="tl" aria-checked="false" title="Top left">↖</button><button type="button" role="radio" data-p="tc" aria-checked="false" title="Top">↑</button><button type="button" role="radio" data-p="tr" aria-checked="false" title="Top right">↗</button>
+              <button type="button" role="radio" data-p="ml" aria-checked="false" title="Left">←</button><button type="button" role="radio" data-p="c" aria-checked="true" title="Centre">●</button><button type="button" role="radio" data-p="mr" aria-checked="false" title="Right">→</button>
+              <button type="button" role="radio" data-p="bl" aria-checked="false" title="Bottom left">↙</button><button type="button" role="radio" data-p="bc" aria-checked="false" title="Bottom">↓</button><button type="button" role="radio" data-p="br" aria-checked="false" title="Bottom right">↘</button>
+            </div>
+          </div>
+
+          <div class="field">Rotation
+            <div class="actions">
+              <button class="btn small" type="button" id="rot-l" title="Rotate 90° counter-clockwise">⟲ 90°</button>
+              <button class="btn small" type="button" id="rot-r" title="Rotate 90° clockwise">⟳ 90°</button>
+              <span class="hint nomargin" id="rot-label">0°</span>
+            </div>
+          </div>
+
+          <div class="fields">
+            <label class="field">Pages (empty = all) <input type="text" id="pages" placeholder="1-3,5" autocomplete="off" spellcheck="false"></label>
+            <label class="field">Copies <input type="number" id="copies" min="1" max="99" value="1"></label>
+          </div>
+          <div class="actions">
+            <button class="btn primary" type="button" id="print">Print</button>
+            <button class="btn" type="button" id="reset">Reset layout</button>
+            <button class="btn" type="button" id="clear">Clear files</button>
+          </div>
+          <p class="hint nomargin">The layout applies to every file in the list; the preview shows the selected one. With margins on Automatic, pictures keep 5 mm clear and documents use their own margins.</p>
+        </div>
       </div>
     </section>
 

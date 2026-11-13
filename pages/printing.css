@@ -1,10 +1,10 @@
-/* Printing: printer box, drop zone, list of files to print and the job list. */
+/* Printing: printer box, drop zone, file list, preview with layout options, and the job list. */
 .stage-box { margin-bottom: 1rem; }
-.stage-box .field select { max-width: 30rem; }
-.spaced { margin-top: 1.1rem; }
+.stage-box .field select { max-width: 100%; }
 .spaced-top { margin-top: 1rem; }
-.ctitle { margin: 0; font-size: 1.05rem; font-weight: 600; }
+.ctitle { margin: 0 0 .6rem; font-size: 1.05rem; font-weight: 600; }
 .vbar { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: .6rem; margin-bottom: .75rem; }
+.vbar .ctitle { margin: 0; }
 .stage-box input[type="number"] { width: 100%; font: inherit; color: var(--moon); background: #140b22; border: 1px solid #8a5bd877; border-radius: .4rem; padding: .55rem .7rem; }
 .stage-box input[type="number"]:focus-visible { outline: 2px solid var(--candle); outline-offset: 1px; }
 .nomargin { margin: 0; }
@@ -16,6 +16,8 @@
 
 .queue, .jobs { list-style: none; margin: 0; padding: 0; display: grid; gap: .45rem; }
 .queue li, .jobs li { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: .1rem .8rem; align-items: center; padding: .45rem .7rem; background: #140b22; border: 1px solid #8a5bd855; border-radius: .45rem; }
+.queue li { cursor: pointer; }
+.queue li.on { border-color: var(--candle); box-shadow: 0 0 0 1px var(--candle); }
 .queue .qname, .jobs .jname { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: .92rem; }
 .queue .qstate, .jobs .jstate { grid-column: 1; font-size: .8rem; color: var(--orchid); }
 .queue li .btn, .jobs li .btn { grid-column: 2; grid-row: 1 / span 2; align-self: center; }
@@ -23,3 +25,20 @@
 .queue li.done .qstate { color: #7be3a6; }
 .jobs:empty + .hint { display: block; }
 .jobs:not(:empty) + .hint { display: none; }
+
+/* ---------- preview and options ---------- */
+.layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 26rem); gap: 1.5rem; align-items: start; }
+.previewcol { display: grid; gap: .6rem; justify-items: center; }
+.paperbox { display: grid; place-items: center; width: 100%; min-height: 24rem; padding: 1.2rem; background: #2b1a47; border-radius: .5rem; }
+.paperbox img { display: block; max-width: 100%; max-height: 34rem; background: #fff; box-shadow: 0 6px 24px #000a; transition: opacity .15s; }
+.paperbox img.stale { opacity: .45; }
+.sheetnav { display: flex; align-items: center; gap: .8rem; font-size: .9rem; }
+.opts { display: grid; gap: 1rem; }
+.opts .fields { grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr)); margin: 0; }
+.grid9 { display: grid; grid-template-columns: repeat(3, 2.6rem); gap: .3rem; }
+.grid9 button { height: 2.4rem; font: inherit; font-size: 1.1rem; color: var(--moon); cursor: pointer; background: #3a1f6b; border: 1px solid #8a5bd8aa; border-radius: .4rem; }
+.grid9 button:hover { background: #4b2a85; }
+.grid9 button[aria-checked="true"] { background: var(--amethyst); border-color: var(--candle); }
+.opts .actions { align-items: center; }
+
+@media (max-width: 900px) { .layout { grid-template-columns: 1fr; } }
