@@ -67,8 +67,23 @@ def is_authed() -> bool:
     return isinstance(value, str) and hmac.compare_digest(value, _fingerprint(h))
 
 
+# The little moon in the browser tab, the same on every page (the home page has its own copy of it).
+FAVICON_URL = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%23140b22'/%3E%3Ctext x='32' y='46' font-size='40' text-anchor='middle' fill='%23e9c776'%3E%E2%98%BE%3C/text%3E%3C/svg%3E"
+FAVICON = '  <link rel="icon" href="' + FAVICON_URL + '">\n'
+
+
+def inject(html: str, closing_tag: str, snippet: str) -> str:
+    """Insert snippet just before the first closing_tag (case-insensitive); append if the tag is missing."""
+    m = re.search(re.escape(closing_tag), html, re.I)
+    return html[: m.start()] + snippet + html[m.start():] if m else html + snippet
+
+
+def with_favicon(html: str) -> str:
+    return html if re.search(r'rel=["\']icon["\']', html, re.I) else inject(html, "</head>", FAVICON)
+
+
 def login_page() -> Response:
-    return Response(LOGIN_PAGE.read_text(encoding="utf-8"), status=401, mimetype="text/html",
+    return Response(with_favicon(LOGIN_PAGE.read_text(encoding="utf-8")), status=401, mimetype="text/html",
                     headers={"Cache-Control": "no-store"})
 
 
@@ -216,12 +231,6 @@ def spellbook() -> str:
     return "".join(shelves) or '<p class="empty">The shelves are empty.</p>'
 
 
-def inject(html: str, closing_tag: str, snippet: str) -> str:
-    """Insert snippet just before the first closing_tag (case-insensitive); append if the tag is missing."""
-    m = re.search(re.escape(closing_tag), html, re.I)
-    return html[: m.start()] + snippet + html[m.start():] if m else html + snippet
-
-
 def serve_page(category, name):
     """Serve <name>.html and automatically attach <name>.css / <name>.js sitting next to it,
     so the HTML never has to reference its own files. The saved options (cookies) are written onto <html> here,
@@ -230,7 +239,7 @@ def serve_page(category, name):
     html_file = folder / f"{name}.html"
     if not html_file.is_file():
         abort(404)
-    html = html_file.read_text(encoding="utf-8")
+    html = with_favicon(html_file.read_text(encoding="utf-8"))
     prefix = f"/{category}/" if category else "/"
     if (folder / f"{name}.css").is_file() and f"{name}.css" not in html:
         html = inject(html, "</head>", f'  <link rel="stylesheet" href="{prefix}{name}.css">\n')

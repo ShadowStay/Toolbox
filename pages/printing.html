@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Printing</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Uncial+Antiqua&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/shared/site.css">
+</head>
+<body>
+  <aside id="site-nav" aria-label="Main navigation"></aside>
+
+  <main class="page wide">
+    <h1 class="tool-title">Printing</h1>
+    <details class="tool-about">
+      <summary>About</summary>
+      <p>Sends files to the printer connected to the server (through CUPS). PDF, images (PNG, JPEG, WebP, GIF, BMP, TIFF) and text files are printed directly; Word, Excel, PowerPoint and OpenDocument files too when LibreOffice is installed on the server. Everything is converted to PDF on the server first, 50 MB at most per file. Files can also be taken from cloud storage.</p>
+    </details>
+
+    <section class="stage-box" aria-labelledby="printer-title">
+      <div class="vbar">
+        <h2 class="ctitle" id="printer-title">Printer</h2>
+        <button class="btn small" type="button" id="refresh">Refresh</button>
+      </div>
+      <label class="field">Print on <select id="printer"></select></label>
+      <p class="hint" id="printer-state"></p>
+    </section>
+
+    <label class="drop" id="drop">
+      <strong class="big">Add files to print: choose, drop anywhere, or paste</strong>
+      <input type="file" id="picker" multiple accept=".pdf,image/*,.txt,.md,.csv,.log,.json,.xml,.html,.htm,.docx,.doc,.odt,.rtf,.xlsx,.xls,.ods,.pptx,.ppt,.odp,.tif,.tiff,.heic">
+    </label>
+
+    <section class="stage-box" id="queue-box" hidden aria-labelledby="queue-title">
+      <h2 class="ctitle" id="queue-title">Ready to print</h2>
+      <ul class="queue" id="queue"></ul>
+      <div class="fields spaced">
+        <label class="field">Copies <input type="number" id="copies" min="1" max="99" value="1"></label>
+        <label class="field">Pages (empty = all) <input type="text" id="pages" placeholder="1-3,5" autocomplete="off" spellcheck="false"></label>
+      </div>
+      <div class="options"><label class="check"><input type="checkbox" id="fit" checked> Shrink to fit the paper</label></div>
+      <p class="hint nomargin">Copies and pages apply to every file in the list. The page range is checked against each document.</p>
+      <div class="actions spaced-top">
+        <button class="btn primary" type="button" id="print">Print</button>
+        <button class="btn" type="button" id="clear">Clear list</button>
+      </div>
+    </section>
+
+    <p class="status" id="status" role="status" aria-live="polite"></p>
+
+    <section class="stage-box" aria-labelledby="jobs-title">
+      <div class="vbar">
+        <h2 class="ctitle" id="jobs-title">Print jobs</h2>
+        <button class="btn small" type="button" id="jobs-refresh">Refresh</button>
+      </div>
+      <ul class="jobs" id="jobs"></ul>
+      <p class="hint nomargin" id="jobs-empty">No jobs.</p>
+    </section>
+  </main>
+
+  <script src="/shared/site.js"></script>
+  <script src="/shared/cloud-picker.js" data-target="#picker"></script>
+</body>
+</html>

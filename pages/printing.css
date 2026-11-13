@@ -1,0 +1,25 @@
+/* Printing: printer box, drop zone, list of files to print and the job list. */
+.stage-box { margin-bottom: 1rem; }
+.stage-box .field select { max-width: 30rem; }
+.spaced { margin-top: 1.1rem; }
+.spaced-top { margin-top: 1rem; }
+.ctitle { margin: 0; font-size: 1.05rem; font-weight: 600; }
+.vbar { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: .6rem; margin-bottom: .75rem; }
+.stage-box input[type="number"] { width: 100%; font: inherit; color: var(--moon); background: #140b22; border: 1px solid #8a5bd877; border-radius: .4rem; padding: .55rem .7rem; }
+.stage-box input[type="number"]:focus-visible { outline: 2px solid var(--candle); outline-offset: 1px; }
+.nomargin { margin: 0; }
+
+.drop { position: relative; display: grid; gap: .3rem; place-items: center; margin: 1.25rem 0 1rem; padding: 2rem 1.5rem; text-align: center; border: 2px dashed #8a5bd8aa; border-radius: .6rem; cursor: pointer; transition: background .15s, border-color .15s; }
+.drop:hover, .drop:focus-within, .drop.over { background: #8a5bd822; border-color: var(--candle); }
+.drop input { position: absolute; width: 1px; height: 1px; opacity: 0; }
+.drop .big { font-size: 1.1rem; }
+
+.queue, .jobs { list-style: none; margin: 0; padding: 0; display: grid; gap: .45rem; }
+.queue li, .jobs li { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: .1rem .8rem; align-items: center; padding: .45rem .7rem; background: #140b22; border: 1px solid #8a5bd855; border-radius: .45rem; }
+.queue .qname, .jobs .jname { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: .92rem; }
+.queue .qstate, .jobs .jstate { grid-column: 1; font-size: .8rem; color: var(--orchid); }
+.queue li .btn, .jobs li .btn { grid-column: 2; grid-row: 1 / span 2; align-self: center; }
+.queue li.failed .qstate { color: #ff9fb3; }
+.queue li.done .qstate { color: #7be3a6; }
+.jobs:empty + .hint { display: block; }
+.jobs:not(:empty) + .hint { display: none; }

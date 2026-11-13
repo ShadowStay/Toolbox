@@ -111,9 +111,12 @@ a.go:hover{filter:brightness(1.12)}
 """
 
 
+ICON = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%23140b22'/%3E%3Ctext x='32' y='46' font-size='40' text-anchor='middle' fill='%23e9c776'%3E%E2%98%BE%3C/text%3E%3C/svg%3E"
+
+
 def html_page(body, status=200):
     doc = ('<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">'
-           '<meta name="robots" content="noindex, nofollow"><title>Shared file · Iprix\'s Spells</title>'
+           '<meta name="robots" content="noindex, nofollow"><link rel="icon" href="' + ICON + '"><title>Shared file · Iprix\'s Spells</title>'
            f'<style>{CSS}</style></head><body><main><div class="moon" aria-hidden="true">☾</div>{body}</main></body></html>')
     return Response(doc, status=status, mimetype="text/html", headers=PRIVATE)
 
