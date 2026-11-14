@@ -1,0 +1,186 @@
+/* Mobile layout. app.py links this file only for phones/tablets (User-Agent / Sec-CH-UA-Mobile, or the "Phone layout"
+   option); site.js also loads it on touch tablets that report a desktop User-Agent. Every rule is scoped to
+   html[data-device="mobile"], so it sits on top of site.css and the page's own css without editing them. */
+
+html[data-device="mobile"] { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; -webkit-tap-highlight-color: transparent; }
+html[data-device="mobile"] body { display: block; grid-template-columns: 1fr; background-attachment: scroll; overflow-x: hidden; line-height: 1.5; }
+html[data-device="mobile"] img, html[data-device="mobile"] canvas, html[data-device="mobile"] video { max-width: 100%; }
+
+/* ---------- navigation: a sticky top bar with a menu button ---------- */
+html[data-device="mobile"] #site-nav { position: sticky; top: 0; z-index: 60; height: auto; border-right: 0; box-shadow: 0 4px 18px #0008; background: #1b0f33; }
+html[data-menu="open"][data-device="mobile"] #site-nav { max-height: 100vh; max-height: 100dvh; overflow-y: auto; overscroll-behavior: contain; }
+html[data-device="mobile"] .nav-panel { position: static; width: auto; flex-direction: column; align-items: stretch; flex-wrap: nowrap; gap: 0; padding: .5rem 1rem; overflow: visible; border-right: 0; border-bottom: 1px solid #8a5bd855; box-shadow: none; }
+html[data-device="mobile"] .nav-head { margin: 0; justify-content: space-between; }
+html[data-device="mobile"] .brand { margin: 0; }
+html[data-device="mobile"] .nav-toggle, html[data-device="mobile"] .nav-expand { display: none !important; }
+html[data-device="mobile"] .nav-menu { flex: none; display: grid; place-items: center; width: 2.75rem; height: 2.75rem; padding: 0; font: inherit; font-size: 1.4rem; line-height: 1; color: var(--orchid); cursor: pointer; background: none; border: 1px solid #8a5bd877; border-radius: .6rem; }
+html[data-device="mobile"] .nav-menu[aria-expanded="true"] { background: #8a5bd833; color: #fff; }
+html[data-device="mobile"] #site-nav .nav-panel > ul,
+html[data-device="mobile"] #site-nav .nav-panel > .nav-foot { display: none; }
+html[data-menu="open"][data-device="mobile"] #site-nav .nav-panel > ul { display: grid; grid-auto-flow: row; gap: .2rem; margin-top: .75rem; }
+html[data-menu="open"][data-device="mobile"] #site-nav .nav-panel > .nav-foot { display: grid; gap: .5rem; margin: .75rem 0 .5rem; padding: .75rem 0 0; border-top: 1px solid #8a5bd855; }
+html[data-device="mobile"] #site-nav li a { min-height: 3rem; padding: .6rem .8rem; font-size: 1.05rem; }
+html[data-device="mobile"] #site-nav li.group { margin-top: .6rem; }
+html[data-device="mobile"] #site-nav .leave { min-height: 3rem; margin: 0; justify-content: flex-start; font-size: 1rem; }
+
+/* ---------- page frame ---------- */
+html[data-device="mobile"] .page, html[data-device="mobile"] .page.wide { max-width: 100%; padding: 1.1rem .9rem 9rem; }
+html[data-device="mobile"] h1 { font-size: clamp(1.7rem, 8vw, 2.4rem); }
+html[data-device="mobile"] h1.tool-title { font-size: clamp(1.5rem, 7vw, 2rem); }
+html[data-device="mobile"] .tool-about summary { padding: .35rem 0; }
+
+/* ---------- controls: big enough for a finger, 16px so iOS does not zoom ---------- */
+html[data-device="mobile"] input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]):not([type="file"]),
+html[data-device="mobile"] select,
+html[data-device="mobile"] textarea { font-size: 16px !important; min-height: 2.75rem; }
+html[data-device="mobile"] textarea { min-height: 8rem; }
+html[data-device="mobile"] input[type="checkbox"], html[data-device="mobile"] input[type="radio"] { width: 1.25rem; height: 1.25rem; }
+html[data-device="mobile"] .btn { min-height: 2.75rem; padding: .5rem 1rem; font-size: 1rem; }
+html[data-device="mobile"] .btn.small { min-height: 2.4rem; padding: .35rem .8rem; font-size: .92rem; }
+html[data-device="mobile"] .check { min-height: 2.5rem; font-size: 1rem; }
+html[data-device="mobile"] .options { gap: .2rem 1.25rem; }
+html[data-device="mobile"] .actions { gap: .5rem; }
+html[data-device="mobile"] input[type="range"] { height: 2rem; }
+html[data-device="mobile"] .fields { grid-template-columns: 1fr; }
+html[data-device="mobile"] .panel { padding: .9rem; }
+
+/* tabs scroll sideways instead of wrapping into a tall block */
+html[data-device="mobile"] .tabs { flex-wrap: nowrap; overflow-x: auto; overflow-y: hidden; -webkit-overflow-scrolling: touch; scrollbar-width: none; gap: .1rem; }
+html[data-device="mobile"] .tabs::-webkit-scrollbar { display: none; }
+html[data-device="mobile"] .tab { flex: none; padding: .75rem 1rem; white-space: nowrap; }
+
+/* dialogs fit the screen and scroll */
+html[data-device="mobile"] dialog { max-width: 94vw; max-height: 90vh; max-height: 90dvh; overflow: auto; }
+html[data-device="mobile"] #options, html[data-device="mobile"] .dlg, html[data-device="mobile"] #saves, html[data-device="mobile"] #tt-settings,
+html[data-device="mobile"] #exp, html[data-device="mobile"] #mover, html[data-device="mobile"] #pick, html[data-device="mobile"] #settings,
+html[data-device="mobile"] #role-dialog, html[data-device="mobile"] #cloud-picker { width: 94vw; }
+html[data-device="mobile"] .choices { grid-template-columns: 1fr; }
+html[data-device="mobile"] .choices.three { grid-template-columns: 1fr; }
+
+/* the mini music player docks to the bottom edge */
+html[data-device="mobile"] #mp { left: 0; right: 0; bottom: 0; width: auto; border-radius: .8rem .8rem 0 0; padding-bottom: calc(.6rem + env(safe-area-inset-bottom, 0px)); }
+html[data-device="mobile"] #mp button { min-width: 2.75rem; height: 2.75rem; }
+
+/* ---------- home ---------- */
+html[data-device="mobile"] .hero { margin-bottom: 2rem; }
+html[data-device="mobile"] .shelf ul { grid-template-columns: repeat(auto-fill, minmax(10.5rem, 1fr)); gap: .7rem; }
+html[data-device="mobile"] .spell { padding: .9rem; opacity: 1; animation: none; }
+html[data-device="mobile"] .spell:hover { transform: none; }
+html[data-device="mobile"] .s-path { display: none; }
+html[data-device="mobile"] .about-grid { grid-template-columns: 1fr; }
+html[data-device="mobile"] .about { margin-top: 2.5rem; }
+
+/* ---------- text tools ---------- */
+html[data-device="mobile"] .workspace { grid-template-columns: 1fr; gap: 1rem; }
+html[data-device="mobile"] .workspace textarea { min-height: 12rem; }
+html[data-device="mobile"] .diff { max-height: 24rem; }
+
+/* ---------- image tools ---------- */
+html[data-device="mobile"] .slider { grid-template-columns: 5.5rem 1fr 3.4rem; gap: .5rem; }
+html[data-device="mobile"] .tray li { width: calc(50% - .4rem); }
+html[data-device="mobile"] .stage { margin: 1.6rem .9rem .8rem 0; }
+html[data-device="mobile"] .box i { width: 24px; height: 24px; margin: -12px 0 0 -12px; }
+html[data-device="mobile"] .box i.rot { top: -38px; }
+
+/* ---------- file viewer ---------- */
+html[data-device="mobile"] .drop { padding: 1.4rem 1rem; }
+html[data-device="mobile"] .vexport { width: 100%; }
+html[data-device="mobile"] .vexport select { flex: 1; min-width: 0; }
+html[data-device="mobile"] .vtools { overflow-x: auto; flex-wrap: nowrap; -webkit-overflow-scrolling: touch; padding-bottom: .3rem; }
+html[data-device="mobile"] .vtools > * { flex: none; }
+html[data-device="mobile"] .docframe { height: 65vh; }
+html[data-device="mobile"] .imgview, html[data-device="mobile"] .pdfview, html[data-device="mobile"] .sheetview, html[data-device="mobile"] .textview { max-height: 65vh; }
+html[data-device="mobile"] .corder li { flex-wrap: wrap; }
+
+/* ---------- calculator ---------- */
+html[data-device="mobile"] .calc { padding: .8rem; }
+html[data-device="mobile"] #expr { font-size: 1.2rem !important; }
+html[data-device="mobile"] .live { font-size: 1.25rem; }
+html[data-device="mobile"] .calc-bar .btn { margin-left: 0; }
+html[data-device="mobile"] .history li { grid-template-columns: 1fr; }
+html[data-device="mobile"] .history .btn { grid-column: 1; grid-row: auto; justify-self: start; }
+html[data-device="mobile"] .help th { display: block; width: auto; padding-bottom: 0; }
+html[data-device="mobile"] .help td { display: block; }
+
+/* ---------- cloud storage ---------- */
+html[data-device="mobile"] .listing .dt, html[data-device="mobile"] .listing .sz { display: none; }
+html[data-device="mobile"] .listing .nm { max-width: 0; }
+html[data-device="mobile"] .listing .ac { white-space: normal; }
+html[data-device="mobile"] .listing .ac .btn { margin: .15rem .15rem .15rem 0; }
+html[data-device="mobile"] .listing td { padding: .5rem .5rem; }
+html[data-device="mobile"] .uploads { max-height: 14rem; }
+
+/* ---------- music ---------- */
+html[data-device="mobile"] .mbar { flex-wrap: wrap; }
+html[data-device="mobile"] .mbar input { flex: 1 1 100%; }
+html[data-device="mobile"] .grid { grid-template-columns: repeat(auto-fill, minmax(8.2rem, 1fr)); gap: .8rem; }
+html[data-device="mobile"] .row { padding: .5rem .3rem; gap: .4rem; }
+html[data-device="mobile"] .ib { min-width: 2.4rem; height: 2.6rem; }
+html[data-device="mobile"] .dur { display: none; }
+html[data-device="mobile"] .head h2 { flex: 1 1 100%; }
+
+/* ---------- fortune wheel ---------- */
+html[data-device="mobile"] .wheel-layout { grid-template-columns: 1fr; }
+html[data-device="mobile"] .wheel-box { width: min(100%, 26rem); }
+
+/* ---------- live ---------- */
+html[data-device="mobile"] .app { grid-template-columns: 1fr; height: auto; }
+html[data-device="mobile"] .side { max-height: 22rem; }
+html[data-device="mobile"] .chat { height: 70vh; height: 70dvh; min-height: 22rem; }
+html[data-device="mobile"] .board { min-height: 0; }
+html[data-device="mobile"] .board-bar { overflow-x: auto; flex-wrap: nowrap; }
+html[data-device="mobile"] .board-bar > * { flex: none; }
+html[data-device="mobile"] .icon { width: 2.75rem; height: 2.75rem; }
+html[data-device="mobile"] .chat-form { padding: .5rem; }
+html[data-device="mobile"] .card { max-width: 100%; }
+
+/* ---------- video editor ---------- */
+html[data-device="mobile"] .page.editor { height: auto; min-height: 0; padding: .8rem .7rem 9rem; }
+html[data-device="mobile"] .ed-main { grid-template-columns: 1fr; flex: none; }
+html[data-device="mobile"] .bin { max-height: 14rem; }
+html[data-device="mobile"] .screen { min-height: 13rem; flex: none; aspect-ratio: 16 / 9; }
+html[data-device="mobile"] .inspector { max-height: 16rem; }
+html[data-device="mobile"] .timeline { flex-basis: 22rem; }
+html[data-device="mobile"] .ed-split { display: none; }
+html[data-device="mobile"] .tl-bar { overflow-x: auto; flex-wrap: nowrap; }
+html[data-device="mobile"] .tl-bar > * { flex: none; }
+html[data-device="mobile"] .clip .h { width: 16px; }
+
+/* ---------- tabletop ---------- */
+html[data-device="mobile"] .table { grid-template-columns: 1fr; }
+html[data-device="mobile"] .dice { position: static; max-height: none; }
+html[data-device="mobile"] .sheet { --h: 2.6rem; --gap: .6rem; padding: .8rem; }
+html[data-device="mobile"] .p1 { grid-template-columns: 1fr; grid-template-areas: "left" "hp" "ident" "ke" "te" "ve" "ce" "hm" "armor" "arms"; }
+html[data-device="mobile"] .two, html[data-device="mobile"] .armor, html[data-device="mobile"] .pz { grid-template-columns: 1fr; }
+html[data-device="mobile"] .attrs { grid-template-columns: 1fr 4.2rem 2.4rem; }
+html[data-device="mobile"] .f.in { grid-template-columns: 6.5rem 1fr; }
+html[data-device="mobile"] .viewtabs { overflow-x: auto; }
+html[data-device="mobile"] .viewtabs .tabset { flex: none; }
+html[data-device="mobile"] .charbar { gap: .7rem; }
+html[data-device="mobile"] .charbar .field { min-width: 100%; }
+html[data-device="mobile"] .charbar .actions .btn { flex: 1 1 auto; }
+html[data-device="mobile"] .mapbar .field { min-width: 100%; }
+html[data-device="mobile"] .maptools { gap: .5rem; }
+html[data-device="mobile"] .toolgroup.right { margin-left: 0; justify-content: flex-start; }
+html[data-device="mobile"] .viewport { height: 62vh; height: 62dvh; min-height: 18rem; }
+html[data-device="mobile"] .zoombox .btn { min-width: 2.6rem; min-height: 2.4rem; }
+html[data-device="mobile"] .corner { width: 2.6rem; height: 2.6rem; }
+html[data-device="mobile"] .centericon { bottom: .5rem; }
+html[data-device="mobile"] .zoombox { left: 3.6rem; }
+html[data-device="mobile"] .mapstage { --dw: 100%; flex-direction: column; }
+html[data-device="mobile"] .dock { flex-direction: row; justify-content: flex-start; padding-top: 0; margin: .45rem 0 0; overflow-x: auto; }
+html[data-device="mobile"] .dock-tab, html[data-device="mobile"] .mapstage.opened .dock-tab { flex-direction: row; flex: none; width: auto; min-height: 2.75rem; max-height: none; padding: .35rem .8rem; border-right: 1px solid var(--candle); border-radius: .5rem .5rem 0 0; margin: 0; }
+html[data-device="mobile"] .dock-tab .tt, html[data-device="mobile"] .dock-tab small { writing-mode: horizontal-tb; }
+html[data-device="mobile"] .drawers { display: block; }
+html[data-device="mobile"] .drawer { display: block; width: auto; height: 0; }
+html[data-device="mobile"] .drawer.open { width: auto; height: auto; }
+html[data-device="mobile"] .drawer-body { width: auto; max-height: 60vh; max-height: 60dvh; border-radius: 0 0 .6rem .6rem; }
+html[data-device="mobile"] .drawer-close { min-width: 2.6rem; min-height: 2.6rem; }
+html[data-device="mobile"] .sg input { min-height: 2.4rem; }
+html[data-device="mobile"] .psi-pop[open] { flex-direction: column; align-items: stretch; }
+html[data-device="mobile"] .psi-table { font-size: .85rem; }
+html[data-device="mobile"] .psi-x { top: .4rem; right: .4rem; }
+html[data-device="mobile"] .dm-grid { grid-template-columns: 1fr; grid-template-areas: "ident" "hp" "combat" "attacks" "notes"; }
+html[data-device="mobile"] .settings-grid { grid-template-columns: 1fr; }
+html[data-device="mobile"] .role-choices { grid-template-columns: 1fr; }
+html[data-device="mobile"] .role-char { width: 100%; }

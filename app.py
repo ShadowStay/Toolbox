@@ -1,7 +1,6 @@
 """The whole web app: page serving, home-page SEO and the password gate. The API lives in processing/.
 Password gate: without a valid session cookie every request is answered with the login page (or a 401 for /api/), except
-POST /login and the public home page with its assets (PUBLIC_PATHS), and the share links of cloud storage (/s/, see
-processing/share.py). Only a scrypt hash of the password is stored
+POST /login and the public home page with its assets (PUBLIC_PATHS). Only a scrypt hash of the password is stored
 (data/password.hash); set it with set_password.py."""
 import hashlib
 import hmac
@@ -18,7 +17,6 @@ from werkzeug.security import check_password_hash
 
 import processing
 from processing import BASE, HASH_FILE, _secret
-from processing import share as share_links      # SHARE
 
 PAGES_DIR = BASE / "pages"      # pages/index.*  = home page, pages/<category>/<page>.{html,js,css}
 SHARED_DIR = BASE / "shared"    # site.css, site.js
@@ -67,23 +65,8 @@ def is_authed() -> bool:
     return isinstance(value, str) and hmac.compare_digest(value, _fingerprint(h))
 
 
-# The little moon in the browser tab, the same on every page (the home page has its own copy of it).
-FAVICON_URL = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%23140b22'/%3E%3Ctext x='32' y='46' font-size='40' text-anchor='middle' fill='%23e9c776'%3E%E2%98%BE%3C/text%3E%3C/svg%3E"
-FAVICON = '  <link rel="icon" href="' + FAVICON_URL + '">\n'
-
-
-def inject(html: str, closing_tag: str, snippet: str) -> str:
-    """Insert snippet just before the first closing_tag (case-insensitive); append if the tag is missing."""
-    m = re.search(re.escape(closing_tag), html, re.I)
-    return html[: m.start()] + snippet + html[m.start():] if m else html + snippet
-
-
-def with_favicon(html: str) -> str:
-    return html if re.search(r'rel=["\']icon["\']', html, re.I) else inject(html, "</head>", FAVICON)
-
-
 def login_page() -> Response:
-    return Response(with_favicon(LOGIN_PAGE.read_text(encoding="utf-8")), status=401, mimetype="text/html",
+    return Response(LOGIN_PAGE.read_text(encoding="utf-8"), status=401, mimetype="text/html",
                     headers={"Cache-Control": "no-store"})
 
 
@@ -104,7 +87,7 @@ def _register_failure(ip: str) -> None:
 
 # Reachable without signing in, so search engines can read the home page. Everything else needs the password.
 PUBLIC_PATHS = {"/", "/index.css", "/index.js", "/robots.txt", "/sitemap.xml"}
-PUBLIC_PREFIXES = ("/shared/", "/images/", "/s/")      # SHARE: /s/ = share links of cloud storage (24 hours, processing/share.py)
+PUBLIC_PREFIXES = ("/shared/", "/images/")
 
 
 def init_auth(app):
@@ -149,8 +132,8 @@ def init_auth(app):
 
 
 init_auth(app)
-for blueprint in (processing.bp, processing.chat.bp, processing.board.bp, processing.storage.bp, processing.music.bp, share_links.bp):   # SHARE
-    app.register_blueprint(blueprint)      # chat/board: the Live page; storage: cloud storage; music: the music library; share_links: public share links
+for blueprint in (processing.bp, processing.chat.bp, processing.board.bp, processing.storage.bp, processing.music.bp):
+    app.register_blueprint(blueprint)      # chat/board: the Live page; storage: cloud storage; music: the music library
 SAFE = re.compile(r"^[A-Za-z0-9_-]+$")
 ASSET = re.compile(r"^[A-Za-z0-9_-]+\.(?:js|css)$")
 
@@ -160,7 +143,7 @@ TOOLS = {
     "image-tools": ("❖", "Layered image editor: transform, crop, filters, grid arrangement, tile split, format conversion."),
     "omni-file-viewer": ("❂", "Viewer, converter and merger for images, PDF, DOCX, spreadsheets, text, audio and video."),
     "calculator": ("∑", "Expressions, unit conversion, equations and linear systems."),
-    "cloud-storage": ("☁", "Shared file storage, 500 GB, resumable uploads, share links with QR code and barcode."),
+    "cloud-storage": ("☁", "Shared file storage, 500 GB, resumable uploads."),
     "music": ("♫", "Stream your music library, offline downloads, playlists and a mini player on every page."),
     "fortune-wheel": ("✺", "Random pick from a list of entries."),
     "live": ("☄", "Chat room with voice, screen sharing and a drawing board."),
@@ -179,6 +162,19 @@ def origin() -> str:
 def option(name: str, allowed: tuple, default: str) -> str:
     value = request.cookies.get("spells_" + name)
     return value if value in allowed else default
+
+
+# Phones and tablets get shared/mobile.css. The cookie spells_layout (auto / mobile / desktop, set in Options) overrides the guess.
+MOBILE_UA = re.compile(r"Android|iPhone|iPod|iPad|Mobi|Opera Mini|IEMobile|BlackBerry|webOS|Windows Phone", re.I)
+
+
+def is_mobile() -> bool:
+    layout = option("layout", ("auto", "mobile", "desktop"), "auto")
+    if layout != "auto":
+        return layout == "mobile"
+    if request.headers.get("Sec-CH-UA-Mobile") == "?1":      # sent by Chromium browsers
+        return True
+    return bool(MOBILE_UA.search(request.headers.get("User-Agent", "")))
 
 
 def label_for(name: str) -> str:
@@ -231,6 +227,12 @@ def spellbook() -> str:
     return "".join(shelves) or '<p class="empty">The shelves are empty.</p>'
 
 
+def inject(html: str, closing_tag: str, snippet: str) -> str:
+    """Insert snippet just before the first closing_tag (case-insensitive); append if the tag is missing."""
+    m = re.search(re.escape(closing_tag), html, re.I)
+    return html[: m.start()] + snippet + html[m.start():] if m else html + snippet
+
+
 def serve_page(category, name):
     """Serve <name>.html and automatically attach <name>.css / <name>.js sitting next to it,
     so the HTML never has to reference its own files. The saved options (cookies) are written onto <html> here,
@@ -239,10 +241,13 @@ def serve_page(category, name):
     html_file = folder / f"{name}.html"
     if not html_file.is_file():
         abort(404)
-    html = with_favicon(html_file.read_text(encoding="utf-8"))
+    html = html_file.read_text(encoding="utf-8")
     prefix = f"/{category}/" if category else "/"
     if (folder / f"{name}.css").is_file() and f"{name}.css" not in html:
         html = inject(html, "</head>", f'  <link rel="stylesheet" href="{prefix}{name}.css">\n')
+    mobile = is_mobile()
+    if mobile:                                           # last in <head>, so it wins over site.css and the page's own css
+        html = inject(html, "</head>", '  <link rel="stylesheet" href="/shared/mobile.css" id="mobile-css">\n')
     if is_authed() and "player.js" not in html:          # the music player (and its mini player) on every page for signed-in visitors
         html = inject(html, "</body>", '  <script src="/shared/player.js"></script>\n')
     if (folder / f"{name}.js").is_file() and f"{name}.js" not in html:
@@ -251,10 +256,11 @@ def serve_page(category, name):
     process = option("process", ("browser", "server"), "browser")
     nav = option("nav", ("open", "closed"), "closed")    # the sidebar: retracted to a narrow strip unless it was opened
     auth = "yes" if is_authed() else "no"                # so a signed-in visitor never sees the "Sign in" button flash
-    html = re.sub(r"<html\b", f'<html data-motion="{motion}" data-process="{process}" data-nav="{nav}" data-auth="{auth}"', html, count=1, flags=re.I)
+    device = "mobile" if mobile else "desktop"
+    html = re.sub(r"<html\b", f'<html data-motion="{motion}" data-process="{process}" data-nav="{"open" if mobile else nav}" data-auth="{auth}" data-device="{device}"', html, count=1, flags=re.I)
     if not category and name == "index":
         html = html.replace("<!--SPELLBOOK-->", spellbook()).replace("{{ORIGIN}}", origin())
-    return Response(html, mimetype="text/html", headers={"Vary": "Cookie"})
+    return Response(html, mimetype="text/html", headers={"Vary": "Cookie, User-Agent, Sec-CH-UA-Mobile"})
 
 
 @app.route("/")
@@ -272,7 +278,7 @@ def safe_headers(resp):
 
 @app.route("/robots.txt")
 def robots():
-    return Response(f"User-agent: *\nAllow: /\nDisallow: /api/\nDisallow: /s/\n\nSitemap: {origin()}/sitemap.xml\n", mimetype="text/plain")   # SHARE: /s/ kept out of search engines
+    return Response(f"User-agent: *\nAllow: /\nDisallow: /api/\n\nSitemap: {origin()}/sitemap.xml\n", mimetype="text/plain")
 
 
 @app.route("/sitemap.xml")
