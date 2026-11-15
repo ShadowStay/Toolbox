@@ -9,7 +9,6 @@ import re
 import threading
 import time
 from html import escape
-from pathlib import Path
 
 from flask import Flask, Response, abort, jsonify, redirect, request, send_from_directory
 from itsdangerous import BadSignature, URLSafeTimedSerializer
@@ -39,9 +38,16 @@ _fails = {}                       # ip -> [failure count, locked until (epoch se
 _lock = threading.Lock()
 
 
+_hash_cache = (None, None)        # (mtime_ns of data/password.hash, its content); the file is only re-read when it changes
+
+
 def password_hash():
+    global _hash_cache
     try:
-        return HASH_FILE.read_text().strip() or None
+        stamp = HASH_FILE.stat().st_mtime_ns
+        if _hash_cache[0] != stamp:
+            _hash_cache = (stamp, HASH_FILE.read_text().strip() or None)
+        return _hash_cache[1]
     except OSError:
         return None
 
@@ -87,7 +93,7 @@ def _register_failure(ip: str) -> None:
 
 # Reachable without signing in, so search engines can read the home page. Everything else needs the password.
 PUBLIC_PATHS = {"/", "/index.css", "/index.js", "/robots.txt", "/sitemap.xml"}
-PUBLIC_PREFIXES = ("/shared/", "/images/")
+PUBLIC_PREFIXES = ("/shared/", "/images/", "/s/")      # /s/<token>: share links of cloud storage files (share.py)
 
 
 def init_auth(app):
@@ -132,7 +138,7 @@ def init_auth(app):
 
 
 init_auth(app)
-for blueprint in (processing.bp, processing.chat.bp, processing.board.bp, processing.storage.bp, processing.music.bp):
+for blueprint in (processing.bp, processing.chat.bp, processing.board.bp, processing.storage.bp, processing.share.bp, processing.music.bp):
     app.register_blueprint(blueprint)      # chat/board: the Live page; storage: cloud storage; music: the music library
 SAFE = re.compile(r"^[A-Za-z0-9_-]+$")
 ASSET = re.compile(r"^[A-Za-z0-9_-]+\.(?:js|css)$")
@@ -147,6 +153,8 @@ TOOLS = {
     "music": ("♫", "Stream your music library, offline downloads, playlists and a mini player on every page."),
     "fortune-wheel": ("✺", "Random pick from a list of entries."),
     "live": ("☄", "Chat room with voice, screen sharing and a drawing board."),
+    "printing": ("⎙", "Lay files out on sheets of paper, preview them and print through CUPS."),
+    "video-editor": ("▶", "Multi-track video editor: trim, split, mix audio, export in the browser or with ffmpeg."),
     "tabletop": ("✠", "Character sheets, dice, a shared battle map with fog of war, and the dungeon master's HQ."),
 }
 LABELS = {}     # names that title-casing the file name would get wrong

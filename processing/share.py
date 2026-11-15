@@ -46,7 +46,7 @@ def share_create():
         raise Fail("That file no longer exists.")
     now = time.time()
     with _lock, conn() as c:
-        c.execute("DELETE FROM shares WHERE expires <= ?", (now,))
+        c.execute("DELETE FROM shares WHERE expires <= ? OR item NOT IN (SELECT id FROM items)", (now,))   # expired, or its file was deleted
         it = c.execute("SELECT is_dir FROM items WHERE id=?", (iid,)).fetchone()
         if not it:
             raise Fail("That file no longer exists.")

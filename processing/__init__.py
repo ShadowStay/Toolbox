@@ -47,4 +47,4 @@ handle_errors(bp, "The server could not process that.")
 
 # Imported last: each module registers its routes on bp (or on its own blueprint) and may import the names above.
 from . import text, image, files, roles, campaigns, characters, enemies, battlemap, rolls   # noqa: F401,E402
-from . import chat, board, storage, video, music, printing   # noqa: F401,E402
+from . import chat, board, storage, share, video, music, printing   # noqa: F401,E402

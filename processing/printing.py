@@ -179,7 +179,10 @@ def get(pid):
             e["ts"] = time.time()
     if not e:
         raise Fail("This file is no longer on the server. Add it again.")
-    return e, (ROOT / f"{pid}.pdf").read_bytes()
+    try:
+        return e, (ROOT / f"{pid}.pdf").read_bytes()
+    except OSError:                                      # purged between the lookup and the read
+        raise Fail("This file is no longer on the server. Add it again.")
 
 
 # ---------- converting to PDF ----------

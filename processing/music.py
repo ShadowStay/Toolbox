@@ -165,6 +165,7 @@ def forget(c, ids):
 
 
 def scan_body():
+    c = None
     try:
         scan_state["error"] = ""
         ROOT.mkdir(parents=True, exist_ok=True)
@@ -186,10 +187,11 @@ def scan_body():
                 c.commit()
         forget(c, [v[0] for k, v in known.items() if k not in found])
         c.commit()
-        c.close()
     except Exception as e:
         scan_state["error"] = str(e)
     finally:
+        if c is not None:
+            c.close()                                      # also after an error, or the database stays locked
         scan_state["running"] = False
 
 
@@ -289,8 +291,15 @@ def where(text):
     return w, p
 
 
+def whole(value, what="number"):
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        raise Fail(f"That {what} is not valid.")
+
+
 def paging(a, default=100):
-    return max(1, min(int(a.get("limit", default)), 5000)), max(0, int(a.get("offset", 0)))
+    return max(1, min(whole(a.get("limit", default)), 5000)), max(0, whole(a.get("offset", 0)))
 
 
 @bp.get("/tracks")
@@ -305,7 +314,7 @@ def tracks():
     if a.get("pl"):
         j, order = "JOIN pl_tracks x ON x.track=t.id", "x.pos"
         w.append("x.pl=?")
-        p.append(int(a["pl"]))
+        p.append(whole(a["pl"], "playlist"))
     elif a.get("liked"):
         j, order = "JOIN likes l ON l.track=t.id", "l.ts DESC"
     elif a.get("hist"):
@@ -432,7 +441,7 @@ def playlists():
 
 def append(c, pid, ids):
     pos = c.execute("SELECT COALESCE(MAX(pos), -1) + 1 FROM pl_tracks WHERE pl=?", (pid,)).fetchone()[0]
-    c.executemany("INSERT INTO pl_tracks VALUES(?,?,?)", [(pid, pos + i, int(t)) for i, t in enumerate(ids)])
+    c.executemany("INSERT INTO pl_tracks VALUES(?,?,?)", [(pid, pos + i, whole(t, "song")) for i, t in enumerate(ids)])
 
 
 @bp.post("/playlists")

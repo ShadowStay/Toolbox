@@ -59,6 +59,8 @@ def read_meta(cid):
 
 
 def write_meta(cid, name, created=None):
+    global _cache
+    _cache = None
     tmp = meta_file(cid).with_suffix(".tmp")
     tmp.write_text(json.dumps({"id": cid, "name": name, "created": created or int(time.time())}, ensure_ascii=False), encoding="utf-8")
     os.replace(tmp, meta_file(cid))
@@ -86,15 +88,22 @@ def ensure():
         write_meta(FIRST, "Main campaign")
 
 
+_cache = None                                              # (mtime of ROOT, list): current_id() runs on every request
+
+
 def all_campaigns():
     ensure()
+    stamp = ROOT.stat().st_mtime_ns
+    if _cache and _cache[0] == stamp:
+        return list(_cache[1])
     out = []
     for p in ROOT.iterdir():
         meta = read_meta(p.name) if p.is_dir() and ID.match(p.name) else None
         if meta:
             out.append({"id": p.name, "name": meta["name"], "created": meta.get("created", 0)})
     out.sort(key=lambda c: (c["created"], c["name"].casefold()))
-    return out
+    globals()["_cache"] = (stamp, out)
+    return list(out)
 
 
 def current_id():

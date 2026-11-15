@@ -148,9 +148,10 @@ def render_layers(state, sources):
         part = apply_filters(part, L.get("f"))
         deg = math.degrees(L.get("rot", 0)) % 360
         if deg: part = part.rotate(-deg, expand=True, resample=Image.BICUBIC)
-        layer = Image.new("RGBA", (w, h), (0, 0, 0, 0))
-        layer.paste(part, (round(L["cx"] - part.width / 2), round(L["cy"] - part.height / 2)))
-        canvas = Image.alpha_composite(canvas, layer)
+        x, y = round(L["cx"] - part.width / 2), round(L["cy"] - part.height / 2)
+        x0, y0, x1, y1 = max(x, 0), max(y, 0), min(x + part.width, w), min(y + part.height, h)
+        if x1 > x0 and y1 > y0:                              # only the visible part, not a full-size layer per image
+            canvas.alpha_composite(part.crop((x0 - x, y0 - y, x1 - x, y1 - y)), (x0, y0))
     return canvas
 
 
@@ -163,11 +164,16 @@ def render():
     sources = {i: request.files[k] for i, k in ((int(k[4:]), k) for k in request.files if k.startswith("file") and k[4:].isdigit())}
     canvas = render_layers(state, sources)
     fmt, q, bg = state.get("format", "png"), state.get("quality", 90), state.get("bg", "#ffffff")
+    if fmt not in FORMATS:
+        raise Fail("Unknown image format.")
     split = state.get("split")
     if not split:
         data, mime = encode(canvas, fmt, q, bg)
         return send_bytes(data, mime)
-    rows, cols = max(1, int(split.get("rows", 1))), max(1, int(split.get("cols", 1)))
+    try:
+        rows, cols = max(1, int(split.get("rows", 1))), max(1, int(split.get("cols", 1)))
+    except (TypeError, ValueError, AttributeError):
+        raise Fail("The number of pieces is not valid.")
     if rows * cols < 2: raise Fail("Choose at least 2 pieces.")
     if rows * cols > 100: raise Fail("That would make more than 100 pieces.")
     w, h = canvas.size

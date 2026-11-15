@@ -174,6 +174,7 @@
   // ---------- sidebar ----------
   const nav = document.getElementById("site-nav");
   if (!nav) return;
+  if (!nav) return;
   const current = location.pathname.replace(/\/+$/, "") || "/";
   const CACHE = "spells-nav";
   const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));

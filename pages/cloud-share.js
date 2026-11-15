@@ -167,7 +167,7 @@
       urlEl.value = cur.url;
       expEl.textContent = "Works until " + new Date(d.expires * 1000).toLocaleString([], { dateStyle: "medium", timeStyle: "short" }) + " (24 hours after it was created).";
       say("");
-      urlEl.select();
+      if (tab === "link") urlEl.select(); else await select(tab);
     } catch (err) { say(err.message || String(err), true); }
   }
 

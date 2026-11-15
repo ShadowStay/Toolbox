@@ -5,7 +5,7 @@
   const motionOn = () => root.dataset.motion === "on";
 
   // ---------- drifting motes and the odd shooting star ----------
-  const cv = $("#motes"), ctx = cv.getContext("2d");
+  const cv = $("#motes"), ctx = cv && cv.getContext("2d");      // the page may not have the canvas
   let W = 0, H = 0, motes = [], star = null, raf = 0;
   const rand = (a, b) => a + Math.random() * (b - a);
   function resize() {
@@ -45,10 +45,12 @@
     raf = requestAnimationFrame(frame);
   }
   const start = () => { if (!raf && motionOn()) raf = requestAnimationFrame(frame); };
-  resize();
-  addEventListener("resize", resize);
-  document.addEventListener("optionschange", start);
-  start();
+  if (cv) {
+    resize();
+    addEventListener("resize", resize);
+    document.addEventListener("optionschange", start);
+    start();
+  }
 
   // ---------- rotating whispers ----------
   const whispers = [
@@ -57,7 +59,7 @@
     "Text, images and files, all in one tower.",
   ];
   const el = $("#whisper");
-  {
+  if (el) {
     let i = 0;
     setInterval(() => {
       if (!motionOn()) return;

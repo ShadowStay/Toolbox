@@ -64,14 +64,13 @@
   // ---------- preview ----------
   let pv = 0;
   async function preview() {
-    const img = $("#sheet-img"), wait = $("#sheet-wait");
+    const img = $("#sheet-img"), wait = $("#sheet-wait"), my = ++pv;       // every call counts, so an older answer in flight is dropped
     if (!current || current.state === "prep" || current.state === "failed" || !current.sid) {
       img.hidden = true; wait.hidden = false;
       wait.textContent = !current ? "Select a file." : current.state === "failed" ? current.text : "Preparing…";
       $("#sheet-label").textContent = $("#sheet-info").textContent = "";
       return;
     }
-    const my = ++pv;
     img.classList.add("stale");
     let d;
     try { d = await api.json("/api/print/preview", { id: current.sid, options: options(), sheet }); }
