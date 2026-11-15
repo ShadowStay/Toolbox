@@ -77,6 +77,13 @@
       <div id="shelves"><!--SPELLBOOK--></div>
     </section>
 
+    <!-- Only for signed-in visitors (hidden by CSS otherwise, and /api/system refuses everybody else). Filled in by /shared/server-stats.js. -->
+    <section class="server-panel" id="server-panel" aria-labelledby="server-title">
+      <h2 id="server-title"><span>Server</span></h2>
+      <p class="hint" id="server-meta" role="status" aria-live="off"></p>
+      <div class="stat-grid" id="server-stats"></div>
+    </section>
+
     <section class="about" aria-labelledby="what-title">
       <h2 id="what-title"><span>Features</span></h2>
       <div class="about-grid">
@@ -134,5 +141,6 @@
   </main>
 
   <script src="/shared/site.js"></script>
+  <script src="/shared/server-stats.js"></script>
 </body>
 </html>

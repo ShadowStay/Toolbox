@@ -9,5 +9,7 @@ pandas
 openpyxl
 odfpy
 xlrd            # only for old .xls spreadsheets
+# server statistics on the home page (CPU, RAM, disk, temperature, network)
+psutil
 # optional: pillow-heif (HEIC photos), LibreOffice on the PATH (Word -> PDF)
 # optional: ffmpeg (4.4+) and ffprobe on the PATH (video editor, "On the server" export)
