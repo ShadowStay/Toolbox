@@ -37,11 +37,10 @@ from PIL import Image
 from . import bp, ipp
 from . import image as imaging
 from .errors import Fail
-from .files import text_pdf_pages
 
 CUPS = os.environ.get("CUPS_URL", "http://localhost:631").rstrip("/")
 USER, PASSWORD = os.environ.get("CUPS_USER", ""), os.environ.get("CUPS_PASSWORD", "")
-MAX_BYTES, MAX_COPIES, TTL, MAX_ITEMS = 50 * 1024 * 1024, 99, 60 * 60, 40
+MAX_BYTES, MAX_COPIES, TTL, MAX_ITEMS, MAX_TEXT_PAGES = 50 * 1024 * 1024, 99, 60 * 60, 40, 1500
 IMAGES = {"png", "jpg", "jpeg", "jpe", "jfif", "gif", "webp", "bmp", "tif", "tiff", "heic", "heif"}
 TEXT = {"txt", "log", "md", "csv", "tsv", "json", "xml", "ini", "yml", "yaml", "py", "js", "css", "html", "htm", "c", "cpp", "h", "java", "sh", "sql"}
 OFFICE = {"docx", "doc", "odt", "rtf", "xlsx", "xls", "ods", "pptx", "ppt", "odp"}
@@ -112,7 +111,7 @@ def layout(pdf, kind, o, only=None):
     out, scales = pymupdf.open(), []
 
     info = {}                                                              # page number -> (unrotated width, height, the page's own rotation)
-    for pn in set(pages):
+    for pn in set(pages if only is None else chunks[min(only, len(chunks) - 1)]):
         pg = src[pn - 1]
         own = pg.rotation
         pg.set_rotation(0)                                                 # show_pdf_page ignores /Rotate, so it is added to ours
@@ -139,6 +138,8 @@ def layout(pdf, kind, o, only=None):
             cell = pymupdf.Rect(area.x0 + cx * area.width / cols + pad, area.y0 + cy * area.height / rows + pad,
                                 area.x0 + (cx + 1) * area.width / cols - pad, area.y0 + (cy + 1) * area.height / rows - pad)
             deg, cw, ch = turn(pn)
+            if cw < 1 or ch < 1:
+                raise Fail(f"Page {pn} of this document has no size.")
             fit = min(cell.width / cw, cell.height / ch)
             s = {"fit": fit, "shrink": min(1, fit), "fill": max(cell.width / cw, cell.height / ch), "actual": 1, "custom": o["zoom"] / 100}[mode]
             dw, dh = cw * s, ch * s
@@ -152,7 +153,7 @@ def layout(pdf, kind, o, only=None):
             else:
                 sheet.show_pdf_page(pymupdf.Rect(x, y, x + dw, y + dh), src, pn - 1, rotate=ccw)
             scales.append(round(s * 100))
-    return out.tobytes(), len(chunks), scales
+    return out.tobytes(deflate=True), len(chunks), scales
 
 
 # ---------- the converted files, kept for an hour ----------
@@ -181,7 +182,7 @@ def get(pid):
         raise Fail("This file is no longer on the server. Add it again.")
     try:
         return e, (ROOT / f"{pid}.pdf").read_bytes()
-    except OSError:                                      # purged between the lookup and the read
+    except OSError:
         raise Fail("This file is no longer on the server. Add it again.")
 
 
@@ -221,15 +222,27 @@ def image_pdf(data):
 
 
 def text_to_pdf(data):
-    text = None
-    for enc in ("utf-8-sig", "cp1252"):
+    """Plain text on A4 pages in a monospaced font that has every Latin letter (ő, ű ... included), 95 columns by 66 lines."""
+    for enc in ("utf-8-sig", "cp1250"):                                   # cp1250: older Central European text files
         try:
             text = data.decode(enc)
             break
         except UnicodeDecodeError:
-            pass
+            text = data.decode("latin-1")
+    lines = []
+    for raw in re.sub(r"[\x00-\x08\x0b-\x1f\x7f]", " ", text.replace("\t", "    ")).splitlines():
+        lines += [raw[i:i + 95] for i in range(0, len(raw), 95)] or [""]
+    per, font = 66, pymupdf.Font("cour")
+    if len(lines) > per * MAX_TEXT_PAGES:
+        raise Fail(f"That text file is too long to print (more than {MAX_TEXT_PAGES} pages).")
     out = pymupdf.open()
-    text_pdf_pages(out, text if text is not None else data.decode("latin-1"))
+    for start in range(0, max(len(lines), 1), per):
+        page = out.new_page(width=595, height=842)
+        tw = pymupdf.TextWriter(page.rect)
+        for j, line in enumerate(lines[start:start + per]):
+            if line.strip():
+                tw.append((40, 50 + j * 12), line, font=font, fontsize=9)
+        tw.write_text(page)
     return out.tobytes()
 
 
@@ -244,6 +257,11 @@ def to_pdf(name, data):
         return text_to_pdf(data), "doc"
     if ext in OFFICE:
         return office_pdf(data, ext), "doc"
+    try:                                                                   # no known extension: maybe it is a picture anyway
+        Image.open(io.BytesIO(data)).verify()
+        return image_pdf(data), "image"
+    except Exception:
+        pass
     raise Fail(f"Files of type .{ext or '?'} can't be printed here. Use PDF, images, text or Office files.")
 
 
@@ -343,11 +361,14 @@ def print_preview():
         sheet = 0
     made, _, scales = layout(pdf, entry["kind"], o, only=sheet)
     doc = pymupdf.open(stream=made, filetype="pdf")
-    png = doc[0].get_pixmap(dpi=110, alpha=False).tobytes("png")
+    pix = doc[0].get_pixmap(dpi=110, alpha=False)
+    png, mime = pix.tobytes("png"), "png"
+    if len(png) > 600_000:                                                 # a photo: jpeg is far smaller
+        png, mime = pix.tobytes("jpeg", jpg_quality=85), "jpeg"
     w, h = doc[0].rect.width, doc[0].rect.height
     lo, hi = min(scales), max(scales)
     info = f"{PAPER[o['paper']][3]} {'landscape' if w > h else 'portrait'}, " + (f"printed at {lo}%" if lo == hi else f"printed at {lo}% to {hi}%")
-    return jsonify(sheets=chunks, sheet=sheet, image="data:image/png;base64," + base64.b64encode(png).decode(), info=info)
+    return jsonify(sheets=chunks, sheet=sheet, image=f"data:image/{mime};base64," + base64.b64encode(png).decode(), info=info)
 
 
 @bp.post("/print/submit")
@@ -361,7 +382,7 @@ def print_submit():
     if not 1 <= copies <= MAX_COPIES:
         raise Fail(f"Copies must be between 1 and {MAX_COPIES}.")
     printer = pick(str(d.get("printer") or ""))
-    if printer["state"] == "stopped" or not printer["accepting"]:
+    if not printer["accepting"]:                                          # (a stopped printer still queues jobs, e.g. while it is out of paper)
         raise Fail(f"The printer “{printer['name']}” is not accepting jobs right now.")
     o = clean_options(d.get("options"))
     made, sheets, _ = layout(pdf, entry["kind"], o)

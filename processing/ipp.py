@@ -26,7 +26,7 @@ def _many(tag, name, values):
 def charset(): return _many(0x47, "attributes-charset", ["utf-8"])
 def language(): return _many(0x48, "attributes-natural-language", ["en"])
 def uri(name, v): return _many(0x45, name, [v])
-def name_(name, v): return _many(0x42, name, [v[:255]])
+def name_(name, v): return _many(0x42, name, [v.encode("utf-8")[:255].decode("utf-8", "ignore")])   # at most 255 bytes
 def mime(name, v): return _many(0x49, name, [v])
 def keyword(name, *values): return _many(0x44, name, values)
 def integer(name, v): return _attr(0x21, name, struct.pack(">i", v))
