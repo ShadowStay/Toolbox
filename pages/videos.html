@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Videos</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Uncial+Antiqua&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/shared/site.css">
+</head>
+<body>
+  <aside id="site-nav" aria-label="Main navigation"></aside>
+
+  <main class="page wide" id="library">
+    <h1 class="tool-title">Videos</h1>
+    <details class="tool-about">
+      <summary>About</summary>
+      <p>Streams the .mp4, .m4v, .webm and .mov files of the cloud storage (any folder) straight from the server, with seeking. Resumes where you stopped (kept in this browser), plays the next video automatically, and precaches the start of the next video, and of a video you hover over or focus, so it begins at once (needs HTTPS or localhost). Works with a mouse and keyboard, touch (double-tap the sides to skip 10 s) and a TV remote (arrow keys, Enter, Back, media keys). Add ?tv=1 to the address or use the TV mode button if your TV is not detected. Posters need ffmpeg on the server. Only formats the browser can decode will play.</p>
+    </details>
+
+    <div class="vtoolbar">
+      <input type="text" id="q" placeholder="Search videos" autocomplete="off" spellcheck="false" aria-label="Search videos">
+      <select id="folder" aria-label="Folder"></select>
+      <select id="sort" aria-label="Sort by">
+        <option value="name">Name</option>
+        <option value="new">Newest</option>
+        <option value="size">Largest</option>
+      </select>
+      <button class="btn" id="refresh" type="button">Refresh</button>
+    </div>
+    <div class="vopts">
+      <button class="btn small" id="opt-pre" type="button" aria-pressed="true">Precache</button>
+      <button class="btn small" id="opt-auto" type="button" aria-pressed="true">Autoplay next</button>
+      <button class="btn small" id="opt-tv" type="button" aria-pressed="false">TV mode</button>
+      <span class="hint" id="pre-info"></span>
+      <button class="btn small" id="pre-clear" type="button" hidden>Clear precache</button>
+    </div>
+
+    <p class="status" id="status" role="status" aria-live="polite"></p>
+
+    <section id="cont" hidden aria-labelledby="cont-title">
+      <h2 class="vh" id="cont-title">Continue watching</h2>
+      <div class="vrow" id="cont-row"></div>
+    </section>
+
+    <h2 class="vh" id="all-title">All videos</h2>
+    <div class="vgrid" id="grid"></div>
+    <div id="more" aria-hidden="true"></div>
+    <p class="empty-note" id="empty" hidden>No videos found. Upload .mp4 files in <a href="/cloud-storage">Cloud Storage</a>, into any folder.</p>
+  </main>
+
+  <div class="player idle" id="player" tabindex="-1" role="dialog" aria-label="Video player" hidden>
+    <video id="vid" playsinline preload="auto"></video>
+    <div class="p-hit" id="p-hit"></div>
+    <div class="p-top" id="p-top">
+      <button class="pbtn" id="p-close" type="button" aria-label="Close the player" title="Close (Esc / Back)">←</button>
+      <span class="title" id="p-title"></span>
+    </div>
+    <div class="p-spin" id="p-spin" hidden aria-hidden="true"></div>
+    <div class="p-msg" id="p-msg" role="status" aria-live="polite"></div>
+    <div class="p-err" id="p-err" role="alert" hidden><span id="p-err-text"></span> <a id="p-err-link" href="#" download>Download the file</a></div>
+    <div class="p-up" id="p-up" hidden>
+      <p>Next: <strong id="p-up-title"></strong> in <span id="p-up-n">5</span> s</p>
+      <div class="p-up-btns"><button class="pbtn big" id="p-up-play" type="button">Play now</button><button class="pbtn" id="p-up-cancel" type="button">Cancel</button></div>
+    </div>
+    <div class="p-bar" id="p-bar">
+      <div class="p-seek" id="p-seek" role="slider" tabindex="0" aria-label="Seek" aria-valuemin="0" aria-valuenow="0" aria-valuemax="0"><div class="buf" id="p-buf"></div><div class="played" id="p-played"></div><div class="knob" id="p-knob"></div></div>
+      <div class="p-row">
+        <button class="pbtn" id="p-prev" type="button" aria-label="Previous video" title="Previous (P)">⏮</button>
+        <button class="pbtn" id="p-back" type="button" aria-label="Back 10 seconds" title="Back 10 s (J)">−10</button>
+        <button class="pbtn big" id="p-play" type="button" aria-label="Play" title="Play / pause (Space)">▶</button>
+        <button class="pbtn" id="p-fwd" type="button" aria-label="Forward 10 seconds" title="Forward 10 s (L)">+10</button>
+        <button class="pbtn" id="p-next" type="button" aria-label="Next video" title="Next (N)">⏭</button>
+        <span class="p-time" id="p-time">0:00 / 0:00</span>
+        <span class="grow"></span>
+        <span class="p-volwrap" id="p-volwrap"><button class="pbtn" id="p-vol" type="button" aria-label="Mute" title="Mute (M)">🔊</button><input type="range" id="p-volr" min="0" max="100" value="100" aria-label="Volume"></span>
+        <button class="pbtn" id="p-speed" type="button" aria-label="Playback speed" title="Speed">1×</button>
+        <button class="pbtn" id="p-fs" type="button" aria-label="Full screen" title="Full screen (F)">⛶</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="/shared/site.js"></script>
+</body>
+</html>

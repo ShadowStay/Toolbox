@@ -9,6 +9,7 @@ import re
 import threading
 import time
 from html import escape
+from pathlib import Path
 
 from flask import Flask, Response, abort, jsonify, redirect, request, send_from_directory
 from itsdangerous import BadSignature, URLSafeTimedSerializer
@@ -38,16 +39,9 @@ _fails = {}                       # ip -> [failure count, locked until (epoch se
 _lock = threading.Lock()
 
 
-_hash_cache = (None, None)        # (mtime_ns of data/password.hash, its content); the file is only re-read when it changes
-
-
 def password_hash():
-    global _hash_cache
     try:
-        stamp = HASH_FILE.stat().st_mtime_ns
-        if _hash_cache[0] != stamp:
-            _hash_cache = (stamp, HASH_FILE.read_text().strip() or None)
-        return _hash_cache[1]
+        return HASH_FILE.read_text().strip() or None
     except OSError:
         return None
 
@@ -93,7 +87,7 @@ def _register_failure(ip: str) -> None:
 
 # Reachable without signing in, so search engines can read the home page. Everything else needs the password.
 PUBLIC_PATHS = {"/", "/index.css", "/index.js", "/robots.txt", "/sitemap.xml"}
-PUBLIC_PREFIXES = ("/shared/", "/images/", "/s/")      # /s/<token>: share links of cloud storage files (share.py)
+PUBLIC_PREFIXES = ("/shared/", "/images/")
 
 
 def init_auth(app):
@@ -138,7 +132,7 @@ def init_auth(app):
 
 
 init_auth(app)
-for blueprint in (processing.bp, processing.chat.bp, processing.board.bp, processing.storage.bp, processing.share.bp, processing.music.bp):
+for blueprint in (processing.bp, processing.chat.bp, processing.board.bp, processing.storage.bp, processing.music.bp):
     app.register_blueprint(blueprint)      # chat/board: the Live page; storage: cloud storage; music: the music library
 SAFE = re.compile(r"^[A-Za-z0-9_-]+$")
 ASSET = re.compile(r"^[A-Za-z0-9_-]+\.(?:js|css)$")
@@ -151,10 +145,9 @@ TOOLS = {
     "calculator": ("∑", "Expressions, unit conversion, equations and linear systems."),
     "cloud-storage": ("☁", "Shared file storage, 500 GB, resumable uploads."),
     "music": ("♫", "Stream your music library, offline downloads, playlists and a mini player on every page."),
+    "videos": ("▶", "Stream mp4 videos from cloud storage on phone, PC or TV, with resume, autoplay next and precaching."),
     "fortune-wheel": ("✺", "Random pick from a list of entries."),
     "live": ("☄", "Chat room with voice, screen sharing and a drawing board."),
-    "printing": ("⎙", "Lay files out on sheets of paper, preview them and print through CUPS."),
-    "video-editor": ("▶", "Multi-track video editor: trim, split, mix audio, export in the browser or with ffmpeg."),
     "tabletop": ("✠", "Character sheets, dice, a shared battle map with fog of war, and the dungeon master's HQ."),
 }
 LABELS = {}     # names that title-casing the file name would get wrong
@@ -170,19 +163,6 @@ def origin() -> str:
 def option(name: str, allowed: tuple, default: str) -> str:
     value = request.cookies.get("spells_" + name)
     return value if value in allowed else default
-
-
-# Phones and tablets get shared/mobile.css. The cookie spells_layout (auto / mobile / desktop, set in Options) overrides the guess.
-MOBILE_UA = re.compile(r"Android|iPhone|iPod|iPad|Mobi|Opera Mini|IEMobile|BlackBerry|webOS|Windows Phone", re.I)
-
-
-def is_mobile() -> bool:
-    layout = option("layout", ("auto", "mobile", "desktop"), "auto")
-    if layout != "auto":
-        return layout == "mobile"
-    if request.headers.get("Sec-CH-UA-Mobile") == "?1":      # sent by Chromium browsers
-        return True
-    return bool(MOBILE_UA.search(request.headers.get("User-Agent", "")))
 
 
 def label_for(name: str) -> str:
@@ -253,9 +233,6 @@ def serve_page(category, name):
     prefix = f"/{category}/" if category else "/"
     if (folder / f"{name}.css").is_file() and f"{name}.css" not in html:
         html = inject(html, "</head>", f'  <link rel="stylesheet" href="{prefix}{name}.css">\n')
-    mobile = is_mobile()
-    if mobile:                                           # last in <head>, so it wins over site.css and the page's own css
-        html = inject(html, "</head>", '  <link rel="stylesheet" href="/shared/mobile.css" id="mobile-css">\n')
     if is_authed() and "player.js" not in html:          # the music player (and its mini player) on every page for signed-in visitors
         html = inject(html, "</body>", '  <script src="/shared/player.js"></script>\n')
     if (folder / f"{name}.js").is_file() and f"{name}.js" not in html:
@@ -264,11 +241,10 @@ def serve_page(category, name):
     process = option("process", ("browser", "server"), "browser")
     nav = option("nav", ("open", "closed"), "closed")    # the sidebar: retracted to a narrow strip unless it was opened
     auth = "yes" if is_authed() else "no"                # so a signed-in visitor never sees the "Sign in" button flash
-    device = "mobile" if mobile else "desktop"
-    html = re.sub(r"<html\b", f'<html data-motion="{motion}" data-process="{process}" data-nav="{"open" if mobile else nav}" data-auth="{auth}" data-device="{device}"', html, count=1, flags=re.I)
+    html = re.sub(r"<html\b", f'<html data-motion="{motion}" data-process="{process}" data-nav="{nav}" data-auth="{auth}"', html, count=1, flags=re.I)
     if not category and name == "index":
         html = html.replace("<!--SPELLBOOK-->", spellbook()).replace("{{ORIGIN}}", origin())
-    return Response(html, mimetype="text/html", headers={"Vary": "Cookie, User-Agent, Sec-CH-UA-Mobile"})
+    return Response(html, mimetype="text/html", headers={"Vary": "Cookie"})
 
 
 @app.route("/")
