@@ -74,6 +74,13 @@ body.playing { overflow: hidden; }
   .pbtn { min-width: 2.6rem; height: 2.6rem; }
 }
 
+.p-conv { margin-left: auto; padding: .1rem .7rem; font-size: .85rem; font-weight: 600; white-space: nowrap; color: var(--night); background: var(--candle); border-radius: 1rem; }
+.p-conv[hidden], .p-busy[hidden], .pbtn[hidden] { display: none; }
+.p-busy { position: absolute; left: 50%; top: calc(50% + 2.6rem); width: min(26rem, 86vw); padding: .4rem .8rem; text-align: center; pointer-events: none; transform: translateX(-50%); background: #000b; border-radius: .6rem; }
+.thumb .badge.ext { top: auto; right: auto; left: .35rem; bottom: .55rem; font-size: .7rem; color: var(--moon); background: #140b22dd; border: 1px solid var(--amethyst); }
+.player video::cue { font-size: 1.4rem; color: #fff; background: rgba(0, 0, 0, .7); }
+html.tv .player video::cue { font-size: 2.2rem; }
+
 /* ---------- TV: bigger everything, overscan-safe edges, no pointer-only controls ---------- */
 html.tv { font-size: 125%; }
 html.tv .vgrid { grid-template-columns: repeat(auto-fill, minmax(18rem, 1fr)); }

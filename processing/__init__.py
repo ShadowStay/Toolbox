@@ -5,7 +5,8 @@
   /api/chat/...             live page room   (chat.py)       /api/board/...    drawing board   (board.py)
   /api/storage/...          cloud storage    (storage.py)
   /api/video/render         video-editor     (video.py)      /api/music/...    music library   (music.py)
-  /api/print/...            printing         (printing.py, ipp.py)
+  /api/system               home page server statistics (system.py)
+  /api/videos/...           video streaming page (videos.py), conversion to HLS and subtitles (transcode.py)
   tabletop: roles.py  campaigns.py  characters.py  enemies.py  battlemap.py  rolls.py
 Every route answers with JSON ({"error": "..."} on failure) or with the raw bytes of the result.
 This file also holds what several modules share: the project paths and the secret key (data/secret.key)."""
@@ -47,4 +48,4 @@ handle_errors(bp, "The server could not process that.")
 
 # Imported last: each module registers its routes on bp (or on its own blueprint) and may import the names above.
 from . import text, image, files, roles, campaigns, characters, enemies, battlemap, rolls   # noqa: F401,E402
-from . import chat, board, storage, video, music, printing   # noqa: F401,E402
+from . import chat, board, storage, video, music, system, videos, transcode   # noqa: F401,E402

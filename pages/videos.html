@@ -16,7 +16,7 @@
     <h1 class="tool-title">Videos</h1>
     <details class="tool-about">
       <summary>About</summary>
-      <p>Streams the .mp4, .m4v, .webm and .mov files of the cloud storage (any folder) straight from the server, with seeking. Resumes where you stopped (kept in this browser), plays the next video automatically, and precaches the start of the next video, and of a video you hover over or focus, so it begins at once (needs HTTPS or localhost). Works with a mouse and keyboard, touch (double-tap the sides to skip 10 s) and a TV remote (arrow keys, Enter, Back, media keys). Add ?tv=1 to the address or use the TV mode button if your TV is not detected. Posters need ffmpeg on the server. Only formats the browser can decode will play.</p>
+      <p>Streams the video files of the cloud storage (any folder): mp4, m4v, mov, webm, mkv, avi, wmv, flv, mpg, m2ts, ogv and 3gp. Files the browser can play are streamed as they are; the rest (mkv, avi, HEVC, AC3 sound and so on) are converted once by the server with ffmpeg into a stream that plays everywhere, and you can start watching after a few seconds while it is still converting. Subtitles inside the file, and .srt or .vtt files next to it, are offered with the CC button. Resumes where you stopped (kept in this browser), plays the next video automatically, and precaches the start of the next video, and of a video you hover over or focus, so it begins at once (needs HTTPS or localhost). Works with a mouse and keyboard, touch (double-tap the sides to skip 10 s) and a TV remote (arrow keys, Enter, Back, media keys). Add ?tv=1 to the address or use the TV mode button if your TV is not detected. Conversion and posters need ffmpeg and ffprobe on the server; converted copies are cached (see the line under the buttons).</p>
     </details>
 
     <div class="vtoolbar">
@@ -35,6 +35,8 @@
       <button class="btn small" id="opt-tv" type="button" aria-pressed="false">TV mode</button>
       <span class="hint" id="pre-info"></span>
       <button class="btn small" id="pre-clear" type="button" hidden>Clear precache</button>
+      <span class="hint" id="conv-info"></span>
+      <button class="btn small" id="conv-clear" type="button" hidden>Clear conversions</button>
     </div>
 
     <p class="status" id="status" role="status" aria-live="polite"></p>
@@ -56,8 +58,10 @@
     <div class="p-top" id="p-top">
       <button class="pbtn" id="p-close" type="button" aria-label="Close the player" title="Close (Esc / Back)">←</button>
       <span class="title" id="p-title"></span>
+      <span class="p-conv" id="p-conv" hidden></span>
     </div>
     <div class="p-spin" id="p-spin" hidden aria-hidden="true"></div>
+    <div class="p-busy" id="p-busy" role="status" hidden></div>
     <div class="p-msg" id="p-msg" role="status" aria-live="polite"></div>
     <div class="p-err" id="p-err" role="alert" hidden><span id="p-err-text"></span> <a id="p-err-link" href="#" download>Download the file</a></div>
     <div class="p-up" id="p-up" hidden>
@@ -75,6 +79,7 @@
         <span class="p-time" id="p-time">0:00 / 0:00</span>
         <span class="grow"></span>
         <span class="p-volwrap" id="p-volwrap"><button class="pbtn" id="p-vol" type="button" aria-label="Mute" title="Mute (M)">🔊</button><input type="range" id="p-volr" min="0" max="100" value="100" aria-label="Volume"></span>
+        <button class="pbtn" id="p-cc" type="button" aria-label="Subtitles" aria-pressed="false" title="Subtitles (C)" hidden>CC</button>
         <button class="pbtn" id="p-speed" type="button" aria-label="Playback speed" title="Speed">1×</button>
         <button class="pbtn" id="p-fs" type="button" aria-label="Full screen" title="Full screen (F)">⛶</button>
       </div>
